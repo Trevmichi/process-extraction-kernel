@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Validate invoice\n[VALIDATE_FIELDS]"]
   n3{"Missing GL code?\n<IF_CONDITION>"}
   n4["Contact manager\n[REQUEST_CLARIFICATION]"]
@@ -7,7 +7,7 @@ flowchart LR
   n6["Route for director approval\n[ROUTE_FOR_REVIEW]"]
   n7{"Approved?\n<APPROVE_OR_REJECT>"}
   n8["Schedule payment\n[SCHEDULE_PAYMENT]"]
-  n9([["End"]])
+  n9(End)
   n10["Receive invoice/message\n[RECEIVE_MESSAGE]"]
   n11["Execute payment\n[EXECUTE_PAYMENT]"]
   n10 --> n2

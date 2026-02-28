@@ -73,27 +73,6 @@
       "kind": "task",
       "name": "Invoices are received by email and entered into the ERP by t...",
       "action": {
-        "type": "RECEIVE_MESSAGE",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "Invoices are received by email and entered into the ERP by the AP clerk."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:RECEIVE_MESSAGE"
-      }
-    },
-    {
-      "id": "n3",
-      "kind": "task",
-      "name": "Invoices are received by email and entered into the ERP by t...",
-      "action": {
         "type": "ENTER_RECORD",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
@@ -111,7 +90,7 @@
       }
     },
     {
-      "id": "n4",
+      "id": "n3",
       "kind": "task",
       "name": "The clerk validates required fields (vendor, invoice number,...",
       "action": {
@@ -132,7 +111,7 @@
       }
     },
     {
-      "id": "n5",
+      "id": "n4",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -152,7 +131,7 @@
       }
     },
     {
-      "id": "n6",
+      "id": "n5",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -172,12 +151,12 @@
       }
     },
     {
-      "id": "n7",
+      "id": "n6",
       "kind": "task",
       "name": "If the invoice matches the PO and goods receipt, it can be a...",
       "action": {
         "type": "APPROVE",
-        "actor_id": "role_ap_clerk",
+        "actor_id": "role_director",
         "artifact_id": "art_invoice",
         "extra": {}
       },
@@ -193,7 +172,7 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n7",
       "kind": "task",
       "name": "After approval, payment is scheduled for Net 30 and then pai...",
       "action": {
@@ -214,12 +193,12 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n8",
       "kind": "task",
       "name": "After approval, payment is scheduled for Net 30 and then pai...",
       "action": {
         "type": "EXECUTE_PAYMENT",
-        "actor_id": "role_ap_clerk",
+        "actor_id": "sys_erp",
         "artifact_id": "art_payment",
         "extra": {}
       },
@@ -235,7 +214,7 @@
       }
     },
     {
-      "id": "n10",
+      "id": "n9",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -268,19 +247,14 @@
       "condition": null
     },
     {
-      "frm": "n4",
-      "to": "n5",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n7",
+      "frm": "n5",
+      "to": "n6",
       "condition": "MATCH_3_WAY"
     },
     {
-      "frm": "n7",
+      "frm": "n5",
       "to": "n8",
-      "condition": null
+      "condition": "SCHEDULE_PAYMENT"
     },
     {
       "frm": "n8",
@@ -288,23 +262,23 @@
       "condition": null
     },
     {
-      "frm": "n9",
-      "to": "n10",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n7",
+      "frm": "n5",
+      "to": "n6",
       "condition": "amount>THRESH"
-    },
-    {
-      "frm": "n6",
-      "to": "n7",
-      "condition": "amount<=THRESH"
     },
     {
       "frm": "n5",
       "to": "n6",
+      "condition": "amount<=THRESH"
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
       "condition": "match"
     }
   ],

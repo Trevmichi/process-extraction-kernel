@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2{"Decision\n<HAS_PO>"}
   n3["AP routes it to the department manager\n[ROUTE_FOR_REVIEW]"]
   n4["The manager must confirm the expense\n[REVIEW]"]
@@ -9,7 +9,7 @@ flowchart LR
   n8["and closes the invoice\n[UPDATE_STATUS]"]
   n9["AP enters the account code\n[ENTER_RECORD]"]
   n10["and proceeds to schedule payment\n[SCHEDULE_PAYMENT]"]
-  n11([["End"]])
+  n11(End)
   n12["Receive invoice\n[RECEIVE_MESSAGE]"]
   n12 --> n2
   n2 -->|no_po| n3

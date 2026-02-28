@@ -11,7 +11,19 @@ from typing import List
 from .ontology import VALID_ACTIONS, VALID_DECISIONS, VALID_ACTORS, VALID_ARTIFACTS
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(gap_report: str = "") -> str:
+    gap_section = ""
+    if gap_report and gap_report.strip():
+        gap_section = f"""
+CRITICAL REQUIREMENTS:
+The following nodes and logic paths have been identified as missing in previous extractions.
+You MUST ensure these are represented if they are supported by the source text.
+Do NOT simplify away 'APPROVE', 'REVIEW', or 'UPDATE_STATUS' — preserve them whenever evidence exists.
+
+--- GAP REPORT START ---
+{gap_report.strip()}
+--- GAP REPORT END ---
+"""
     return f"""You are a strict Accounts Payable Process Extraction Engine.
 Your job is to read a full block of text and extract a chronological JSON array of ALL core business logic intents found within it.
 
@@ -29,10 +41,10 @@ RULES:
 5. ATOMICITY: Never skip intermediate tasks. Every step mentioned must be a node. If a condition follows a task, the task node must exist and the condition node must follow it. Do not jump straight from a start/previous node to a conditional result if an intermediate action was described.
 6. Output ONLY a valid JSON object with a single key 'intents' containing the array. Schema: {{ "intents": [ {{ "kind": "...", "intent": "...", "actor_id": "...", "artifact_id": "...", "branch_label": "...", "parent_id": "...", "evidence_span": "..." }} ] }}
 7. PARENT TRACKING: For every intent, if it is the direct result of a previous decision, the `branch_label` must be present. If it is a standard sequential step, leave `branch_label` null.
-"""
+{gap_section}"""
 
 
-def classify_text_block_llm(text: str) -> List[dict]:
+def classify_text_block_llm(text: str, gap_report: str = "") -> List[dict]:
     import json
     from openai import OpenAI
 
@@ -43,7 +55,7 @@ def classify_text_block_llm(text: str) -> List[dict]:
         response = client.chat.completions.create(
             model="gemma3:12b",
             messages=[
-                {"role": "system", "content": build_system_prompt()},
+                {"role": "system", "content": build_system_prompt(gap_report=gap_report)},
                 {"role": "user", "content": text}
             ],
             response_format={"type": "json_object"},

@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Run 3-way match\n[MATCH_3_WAY]"]
   n3{"Variance above tolerance?\n<VARIANCE_ABOVE_TOLERANCE>"}
   n4["Place invoice on hold\n[UPDATE_STATUS]"]
@@ -7,7 +7,7 @@ flowchart LR
   n6["Receive corrected documents\n[RECEIVE_MESSAGE]"]
   n7["Update invoice\n[UPDATE_RECORD]"]
   n8["Re-run matching\n[MATCH_3_WAY]"]
-  n9([["End"]])
+  n9(End)
   n1 --> n2
   n2 --> n3
   n3 -->|above_tolerance| n4

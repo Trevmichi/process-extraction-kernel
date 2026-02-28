@@ -3,7 +3,7 @@ import os
 import re
 from typing import List, Tuple, Dict, Optional, TypedDict, Literal
 from .models import ProcessDoc, Node, Edge, Action, Decision, Evidence
-from .ontology import ActionType, DecisionType
+from .ontology import ActionType, DecisionType, VALID_ACTIONS, VALID_DECISIONS
 
 VERB_ACTIONS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b(receive|received)\b", re.I), "RECEIVE_MESSAGE"),
@@ -192,7 +192,7 @@ def _classify_regex_fallback(s: str) -> List[ParsedIntent]:
 
     return intents
 
-def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessDoc:
+def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report: str = "") -> ProcessDoc:
     actors = [
         {"id": "role_ap_clerk", "type": "human_role", "name": "AP Clerk"},
         {"id": "role_manager", "type": "human_role", "name": "Department Manager"},
@@ -213,7 +213,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
     all_intents: List[Dict] = []
     if os.environ.get("USE_LLM_CLASSIFIER") == "true":
         from .llm_classifier import classify_text_block_llm
-        all_intents = classify_text_block_llm(text)
+        all_intents = classify_text_block_llm(text, gap_report=gap_report)
 
     # Fallback to regex if LLM is off, failed, or hit a rate limit
     if not all_intents:
@@ -270,6 +270,25 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
 
         elif intent.get("kind") == "action":
             act = intent["intent"]
+
+            # Guard: LLM sometimes returns a decision type under kind="action".
+            # Re-route to gateway handling to avoid ValueError in Action.__post_init__.
+            if act in VALID_DECISIONS and act not in VALID_ACTIONS:
+                gid = f"n{next_num}"; next_num += 1
+                gw_node = Node(
+                    id=gid,
+                    kind="gateway",
+                    name="Decision",
+                    decision=Decision(type=act, expression=intent.get("expression")),
+                    evidence=ev(ev_span),
+                    meta={"canonical_key": f"gw:{act}"},
+                )
+                nodes.append(gw_node)
+                edges.append(Edge(frm=current_parent_node, to=gid))
+                current_parent_node = gid
+                last_gw_node = gw_node
+                continue
+
             task_key = f"task:{act}"
             if task_key == last_task_key:
                 continue

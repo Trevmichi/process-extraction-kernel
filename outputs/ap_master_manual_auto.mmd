@@ -1,111 +1,101 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Invoices are received by email and entered into the ERP by t...\n[ENTER_RECORD]"]
   n3["The clerk validates required fields (vendor, invoice number,...\n[VALIDATE_FIELDS]"]
-  n4{"Decision\n<MATCH_3_WAY>"}
-  n5{"Decision\n<THRESHOLD_AMOUNT>"}
-  n6["After approval, payment is scheduled for Net 30 and then pai...\n[SCHEDULE_PAYMENT]"]
-  n7["After approval, payment is scheduled for Net 30 and then pai...\n[EXECUTE_PAYMENT]"]
-  n8{"Decision\n<IF_CONDITION>"}
-  n9["If an invoice does not have a PO number, AP routes it to the...\n[ROUTE_FOR_REVIEW]"]
-  n10["The manager must confirm the expense and provide an account ...\n[REQUEST_CLARIFICATION]"]
-  n11["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]
-  n12["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]
-  n13["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]
-  n14["If the manager rejects the expense, AP notifies the vendor a...\n[UPDATE_STATUS]"]
-  n15["AP performs a 3-way match.\n[MATCH_3_WAY]"]
-  n16{"Decision\n<IF_CONDITION>"}
-  n17["If there is a quantity mismatch or price variance above the ...\n[REQUEST_CLARIFICATION]"]
-  n18["Once corrected documents are received, AP updates the invoic...\n[RECEIVE_MESSAGE]"]
-  n19["Once corrected documents are received, AP updates the invoic...\n[UPDATE_RECORD]"]
-  n21["The AP clerk receives the invoice via the central email port...\n[ENTER_RECORD]"]
-  n22["The clerk validates the invoice.\n[VALIDATE_FIELDS]"]
-  n23{"Decision\n<IF_CONDITION>"}
-  n24["If the invoice is missing a GL account code, the clerk conta...\n[REQUEST_CLARIFICATION]"]
-  n25["The manager provides the account code.\n[ENTER_RECORD]"]
-  n26["Once the account code is updated, the invoice is routed for ...\n[ROUTE_FOR_REVIEW]"]
-  n27["Once the account code is updated, the invoice is routed for ...\n[APPROVE]"]
-  n28["Once the account code is updated, the invoice is routed for ...\n[SCHEDULE_PAYMENT]"]
-  n29["Invoices are entered into the ERP.\n[ENTER_RECORD]"]
-  n30["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]
-  n31{"Decision\n<IF_CONDITION>"}
-  n32["If a duplicate is detected, the system immediately rejects t...\n[REJECT]"]
-  n33["If a duplicate is detected, the system immediately rejects t...\n[NOTIFY]"]
-  n34["If it is not a duplicate, the AP clerk proceeds to match the...\n[MATCH_3_WAY]"]
-  n35["After matching, the invoice is approved.\n[APPROVE]"]
-  n36([["End"]])
+  n4{"Decision\n<HAS_PO>"}
+  n5["If the invoice matches the PO and goods receipt, it can be a...\n[APPROVE]"]
+  n6{"Decision\n<THRESHOLD_AMOUNT>"}
+  n7["After approval, payment is scheduled for Net 30 and then pai...\n[SCHEDULE_PAYMENT]"]
+  n8["After approval, payment is scheduled for Net 30 and then pai...\n[EXECUTE_PAYMENT]"]
+  n9{"Decision\n<IF_CONDITION>"}
+  n10["If an invoice does not have a PO number, AP routes it to the...\n[ROUTE_FOR_REVIEW]"]
+  n11["The manager must confirm the expense and provide an account ...\n[REVIEW]"]
+  n12["The manager must confirm the expense and provide an account ...\n[UPDATE_RECORD]"]
+  n13{"Decision\n<APPROVE_OR_REJECT>"}
+  n14["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]
+  n15["If the manager rejects the expense, AP notifies the vendor a...\n[UPDATE_STATUS]"]
+  n16["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]
+  n17["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]
+  n18["AP performs a 3-way match.\n[MATCH_3_WAY]"]
+  n19{"Decision\n<VARIANCE_ABOVE_TOLERANCE>"}
+  n20["If there is a quantity mismatch or price variance above the ...\n[REQUEST_CLARIFICATION]"]
+  n21["Once corrected documents are received, AP updates the invoic...\n[RECEIVE_MESSAGE]"]
+  n22["Once corrected documents are received, AP updates the invoic...\n[UPDATE_RECORD]"]
+  n24["The AP clerk receives the invoice via the central email port...\n[ENTER_RECORD]"]
+  n25["The clerk validates the invoice.\n[VALIDATE_FIELDS]"]
+  n26{"Decision\n<IF_CONDITION>"}
+  n27["If the invoice is missing a GL account code, the clerk conta...\n[REQUEST_CLARIFICATION]"]
+  n28["The manager must confirm the expense and provide an account ...\n[UPDATE_RECORD]"]
+  n29["Invoices are routed for approval.\n[ROUTE_FOR_REVIEW]"]
+  n30["Invoices are entered into the system.\n[ENTER_RECORD]"]
+  n31["Invoices are matched to purchase orders and receipts.\n[MATCH_3_WAY]"]
+  n32["Payments are executed.\n[EXECUTE_PAYMENT]"]
+  n33(End)
   n1 --> n2
   n2 --> n3
   n3 --> n4
-  n6 --> n7
-  n7 --> n8
-  n8 -->|IF_CONDITION| n9
-  n8 -->|IF_CONDITION| n10
-  n8 -->|IF_CONDITION| n11
-  n8 -->|IF_CONDITION| n12
-  n8 -->|IF_CONDITION| n13
-  n8 -->|IF_CONDITION| n14
-  n14 --> n15
-  n15 --> n16
-  n16 -->|IF_CONDITION| n17
-  n16 -->|IF_CONDITION| n18
-  n16 -->|IF_CONDITION| n19
-  n16 -->|IF_CONDITION| n15
-  n21 --> n22
-  n22 --> n23
-  n23 -->|IF_CONDITION| n24
-  n23 -->|IF_CONDITION| n25
-  n23 -->|IF_CONDITION| n26
-  n23 -->|IF_CONDITION| n27
-  n23 -->|IF_CONDITION| n28
+  n4 -->|HAS_PO| n5
+  n6 -->|SCHEDULE_PAYMENT| n8
+  n8 --> n9
+  n9 -->|IF_CONDITION| n10
+  n9 -->|ROUTE_FOR_REVIEW| n11
+  n9 -->|REVIEW| n12
+  n12 --> n13
+  n13 -->|APPROVE_OR_REJECT| n14
+  n13 -->|APPROVE_OR_REJECT| n15
+  n13 -->|APPROVE_OR_REJECT| n16
+  n13 -->|ENTER_RECORD| n17
+  n17 --> n18
+  n18 --> n19
+  n19 -->|VARIANCE_ABOVE_TOLERANCE| n20
+  n19 -->|REQUEST_CLARIFICATION| n21
+  n19 -->|RECEIVE_MESSAGE| n22
+  n19 -->|UPDATE_RECORD| n18
+  n24 --> n25
+  n25 --> n26
+  n26 -->|IF_CONDITION| n27
+  n26 -->|REQUEST_CLARIFICATION| n28
   n28 --> n29
   n29 --> n30
   n30 --> n31
-  n31 -->|IF_CONDITION| n32
-  n31 -->|IF_CONDITION| n33
-  n31 -->|IF_CONDITION| n34
-  n34 --> n35
-  n35 --> n36
-  n19 --> n15
-  n15 --> n36
-  n5 -->|amount>THRESH| n27
-  n5 -->|amount<=THRESH| n27
-  n27 --> n6
-  n4 -->|match| n5
-  U_NOTE["Unknowns: 9 (see JSON unknowns list)"]
+  n31 --> n32
+  n32 --> n33
+  n22 --> n18
+  n18 --> n33
+  n6 -->|amount>THRESH| n5
+  n6 -->|amount<=THRESH| n5
+  n5 --> n7
+  U_NOTE["Unknowns: 10 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
   style n1 fill:#9f9,stroke:#333,stroke-width:2px
   style n2 fill:#bbf,stroke:#333,stroke-width:1px
   style n3 fill:#bbf,stroke:#333,stroke-width:1px
   style n4 fill:#fdb,stroke:#333,stroke-width:1px
-  style n5 fill:#fdb,stroke:#333,stroke-width:1px
-  style n6 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n6 fill:#fdb,stroke:#333,stroke-width:1px
   style n7 fill:#bbf,stroke:#333,stroke-width:1px
-  style n8 fill:#fdb,stroke:#333,stroke-width:1px
-  style n9 fill:#bbf,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#fdb,stroke:#333,stroke-width:1px
   style n10 fill:#bbf,stroke:#333,stroke-width:1px
   style n11 fill:#bbf,stroke:#333,stroke-width:1px
   style n12 fill:#bbf,stroke:#333,stroke-width:1px
-  style n13 fill:#bbf,stroke:#333,stroke-width:1px
+  style n13 fill:#fdb,stroke:#333,stroke-width:1px
   style n14 fill:#bbf,stroke:#333,stroke-width:1px
   style n15 fill:#bbf,stroke:#333,stroke-width:1px
-  style n16 fill:#fdb,stroke:#333,stroke-width:1px
+  style n16 fill:#bbf,stroke:#333,stroke-width:1px
   style n17 fill:#bbf,stroke:#333,stroke-width:1px
   style n18 fill:#bbf,stroke:#333,stroke-width:1px
-  style n19 fill:#bbf,stroke:#333,stroke-width:1px
+  style n19 fill:#fdb,stroke:#333,stroke-width:1px
+  style n20 fill:#bbf,stroke:#333,stroke-width:1px
   style n21 fill:#bbf,stroke:#333,stroke-width:1px
   style n22 fill:#bbf,stroke:#333,stroke-width:1px
-  style n23 fill:#fdb,stroke:#333,stroke-width:1px
   style n24 fill:#bbf,stroke:#333,stroke-width:1px
   style n25 fill:#bbf,stroke:#333,stroke-width:1px
-  style n26 fill:#bbf,stroke:#333,stroke-width:1px
+  style n26 fill:#fdb,stroke:#333,stroke-width:1px
   style n27 fill:#bbf,stroke:#333,stroke-width:1px
   style n28 fill:#bbf,stroke:#333,stroke-width:1px
   style n29 fill:#bbf,stroke:#333,stroke-width:1px
   style n30 fill:#bbf,stroke:#333,stroke-width:1px
-  style n31 fill:#fdb,stroke:#333,stroke-width:1px
+  style n31 fill:#bbf,stroke:#333,stroke-width:1px
   style n32 fill:#bbf,stroke:#333,stroke-width:1px
-  style n33 fill:#bbf,stroke:#333,stroke-width:1px
-  style n34 fill:#bbf,stroke:#333,stroke-width:1px
-  style n35 fill:#bbf,stroke:#333,stroke-width:1px
-  style n36 fill:#f99,stroke:#333,stroke-width:2px
+  style n33 fill:#f99,stroke:#333,stroke-width:2px

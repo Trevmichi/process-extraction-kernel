@@ -199,7 +199,7 @@
       "name": "After a successful match, payment is executed.",
       "action": {
         "type": "EXECUTE_PAYMENT",
-        "actor_id": "role_ap_clerk",
+        "actor_id": "sys_erp",
         "artifact_id": "art_payment",
         "extra": {}
       },

@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Enter invoice in ERP\n[ENTER_RECORD]"]
   n3["Validate invoice fields\n[VALIDATE_FIELDS]"]
   n4{"3-way match?\n<MATCH_3_WAY>"}
@@ -7,7 +7,7 @@ flowchart LR
   n6["Approve invoice\n[APPROVE]"]
   n7["Director approves\n[APPROVE]"]
   n8["Schedule payment\n[SCHEDULE_PAYMENT]"]
-  n9([["End"]])
+  n9(End)
   n10["Receive invoice/message\n[RECEIVE_MESSAGE]"]
   n11["Execute payment\n[EXECUTE_PAYMENT]"]
   n10 --> n2

@@ -119,3 +119,10 @@
 {"ts": "2026-02-28T15:43:30.968118Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:57:39.087182Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:58:59.222679Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:19:28.168169Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:25:07.129816Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:25:54.962215Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:32:02.979039Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:33:03.849124Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T16:38:16.883284Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T18:17:59.323993Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}

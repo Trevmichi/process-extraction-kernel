@@ -15,8 +15,8 @@
     "edges": {
       "a": 11,
       "b": 10,
-      "added_in_b": 5,
-      "removed_in_b": 6
+      "added_in_b": 4,
+      "removed_in_b": 5
     },
     "unknowns": {
       "a": 3,
@@ -54,14 +54,12 @@
       "task:EXECUTE_PAYMENT"
     ],
     "edges_added_in_b": [
-      "gw:APPROVE_OR_REJECT ->|approved| task:SCHEDULE_PAYMENT",
       "gw:IF_CONDITION ->|condition_true| task:RECEIVE_MESSAGE",
       "gw:IF_CONDITION ->|condition_true| task:REQUEST_CLARIFICATION",
       "gw:IF_CONDITION ->|condition_true| task:UPDATE_RECORD",
       "task:SCHEDULE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
-      "gw:APPROVE_OR_REJECT ->|approve| task:SCHEDULE_PAYMENT",
       "gw:IF_CONDITION ->|missing| task:REQUEST_CLARIFICATION",
       "gw:IF_CONDITION ->|not_missing| task:ROUTE_FOR_REVIEW",
       "task:EXECUTE_PAYMENT -> end:end",
