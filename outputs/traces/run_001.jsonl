@@ -1,0 +1,3 @@
+{"ts": "2026-02-24T04:14:49.015565Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001"}, "cost": {}}
+{"ts": "2026-02-24T04:14:49.015565Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_invoice_doc_001"}, "cost": {}}
+{"ts": "2026-02-24T04:14:49.015565Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": []}, "cost": {}}

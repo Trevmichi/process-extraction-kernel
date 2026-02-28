@@ -1,0 +1,4 @@
+﻿If an invoice does not have a PO number, AP routes it to the department manager.
+The manager must confirm the expense and provide an account code.
+If the manager rejects the expense, AP notifies the vendor and closes the invoice.
+If approved, AP enters the account code and proceeds to schedule payment.

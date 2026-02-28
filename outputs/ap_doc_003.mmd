@@ -1,0 +1,20 @@
+flowchart TD
+  n1(["Start"])
+  n2["Run 3-way match\n[MATCH_3_WAY]"]
+  n3{"Variance above tolerance?\n<VARIANCE_ABOVE_TOLERANCE>"}
+  n4["Place invoice on hold\n[UPDATE_STATUS]"]
+  n5["Contact vendor\n[REQUEST_CLARIFICATION]"]
+  n6["Receive corrected documents\n[RECEIVE_MESSAGE]"]
+  n7["Update invoice\n[UPDATE_RECORD]"]
+  n8["Re-run matching\n[MATCH_3_WAY]"]
+  n9([["End"]])
+  n1 --> n2
+  n2 --> n3
+  n3 -->|above_tolerance| n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
+  n7 --> n8
+  n8 --> n9
+  U_NOTE["Unknowns: 7 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE

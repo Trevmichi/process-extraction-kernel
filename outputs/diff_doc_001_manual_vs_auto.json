@@ -1,0 +1,58 @@
+{
+  "inputs": {
+    "a": "outputs/ap_doc_001.json",
+    "b": "outputs/ap_doc_001_auto.json",
+    "label_a": "doc_001_manual",
+    "label_b": "doc_001_auto"
+  },
+  "summary": {
+    "nodes": {
+      "a": 11,
+      "b": 10,
+      "added_in_b": 0,
+      "removed_in_b": 0
+    },
+    "edges": {
+      "a": 11,
+      "b": 10,
+      "added_in_b": 0,
+      "removed_in_b": 0
+    },
+    "unknowns": {
+      "a": 5,
+      "b": 5,
+      "added_in_b": 0,
+      "removed_in_b": 0
+    },
+    "evidence_rate": {
+      "a": 1.0,
+      "b": 1.0
+    },
+    "action_counts": {
+      "a": {
+        "ENTER_RECORD": 1,
+        "VALIDATE_FIELDS": 1,
+        "APPROVE": 2,
+        "SCHEDULE_PAYMENT": 1,
+        "RECEIVE_MESSAGE": 1,
+        "EXECUTE_PAYMENT": 1
+      },
+      "b": {
+        "RECEIVE_MESSAGE": 1,
+        "ENTER_RECORD": 1,
+        "VALIDATE_FIELDS": 1,
+        "APPROVE": 1,
+        "SCHEDULE_PAYMENT": 1,
+        "EXECUTE_PAYMENT": 1
+      }
+    }
+  },
+  "details": {
+    "nodes_added_in_b": [],
+    "nodes_removed_in_b": [],
+    "edges_added_in_b": [],
+    "edges_removed_in_b": [],
+    "unknowns_added_in_b": [],
+    "unknowns_removed_in_b": []
+  }
+}

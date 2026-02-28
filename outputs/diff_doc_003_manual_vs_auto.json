@@ -1,0 +1,81 @@
+{
+  "inputs": {
+    "a": "outputs/ap_doc_003.json",
+    "b": "outputs/ap_doc_003_auto.json",
+    "label_a": "doc_003_manual",
+    "label_b": "doc_003_auto"
+  },
+  "summary": {
+    "nodes": {
+      "a": 9,
+      "b": 7,
+      "added_in_b": 1,
+      "removed_in_b": 3
+    },
+    "edges": {
+      "a": 8,
+      "b": 6,
+      "added_in_b": 5,
+      "removed_in_b": 7
+    },
+    "unknowns": {
+      "a": 7,
+      "b": 4,
+      "added_in_b": 1,
+      "removed_in_b": 4
+    },
+    "evidence_rate": {
+      "a": 1.0,
+      "b": 1.0
+    },
+    "action_counts": {
+      "a": {
+        "MATCH_3_WAY": 2,
+        "UPDATE_STATUS": 1,
+        "REQUEST_CLARIFICATION": 1,
+        "RECEIVE_MESSAGE": 1,
+        "UPDATE_RECORD": 1
+      },
+      "b": {
+        "MATCH_3_WAY": 2,
+        "RECEIVE_MESSAGE": 1,
+        "UPDATE_RECORD": 1
+      }
+    }
+  },
+  "details": {
+    "nodes_added_in_b": [
+      "gw:IF_CONDITION"
+    ],
+    "nodes_removed_in_b": [
+      "gw:VARIANCE_ABOVE_TOLERANCE",
+      "task:REQUEST_CLARIFICATION",
+      "task:UPDATE_STATUS"
+    ],
+    "edges_added_in_b": [
+      "gw:IF_CONDITION -> task:RECEIVE_MESSAGE",
+      "task:MATCH_3_WAY -> gw:IF_CONDITION",
+      "task:MATCH_3_WAY -> task:UPDATE_RECORD",
+      "task:RECEIVE_MESSAGE -> task:MATCH_3_WAY",
+      "task:UPDATE_RECORD -> end:end"
+    ],
+    "edges_removed_in_b": [
+      "gw:VARIANCE_ABOVE_TOLERANCE ->|above_tolerance| task:UPDATE_STATUS",
+      "task:MATCH_3_WAY -> end:end",
+      "task:MATCH_3_WAY -> gw:VARIANCE_ABOVE_TOLERANCE",
+      "task:RECEIVE_MESSAGE -> task:UPDATE_RECORD",
+      "task:REQUEST_CLARIFICATION -> task:RECEIVE_MESSAGE",
+      "task:UPDATE_RECORD -> task:MATCH_3_WAY",
+      "task:UPDATE_STATUS -> task:REQUEST_CLARIFICATION"
+    ],
+    "unknowns_added_in_b": [
+      "Decision detected but branches not fully modeled: 'If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification.' \u2014 what are the explicit outcomes and next steps?"
+    ],
+    "unknowns_removed_in_b": [
+      "If variance is within tolerance, what happens next (auto-approve, manager review, or pay hold)?",
+      "If variance is within tolerance, what is the next step (auto-approve, manager review)?",
+      "What are the tolerance thresholds for quantity/price variance?",
+      "What is the escalation policy if the vendor does not respond (time limits, reminders, who owns escalation)?"
+    ]
+  }
+}

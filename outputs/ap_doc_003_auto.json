@@ -1,0 +1,259 @@
+{
+  "meta": {
+    "process_id": "ap_doc_003_auto",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_003"
+    ],
+    "version": "0.3.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "\ufeffAP performs a 3-way match."
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "\ufeffAP performs a 3-way match.",
+      "action": {
+        "type": "MATCH_3_WAY",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "\ufeffAP performs a 3-way match."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:MATCH_3_WAY"
+      }
+    },
+    {
+      "id": "n3",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": "there is a quantity mismatch or price variance above the tolerance"
+      },
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "Once corrected documents are received, AP updates the invoic...",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:RECEIVE_MESSAGE"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "Once corrected documents are received, AP updates the invoic...",
+      "action": {
+        "type": "MATCH_3_WAY",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:MATCH_3_WAY"
+      }
+    },
+    {
+      "id": "n6",
+      "kind": "task",
+      "name": "Once corrected documents are received, AP updates the invoic...",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n7",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n1",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": null
+    },
+    {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "auto_u1",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_2",
+      "type": "missing_rule",
+      "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
+      "priority": "high",
+      "meta": {
+        "original_question": "What are the tolerances for quantity/price variances in matching (and who sets them)?"
+      },
+      "key": "U.MATCH_TOLERANCE"
+    },
+    {
+      "id": "auto_3",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_6",
+      "type": "missing_path",
+      "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
+      "priority": "high",
+      "key": "U.NO_MATCH_PATH"
+    }
+  ],
+  "assumptions": []
+}

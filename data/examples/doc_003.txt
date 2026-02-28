@@ -1,0 +1,3 @@
+﻿AP performs a 3-way match. If there is a quantity mismatch or price variance above the tolerance,
+the invoice is placed on hold and AP contacts the vendor for clarification.
+Once corrected documents are received, AP updates the invoice and re-runs matching.

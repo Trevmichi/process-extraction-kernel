@@ -1,0 +1,5 @@
+﻿Invoices are received by email and entered into the ERP by the AP clerk.
+The clerk validates required fields (vendor, invoice number, date, amount).
+If the invoice matches the PO and goods receipt, it can be approved.
+Invoices over $5,000 require director approval.
+After approval, payment is scheduled for Net 30 and then paid.
