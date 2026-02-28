@@ -1,10 +1,10 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2["AP performs a 3-way match\n[MATCH_3_WAY]"]:::action_node
-  n3{"Decision\n<VARIANCE_ABOVE_TOLERANCE>"}:::decision_node
-  n4["AP contacts the vendor for clarification\n[REQUEST_CLARIFICATION]"]:::action_node
-  n5["Once corrected documents are received, AP updates the invoic...\n[UPDATE_RECORD]"]:::action_node
-  n7([["End"]]):::end_node
+  n1(["Start"])
+  n2["AP performs a 3-way match\n[MATCH_3_WAY]"]
+  n3{"Decision\n<VARIANCE_ABOVE_TOLERANCE>"}
+  n4["AP contacts the vendor for clarification\n[REQUEST_CLARIFICATION]"]
+  n5["AP updates the invoice\n[UPDATE_RECORD]"]
+  n7([["End"]])
   n1 --> n2
   n2 --> n3
   n3 -->|VARIANCE_ABOVE_TOLERANCE| n4
@@ -12,7 +12,9 @@ flowchart LR
   n5 --> n2
   U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#bbf,stroke:#333,stroke-width:1px
+  style n3 fill:#fdb,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n7 fill:#f99,stroke:#333,stroke-width:2px

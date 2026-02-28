@@ -1,16 +1,16 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2{"Has PO number?\n<HAS_PO>"}:::decision_node
-  n3["Route to manager for coding\n[ROUTE_FOR_REVIEW]"]:::action_node
-  n4["Manager confirms expense\n[REVIEW]"]:::action_node
-  n5["Manager provides account code\n[UPDATE_RECORD]"]:::action_node
-  n6{"Manager decision\n<APPROVE_OR_REJECT>"}:::decision_node
-  n7["Notify vendor and close\n[NOTIFY]"]:::action_node
-  n8["Enter account code in ERP\n[ENTER_RECORD]"]:::action_node
-  n9["Schedule payment\n[SCHEDULE_PAYMENT]"]:::action_node
-  n10([["End"]]):::end_node
-  n11["Receive invoice/message\n[RECEIVE_MESSAGE]"]:::action_node
-  n12["Execute payment\n[EXECUTE_PAYMENT]"]:::action_node
+  n1(["Start"])
+  n2{"Has PO number?\n<HAS_PO>"}
+  n3["Route to manager for coding\n[ROUTE_FOR_REVIEW]"]
+  n4["Manager confirms expense\n[REVIEW]"]
+  n5["Manager provides account code\n[UPDATE_RECORD]"]
+  n6{"Manager decision\n<APPROVE_OR_REJECT>"}
+  n7["Notify vendor and close\n[NOTIFY]"]
+  n8["Enter account code in ERP\n[ENTER_RECORD]"]
+  n9["Schedule payment\n[SCHEDULE_PAYMENT]"]
+  n10([["End"]])
+  n11["Receive invoice/message\n[RECEIVE_MESSAGE]"]
+  n12["Execute payment\n[EXECUTE_PAYMENT]"]
   n11 --> n2
   n2 -->|no_po| n3
   n3 --> n4
@@ -24,7 +24,15 @@ flowchart LR
   n12 --> n10
   U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#fdb,stroke:#333,stroke-width:1px
+  style n3 fill:#bbf,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n6 fill:#fdb,stroke:#333,stroke-width:1px
+  style n7 fill:#bbf,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#bbf,stroke:#333,stroke-width:1px
+  style n10 fill:#f99,stroke:#333,stroke-width:2px
+  style n11 fill:#bbf,stroke:#333,stroke-width:1px
+  style n12 fill:#bbf,stroke:#333,stroke-width:1px

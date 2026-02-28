@@ -10,13 +10,13 @@
       "a": 12,
       "b": 12,
       "added_in_b": 1,
-      "removed_in_b": 1
+      "removed_in_b": 2
     },
     "edges": {
       "a": 11,
       "b": 11,
-      "added_in_b": 9,
-      "removed_in_b": 9
+      "added_in_b": 8,
+      "removed_in_b": 8
     },
     "unknowns": {
       "a": 5,
@@ -42,10 +42,9 @@
       "b": {
         "ROUTE_FOR_REVIEW": 1,
         "REVIEW": 1,
-        "UPDATE_RECORD": 1,
+        "ENTER_RECORD": 2,
         "NOTIFY": 1,
         "UPDATE_STATUS": 1,
-        "ENTER_RECORD": 1,
         "SCHEDULE_PAYMENT": 1,
         "RECEIVE_MESSAGE": 1
       }
@@ -56,29 +55,28 @@
       "task:UPDATE_STATUS"
     ],
     "nodes_removed_in_b": [
-      "task:EXECUTE_PAYMENT"
+      "task:EXECUTE_PAYMENT",
+      "task:UPDATE_RECORD"
     ],
     "edges_added_in_b": [
-      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:NOTIFY",
-      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:UPDATE_STATUS",
-      "gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:ENTER_RECORD",
-      "gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:SCHEDULE_PAYMENT",
-      "gw:HAS_PO ->|has_po_false| task:REVIEW",
-      "gw:HAS_PO ->|has_po_false| task:UPDATE_RECORD",
-      "task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW",
-      "task:ROUTE_FOR_REVIEW -> gw:HAS_PO",
+      "gw:APPROVE_OR_REJECT ->|no_po_approve| task:ENTER_RECORD",
+      "gw:APPROVE_OR_REJECT ->|no_po_approve| task:SCHEDULE_PAYMENT",
+      "gw:APPROVE_OR_REJECT ->|no_po_reject| task:NOTIFY",
+      "gw:APPROVE_OR_REJECT ->|no_po_reject| task:UPDATE_STATUS",
+      "gw:HAS_PO ->|no_po| task:ENTER_RECORD",
+      "gw:HAS_PO ->|no_po| task:REVIEW",
+      "task:ENTER_RECORD -> gw:APPROVE_OR_REJECT",
       "task:SCHEDULE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
       "gw:APPROVE_OR_REJECT ->|approve| task:ENTER_RECORD",
       "gw:APPROVE_OR_REJECT ->|reject| task:NOTIFY",
-      "gw:HAS_PO ->|no_po| task:ROUTE_FOR_REVIEW",
       "task:ENTER_RECORD -> task:SCHEDULE_PAYMENT",
       "task:EXECUTE_PAYMENT -> end:end",
-      "task:RECEIVE_MESSAGE -> gw:HAS_PO",
       "task:REVIEW -> task:UPDATE_RECORD",
       "task:ROUTE_FOR_REVIEW -> task:REVIEW",
-      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT"
+      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT",
+      "task:UPDATE_RECORD -> gw:APPROVE_OR_REJECT"
     ],
     "unknowns_added_in_b": [],
     "unknowns_removed_in_b": [

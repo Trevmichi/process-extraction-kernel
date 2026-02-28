@@ -1,15 +1,15 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2["Validate invoice\n[VALIDATE_FIELDS]"]:::action_node
-  n3{"Missing GL code?\n<IF_CONDITION>"}:::decision_node
-  n4["Contact manager\n[REQUEST_CLARIFICATION]"]:::action_node
-  n5["Provide account code\n[UPDATE_RECORD]"]:::action_node
-  n6["Route for director approval\n[ROUTE_FOR_REVIEW]"]:::action_node
-  n7{"Approved?\n<APPROVE_OR_REJECT>"}:::decision_node
-  n8["Schedule payment\n[SCHEDULE_PAYMENT]"]:::action_node
-  n9([["End"]]):::end_node
-  n10["Receive invoice/message\n[RECEIVE_MESSAGE]"]:::action_node
-  n11["Execute payment\n[EXECUTE_PAYMENT]"]:::action_node
+  n1(["Start"])
+  n2["Validate invoice\n[VALIDATE_FIELDS]"]
+  n3{"Missing GL code?\n<IF_CONDITION>"}
+  n4["Contact manager\n[REQUEST_CLARIFICATION]"]
+  n5["Provide account code\n[UPDATE_RECORD]"]
+  n6["Route for director approval\n[ROUTE_FOR_REVIEW]"]
+  n7{"Approved?\n<APPROVE_OR_REJECT>"}
+  n8["Schedule payment\n[SCHEDULE_PAYMENT]"]
+  n9([["End"]])
+  n10["Receive invoice/message\n[RECEIVE_MESSAGE]"]
+  n11["Execute payment\n[EXECUTE_PAYMENT]"]
   n10 --> n2
   n2 --> n3
   n3 -->|missing| n4
@@ -23,7 +23,14 @@ flowchart LR
   n11 --> n9
   U_NOTE["Unknowns: 3 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#bbf,stroke:#333,stroke-width:1px
+  style n3 fill:#fdb,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n6 fill:#bbf,stroke:#333,stroke-width:1px
+  style n7 fill:#fdb,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#f99,stroke:#333,stroke-width:2px
+  style n10 fill:#bbf,stroke:#333,stroke-width:1px
+  style n11 fill:#bbf,stroke:#333,stroke-width:1px

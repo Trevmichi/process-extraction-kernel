@@ -133,7 +133,7 @@
     {
       "id": "n5",
       "kind": "task",
-      "name": "Once corrected documents are received, AP updates the invoic...",
+      "name": "AP updates the invoice",
       "action": {
         "type": "UPDATE_RECORD",
         "actor_id": "role_ap_clerk",
@@ -144,7 +144,7 @@
       "evidence": [
         {
           "source_id": "doc_003",
-          "span": "Once corrected documents are received, AP updates the invoice"
+          "span": "AP updates the invoice"
         }
       ],
       "meta": {
