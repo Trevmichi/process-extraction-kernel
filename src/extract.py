@@ -181,3 +181,56 @@ def manual_extract_doc_003(text: str) -> ProcessDoc:
     ]
 
     return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=unknowns)
+
+def manual_extract_doc_004(text: str) -> ProcessDoc:
+    meta = _base_ap_meta("doc_004", "ap_invoice_doc_004")
+    actors = _base_ap_actors()
+    artifacts = _base_ap_artifacts()
+    ev = lambda s: [Evidence(source_id="doc_004", span=s)]
+
+    nodes = [
+        Node(id="n1", kind="event", name="Invoice received via portal", evidence=ev("receives the invoice via the central email portal")),
+        Node(id="n2", kind="task", name="Validate invoice", action=Action(type="VALIDATE_FIELDS", actor_id="role_ap_clerk", artifact_id="art_invoice"), evidence=ev("clerk validates the invoice")),
+        Node(id="n3", kind="gateway", name="Missing GL code?", decision=Decision(type="IF_CONDITION", expression="missing_gl_code"), evidence=ev("If the invoice is missing a GL account code")),
+        Node(id="n4", kind="task", name="Contact manager", action=Action(type="REQUEST_CLARIFICATION", actor_id="role_ap_clerk", artifact_id="art_invoice"), evidence=ev("contacts the department manager")),
+        Node(id="n5", kind="task", name="Provide account code", action=Action(type="UPDATE_RECORD", actor_id="role_manager", artifact_id="art_account_code"), evidence=ev("manager provides the account code")),
+        Node(id="n6", kind="task", name="Route for director approval", action=Action(type="ROUTE_FOR_REVIEW", actor_id="role_ap_clerk", artifact_id="art_invoice", extra={"to": "role_director"}), evidence=ev("routed for director approval")),
+        Node(id="n7", kind="gateway", name="Approved?", decision=Decision(type="APPROVE_OR_REJECT"), evidence=ev("If approved")),
+        Node(id="n8", kind="task", name="Schedule payment", action=Action(type="SCHEDULE_PAYMENT", actor_id="sys_erp", artifact_id="art_payment"), evidence=ev("scheduled for payment")),
+        Node(id="n9", kind="end", name="Complete", evidence=ev("scheduled for payment")),
+    ]
+    edges = [
+        Edge(frm="n1", to="n2"), Edge(frm="n2", to="n3"),
+        Edge(frm="n3", to="n4", condition="missing"), Edge(frm="n3", to="n6", condition="not_missing"),
+        Edge(frm="n4", to="n5"), Edge(frm="n5", to="n6"),
+        Edge(frm="n6", to="n7"),
+        Edge(frm="n7", to="n8", condition="approve"),
+        Edge(frm="n8", to="n9"),
+    ]
+    return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=[])
+
+def manual_extract_doc_005(text: str) -> ProcessDoc:
+    meta = _base_ap_meta("doc_005", "ap_invoice_doc_005")
+    actors = _base_ap_actors()
+    artifacts = _base_ap_artifacts()
+    ev = lambda s: [Evidence(source_id="doc_005", span=s)]
+
+    nodes = [
+        Node(id="n1", kind="event", name="Invoices entered", evidence=ev("Invoices are entered into the ERP")),
+        Node(id="n2", kind="task", name="Enter into ERP", action=Action(type="ENTER_RECORD", actor_id="sys_erp", artifact_id="art_invoice"), evidence=ev("entered into the ERP")),
+        Node(id="n3", kind="task", name="Check for duplicates", action=Action(type="VALIDATE_FIELDS", actor_id="sys_erp", artifact_id="art_invoice"), evidence=ev("system checks for duplicate invoice numbers")),
+        Node(id="n4", kind="gateway", name="Duplicate detected?", decision=Decision(type="IF_CONDITION", expression="is_duplicate"), evidence=ev("If a duplicate is detected")),
+        Node(id="n5", kind="task", name="Reject invoice", action=Action(type="REJECT", actor_id="sys_erp", artifact_id="art_invoice"), evidence=ev("system immediately rejects the invoice")),
+        Node(id="n6", kind="task", name="Notify vendor", action=Action(type="NOTIFY", actor_id="sys_erp", artifact_id="art_invoice"), evidence=ev("notifies the vendor")),
+        Node(id="n7", kind="end", name="Process Terminated", evidence=ev("notifies the vendor")),
+        Node(id="n8", kind="task", name="Match against PO", action=Action(type="MATCH_3_WAY", actor_id="role_ap_clerk", artifact_id="art_invoice"), evidence=ev("match the invoice against the purchase order")),
+        Node(id="n9", kind="task", name="Execute payment", action=Action(type="EXECUTE_PAYMENT", actor_id="sys_erp", artifact_id="art_payment"), evidence=ev("payment is executed")),
+        Node(id="n10", kind="end", name="Paid", evidence=ev("payment is executed")),
+    ]
+    edges = [
+        Edge(frm="n1", to="n2"), Edge(frm="n2", to="n3"), Edge(frm="n3", to="n4"),
+        Edge(frm="n4", to="n5", condition="duplicate"), Edge(frm="n4", to="n8", condition="not_duplicate"),
+        Edge(frm="n5", to="n6"), Edge(frm="n6", to="n7"),
+        Edge(frm="n8", to="n9"), Edge(frm="n9", to="n10"),
+    ]
+    return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=[])

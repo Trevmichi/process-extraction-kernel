@@ -1,0 +1,27 @@
+Invoices are received by email and entered into the ERP by the AP clerk.
+The clerk validates required fields (vendor, invoice number, date, amount).
+If the invoice matches the PO and goods receipt, it can be approved.
+Invoices over $5,000 require director approval.
+After approval, payment is scheduled for Net 30 and then paid.
+--- END OF SECTION ---
+If an invoice does not have a PO number, AP routes it to the department manager.
+The manager must confirm the expense and provide an account code.
+If the manager rejects the expense, AP notifies the vendor and closes the invoice.
+If approved, AP enters the account code and proceeds to schedule payment.
+--- END OF SECTION ---
+AP performs a 3-way match. If there is a quantity mismatch or price variance above the tolerance,
+the invoice is placed on hold and AP contacts the vendor for clarification.
+Once corrected documents are received, AP updates the invoice and re-runs matching.
+--- END OF SECTION ---
+The AP clerk receives the invoice via the central email portal.
+The clerk validates the invoice. If the invoice is missing a GL account code, the clerk contacts the department manager.
+The manager provides the account code.
+Once the account code is updated, the invoice is routed for director approval.
+If approved, the invoice is scheduled for payment.
+--- END OF SECTION ---
+Invoices are entered into the ERP.
+The system checks for duplicate invoice numbers.
+If a duplicate is detected, the system immediately rejects the invoice and notifies the vendor.
+If it is not a duplicate, the AP clerk proceeds to match the invoice against the purchase order.
+After a successful match, payment is executed.
+--- END OF SECTION ---

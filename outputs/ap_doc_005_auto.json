@@ -1,0 +1,311 @@
+{
+  "meta": {
+    "process_id": "ap_doc_005_auto",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_005"
+    ],
+    "version": "0.3.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "Invoices are entered into the ERP."
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "Invoices are entered into the ERP.",
+      "action": {
+        "type": "ENTER_RECORD",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "Invoices are entered into the ERP."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:ENTER_RECORD"
+      }
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "The system checks for duplicate invoice numbers.",
+      "action": {
+        "type": "VALIDATE_FIELDS",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "The system checks for duplicate invoice numbers."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:VALIDATE_FIELDS"
+      }
+    },
+    {
+      "id": "n4",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "If a duplicate is detected"
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "the system immediately rejects the invoice",
+      "action": {
+        "type": "REJECT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "the system immediately rejects the invoice"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REJECT"
+      }
+    },
+    {
+      "id": "n6",
+      "kind": "task",
+      "name": "and notifies the vendor.",
+      "action": {
+        "type": "NOTIFY",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "and notifies the vendor."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:NOTIFY"
+      }
+    },
+    {
+      "id": "n7",
+      "kind": "task",
+      "name": "the AP clerk proceeds to match the invoice against the purch...",
+      "action": {
+        "type": "MATCH_3_WAY",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "the AP clerk proceeds to match the invoice against the purchase order."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:MATCH_3_WAY"
+      }
+    },
+    {
+      "id": "n8",
+      "kind": "task",
+      "name": "After a successful match, payment is executed.",
+      "action": {
+        "type": "EXECUTE_PAYMENT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "After a successful match, payment is executed."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:EXECUTE_PAYMENT"
+      }
+    },
+    {
+      "id": "n9",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_005",
+          "span": "After a successful match, payment is executed."
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n1",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": "duplicate_detected"
+    },
+    {
+      "frm": "n4",
+      "to": "n6",
+      "condition": "duplicate_detected"
+    },
+    {
+      "frm": "n4",
+      "to": "n7",
+      "condition": "not_duplicate"
+    },
+    {
+      "frm": "n4",
+      "to": "n8",
+      "condition": "successful_match"
+    },
+    {
+      "frm": "n8",
+      "to": "n9",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "auto_u1",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If a duplicate is detected' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_2",
+      "type": "missing_rule",
+      "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
+      "priority": "high",
+      "meta": {
+        "original_question": "What are the tolerances for quantity/price variances in matching (and who sets them)?"
+      },
+      "key": "U.MATCH_TOLERANCE"
+    },
+    {
+      "id": "auto_3",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_6",
+      "type": "missing_path",
+      "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
+      "priority": "high",
+      "key": "U.NO_MATCH_PATH"
+    }
+  ],
+  "assumptions": []
+}

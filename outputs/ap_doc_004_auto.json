@@ -1,0 +1,340 @@
+{
+  "meta": {
+    "process_id": "ap_doc_004_auto",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_004"
+    ],
+    "version": "0.3.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "The AP clerk receives the invoice via the central email portal."
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "The AP clerk receives the invoice via the central email port...",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "The AP clerk receives the invoice via the central email portal."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:RECEIVE_MESSAGE"
+      }
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "The clerk validates the invoice.",
+      "action": {
+        "type": "VALIDATE_FIELDS",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "The clerk validates the invoice."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:VALIDATE_FIELDS"
+      }
+    },
+    {
+      "id": "n4",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "If the invoice is missing a GL account code"
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "the clerk contacts the department manager.",
+      "action": {
+        "type": "REQUEST_CLARIFICATION",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "the clerk contacts the department manager."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REQUEST_CLARIFICATION"
+      }
+    },
+    {
+      "id": "n6",
+      "kind": "task",
+      "name": "The manager provides the account code.",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_manager",
+        "artifact_id": "art_account_code",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "The manager provides the account code."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n7",
+      "kind": "task",
+      "name": "the invoice is routed for director approval.",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "the invoice is routed for director approval."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:ROUTE_FOR_REVIEW"
+      }
+    },
+    {
+      "id": "n8",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "APPROVE_OR_REJECT",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "If approved"
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:APPROVE_OR_REJECT"
+      }
+    },
+    {
+      "id": "n9",
+      "kind": "task",
+      "name": "the invoice is scheduled for payment.",
+      "action": {
+        "type": "SCHEDULE_PAYMENT",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "the invoice is scheduled for payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:SCHEDULE_PAYMENT"
+      }
+    },
+    {
+      "id": "n10",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "If approved, the invoice is scheduled for payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n1",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": "condition_true"
+    },
+    {
+      "frm": "n4",
+      "to": "n6",
+      "condition": "condition_true"
+    },
+    {
+      "frm": "n4",
+      "to": "n7",
+      "condition": "condition_true"
+    },
+    {
+      "frm": "n7",
+      "to": "n8",
+      "condition": null
+    },
+    {
+      "frm": "n8",
+      "to": "n9",
+      "condition": "approve"
+    },
+    {
+      "frm": "n9",
+      "to": "n10",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "auto_u1",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If the invoice is missing a GL account code' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u2",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If approved' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_3",
+      "type": "missing_rule",
+      "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_4",
+      "type": "missing_rule",
+      "question": "What is the escalation policy if the vendor does not respond (time limits, reminders, who owns escalation)?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_5",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    }
+  ],
+  "assumptions": []
+}

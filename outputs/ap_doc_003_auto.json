@@ -71,10 +71,10 @@
     {
       "id": "n2",
       "kind": "task",
-      "name": "\ufeffAP performs a 3-way match.",
+      "name": "AP performs a 3-way match",
       "action": {
         "type": "MATCH_3_WAY",
-        "actor_id": "sys_erp",
+        "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
       },
@@ -82,7 +82,7 @@
       "evidence": [
         {
           "source_id": "doc_003",
-          "span": "\ufeffAP performs a 3-way match."
+          "span": "AP performs a 3-way match"
         }
       ],
       "meta": {
@@ -102,7 +102,7 @@
       "evidence": [
         {
           "source_id": "doc_003",
-          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
+          "span": "If there is a quantity mismatch or price variance above the tolerance"
         }
       ],
       "meta": {
@@ -112,28 +112,7 @@
     {
       "id": "n4",
       "kind": "task",
-      "name": "If there is a quantity mismatch or price variance above the ...",
-      "action": {
-        "type": "UPDATE_STATUS",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_003",
-          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:UPDATE_STATUS"
-      }
-    },
-    {
-      "id": "n5",
-      "kind": "task",
-      "name": "If there is a quantity mismatch or price variance above the ...",
+      "name": "AP contacts the vendor for clarification",
       "action": {
         "type": "REQUEST_CLARIFICATION",
         "actor_id": "role_ap_clerk",
@@ -144,7 +123,7 @@
       "evidence": [
         {
           "source_id": "doc_003",
-          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
+          "span": "AP contacts the vendor for clarification"
         }
       ],
       "meta": {
@@ -152,28 +131,7 @@
       }
     },
     {
-      "id": "n6",
-      "kind": "task",
-      "name": "Once corrected documents are received, AP updates the invoic...",
-      "action": {
-        "type": "RECEIVE_MESSAGE",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_003",
-          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:RECEIVE_MESSAGE"
-      }
-    },
-    {
-      "id": "n7",
+      "id": "n5",
       "kind": "task",
       "name": "Once corrected documents are received, AP updates the invoic...",
       "action": {
@@ -186,7 +144,7 @@
       "evidence": [
         {
           "source_id": "doc_003",
-          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
+          "span": "Once corrected documents are received, AP updates the invoice"
         }
       ],
       "meta": {
@@ -194,7 +152,7 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n7",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -224,7 +182,7 @@
     {
       "frm": "n3",
       "to": "n4",
-      "condition": "above_tolerance"
+      "condition": "VARIANCE_ABOVE_TOLERANCE"
     },
     {
       "frm": "n4",
@@ -233,22 +191,7 @@
     },
     {
       "frm": "n5",
-      "to": "n6",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n7",
-      "condition": null
-    },
-    {
-      "frm": "n7",
       "to": "n2",
-      "condition": null
-    },
-    {
-      "frm": "n2",
-      "to": "n8",
       "condition": null
     }
   ],

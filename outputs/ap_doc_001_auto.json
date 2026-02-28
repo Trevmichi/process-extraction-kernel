@@ -71,28 +71,7 @@
     {
       "id": "n2",
       "kind": "task",
-      "name": "\ufeffInvoices are received by email and entered into the ERP by ...",
-      "action": {
-        "type": "RECEIVE_MESSAGE",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "\ufeffInvoices are received by email and entered into the ERP by the AP clerk."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:RECEIVE_MESSAGE"
-      }
-    },
-    {
-      "id": "n3",
-      "kind": "task",
-      "name": "\ufeffInvoices are received by email and entered into the ERP by ...",
+      "name": "Invoices are received by email and entered into the ERP by t...",
       "action": {
         "type": "ENTER_RECORD",
         "actor_id": "role_ap_clerk",
@@ -103,7 +82,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "\ufeffInvoices are received by email and entered into the ERP by the AP clerk."
+          "span": "Invoices are received by email and entered into the ERP by the AP clerk."
         }
       ],
       "meta": {
@@ -111,7 +90,7 @@
       }
     },
     {
-      "id": "n4",
+      "id": "n3",
       "kind": "task",
       "name": "The clerk validates required fields (vendor, invoice number,...",
       "action": {
@@ -132,17 +111,13 @@
       }
     },
     {
-      "id": "n5",
+      "id": "n4",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "MATCH_3_WAY",
-        "inputs": [
-          "art_invoice",
-          "art_po",
-          "art_grn"
-        ],
+        "type": "IF_CONDITION",
+        "inputs": [],
         "expression": null
       },
       "evidence": [
@@ -152,7 +127,28 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:MATCH_3_WAY"
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "If the invoice matches the PO and goods receipt, it can be a...",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_001",
+          "span": "If the invoice matches the PO and goods receipt, it can be approved."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:APPROVE"
       }
     },
     {
@@ -163,7 +159,7 @@
       "decision": {
         "type": "THRESHOLD_AMOUNT",
         "inputs": [],
-        "expression": "invoice.amount > 5000"
+        "expression": null
       },
       "evidence": [
         {
@@ -180,8 +176,8 @@
       "kind": "task",
       "name": "Invoices over $5,000 require director approval.",
       "action": {
-        "type": "APPROVE",
-        "actor_id": "role_ap_clerk",
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_director",
         "artifact_id": "art_invoice",
         "extra": {}
       },
@@ -193,7 +189,7 @@
         }
       ],
       "meta": {
-        "canonical_key": "task:APPROVE"
+        "canonical_key": "task:ROUTE_FOR_REVIEW"
       }
     },
     {
@@ -202,7 +198,7 @@
       "name": "After approval, payment is scheduled for Net 30 and then pai...",
       "action": {
         "type": "SCHEDULE_PAYMENT",
-        "actor_id": "sys_erp",
+        "actor_id": "role_ap_clerk",
         "artifact_id": "art_payment",
         "extra": {}
       },
@@ -274,7 +270,12 @@
     {
       "frm": "n4",
       "to": "n5",
-      "condition": null
+      "condition": "true"
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": "true"
     },
     {
       "frm": "n7",
@@ -293,59 +294,52 @@
     },
     {
       "frm": "n6",
-      "to": "n7",
-      "condition": "amount>5000"
+      "to": "n5",
+      "condition": "amount>THRESH"
     },
     {
       "frm": "n6",
-      "to": "n7",
-      "condition": "amount<=5000"
+      "to": "n5",
+      "condition": "amount<=THRESH"
     },
     {
       "frm": "n5",
-      "to": "n6",
-      "condition": "match"
+      "to": "n8",
+      "condition": null
     }
   ],
   "rules": [],
   "unknowns": [
     {
-      "id": "auto_4",
+      "id": "auto_u1",
+      "type": "missing_path",
+      "question": "If the invoice matches the PO and goods receipt (match), what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "meta": {
+        "original_question": "Decision detected but branches not fully modeled: 'If the invoice matches the PO and goods receipt, it can be approved.' \u2014 what are the explicit outcomes and next steps?"
+      },
+      "key": "U.MATCH_BRANCHES"
+    },
+    {
+      "id": "auto_3",
       "type": "missing_rule",
       "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
       "priority": "medium",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_5",
-      "type": "missing_rule",
-      "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
-      "priority": "high",
-      "meta": {
-        "original_question": "What are the tolerances for quantity/price variances in matching (and who sets them)?"
-      },
-      "key": "U.MATCH_TOLERANCE"
-    },
-    {
-      "id": "auto_6",
+      "id": "auto_4",
       "type": "missing_path",
       "question": "Is there a rejection path? If rejected, how is the vendor notified and how is the invoice closed?",
       "priority": "high",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_7",
+      "id": "auto_5",
       "type": "missing_rule",
       "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
       "priority": "low",
       "key": "U.OTHER"
-    },
-    {
-      "id": "auto_12",
-      "type": "missing_path",
-      "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
-      "priority": "high",
-      "key": "U.NO_MATCH_PATH"
     }
   ],
   "assumptions": []

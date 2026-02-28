@@ -1,13 +1,13 @@
-flowchart TD
-  n1(["Start"])
-  n2["Run 3-way match\n[MATCH_3_WAY]"]
-  n3{"Variance above tolerance?\n<VARIANCE_ABOVE_TOLERANCE>"}
-  n4["Place invoice on hold\n[UPDATE_STATUS]"]
-  n5["Contact vendor\n[REQUEST_CLARIFICATION]"]
-  n6["Receive corrected documents\n[RECEIVE_MESSAGE]"]
-  n7["Update invoice\n[UPDATE_RECORD]"]
-  n8["Re-run matching\n[MATCH_3_WAY]"]
-  n9([["End"]])
+flowchart LR
+  n1(["Start"]):::start_node
+  n2["Run 3-way match\n[MATCH_3_WAY]"]:::action_node
+  n3{"Variance above tolerance?\n<VARIANCE_ABOVE_TOLERANCE>"}:::decision_node
+  n4["Place invoice on hold\n[UPDATE_STATUS]"]:::action_node
+  n5["Contact vendor\n[REQUEST_CLARIFICATION]"]:::action_node
+  n6["Receive corrected documents\n[RECEIVE_MESSAGE]"]:::action_node
+  n7["Update invoice\n[UPDATE_RECORD]"]:::action_node
+  n8["Re-run matching\n[MATCH_3_WAY]"]:::action_node
+  n9([["End"]]):::end_node
   n1 --> n2
   n2 --> n3
   n3 -->|above_tolerance| n4
@@ -18,3 +18,7 @@ flowchart TD
   n8 --> n9
   U_NOTE["Unknowns: 7 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
+  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
+  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
+  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
+  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;

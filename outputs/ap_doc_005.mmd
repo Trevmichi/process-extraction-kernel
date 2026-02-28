@@ -1,0 +1,28 @@
+flowchart LR
+  n1(["Start"]):::start_node
+  n2["Enter into ERP\n[ENTER_RECORD]"]:::action_node
+  n3["Check for duplicates\n[VALIDATE_FIELDS]"]:::action_node
+  n4{"Duplicate detected?\n<IF_CONDITION>"}:::decision_node
+  n5["Reject invoice\n[REJECT]"]:::action_node
+  n6["Notify vendor\n[NOTIFY]"]:::action_node
+  n7([["End"]]):::end_node
+  n8["Match against PO\n[MATCH_3_WAY]"]:::action_node
+  n9["Execute payment\n[EXECUTE_PAYMENT]"]:::action_node
+  n10([["Paid"]]):::end_node
+  n11["Receive invoice/message\n[RECEIVE_MESSAGE]"]:::action_node
+  n11 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 -->|duplicate| n5
+  n4 -->|not_duplicate| n8
+  n5 --> n6
+  n6 --> n7
+  n8 --> n9
+  n9 --> n10
+  n1 --> n11
+  U_NOTE["Unknowns: 3 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE
+  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
+  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
+  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
+  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;

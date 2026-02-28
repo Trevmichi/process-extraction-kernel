@@ -9,20 +9,20 @@
     "nodes": {
       "a": 11,
       "b": 10,
-      "added_in_b": 0,
-      "removed_in_b": 0
+      "added_in_b": 2,
+      "removed_in_b": 2
     },
     "edges": {
       "a": 11,
-      "b": 10,
-      "added_in_b": 0,
-      "removed_in_b": 0
+      "b": 11,
+      "added_in_b": 7,
+      "removed_in_b": 6
     },
     "unknowns": {
       "a": 5,
-      "b": 5,
-      "added_in_b": 0,
-      "removed_in_b": 0
+      "b": 4,
+      "added_in_b": 1,
+      "removed_in_b": 2
     },
     "evidence_rate": {
       "a": 1.0,
@@ -38,21 +38,47 @@
         "EXECUTE_PAYMENT": 1
       },
       "b": {
-        "RECEIVE_MESSAGE": 1,
         "ENTER_RECORD": 1,
         "VALIDATE_FIELDS": 1,
         "APPROVE": 1,
+        "ROUTE_FOR_REVIEW": 1,
         "SCHEDULE_PAYMENT": 1,
         "EXECUTE_PAYMENT": 1
       }
     }
   },
   "details": {
-    "nodes_added_in_b": [],
-    "nodes_removed_in_b": [],
-    "edges_added_in_b": [],
-    "edges_removed_in_b": [],
-    "unknowns_added_in_b": [],
-    "unknowns_removed_in_b": []
+    "nodes_added_in_b": [
+      "gw:IF_CONDITION",
+      "task:ROUTE_FOR_REVIEW"
+    ],
+    "nodes_removed_in_b": [
+      "gw:MATCH_3_WAY",
+      "task:RECEIVE_MESSAGE"
+    ],
+    "edges_added_in_b": [
+      "event:start -> task:ENTER_RECORD",
+      "gw:IF_CONDITION ->|true| task:APPROVE",
+      "gw:THRESHOLD_AMOUNT ->|amount<=thresh| task:APPROVE",
+      "gw:THRESHOLD_AMOUNT ->|amount>thresh| task:APPROVE",
+      "gw:THRESHOLD_AMOUNT ->|true| task:ROUTE_FOR_REVIEW",
+      "task:ROUTE_FOR_REVIEW -> task:SCHEDULE_PAYMENT",
+      "task:VALIDATE_FIELDS -> gw:IF_CONDITION"
+    ],
+    "edges_removed_in_b": [
+      "event:start -> task:RECEIVE_MESSAGE",
+      "gw:MATCH_3_WAY ->|match| gw:THRESHOLD_AMOUNT",
+      "gw:THRESHOLD_AMOUNT ->|amount<=5000| task:APPROVE",
+      "gw:THRESHOLD_AMOUNT ->|amount>5000| task:APPROVE",
+      "task:RECEIVE_MESSAGE -> task:ENTER_RECORD",
+      "task:VALIDATE_FIELDS -> gw:MATCH_3_WAY"
+    ],
+    "unknowns_added_in_b": [
+      "If the invoice matches the PO and goods receipt (match), what are the explicit outcomes and next steps?"
+    ],
+    "unknowns_removed_in_b": [
+      "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
+      "What is the match tolerance for price/quantity variances in matching (and who sets it)?"
+    ]
   }
 }
