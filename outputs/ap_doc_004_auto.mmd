@@ -1,0 +1,26 @@
+flowchart LR
+  n1(["Start"]):::start_node
+  n2["The AP clerk receives the invoice via the central email port...\n[RECEIVE_MESSAGE]"]:::action_node
+  n3["The clerk validates the invoice.\n[VALIDATE_FIELDS]"]:::action_node
+  n4{"Decision\n<IF_CONDITION>"}:::decision_node
+  n5["the clerk contacts the department manager.\n[REQUEST_CLARIFICATION]"]:::action_node
+  n6["The manager provides the account code.\n[UPDATE_RECORD]"]:::action_node
+  n7["the invoice is routed for director approval.\n[ROUTE_FOR_REVIEW]"]:::action_node
+  n8{"Decision\n<APPROVE_OR_REJECT>"}:::decision_node
+  n9["the invoice is scheduled for payment.\n[SCHEDULE_PAYMENT]"]:::action_node
+  n10([["End"]]):::end_node
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 -->|condition_true| n5
+  n4 -->|condition_true| n6
+  n4 -->|condition_true| n7
+  n7 --> n8
+  n8 -->|approve| n9
+  n9 --> n10
+  U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE
+  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
+  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
+  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
+  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;

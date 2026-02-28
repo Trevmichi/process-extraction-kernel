@@ -51,12 +51,17 @@ def main():
     Path("outputs/traces").mkdir(parents=True, exist_ok=True)
 
     # Manual extractors (you already have these in src/extract.py)
-    from src.extract import manual_extract_doc_001, manual_extract_doc_002, manual_extract_doc_003
+    from src.extract import (
+        manual_extract_doc_001, manual_extract_doc_002, manual_extract_doc_003,
+        manual_extract_doc_004, manual_extract_doc_005,
+    )
 
     manual_jobs = [
         ("doc_001", manual_extract_doc_001, "data/examples/doc_001.txt"),
         ("doc_002", manual_extract_doc_002, "data/examples/doc_002.txt"),
         ("doc_003", manual_extract_doc_003, "data/examples/doc_003.txt"),
+        ("doc_004", manual_extract_doc_004, "data/examples/doc_004.txt"),
+        ("doc_005", manual_extract_doc_005, "data/examples/doc_005.txt"),
     ]
 
     manual_paths = {}
@@ -94,14 +99,38 @@ def main():
         else:
             print(f"{source_id}_auto: OK -> {out_json}, {out_mmd} (referee added {len(added)} unknowns)")
 
+    # Auto-only docs (no manual extractor counterpart)
+    auto_only_jobs = [
+        ("ap_master_manual", "data/examples/ap_master_manual.txt"),
+    ]
+    for file_id, in_path in auto_only_jobs:
+        out_json = f"outputs/{file_id}_auto.json"
+        out_mmd  = f"outputs/{file_id}_auto.mmd"
+        out_trace = f"outputs/traces/run_{file_id}_auto.jsonl"
+
+        errors, added = run_one_heuristic(file_id, in_path, out_json, out_mmd, out_trace)
+        auto_paths[file_id] = out_json
+
+        if errors:
+            print(f"{file_id}_auto: Validation errors:")
+            for e in errors:
+                print(f" - {e}")
+        else:
+            print(f"{file_id}_auto: OK -> {out_json}, {out_mmd} (referee added {len(added)} unknowns)")
+
+    doc_ids = [source_id for source_id, _, _ in manual_jobs] + ["ap_master_manual"]
+
     print("\n=== DIFFS: MANUAL vs AUTO ===")
-    for source_id, _, _ in manual_jobs:
-        a = manual_paths[source_id]
-        b = auto_paths[source_id]
-        out_json = f"outputs/diff_{source_id}_manual_vs_auto.json"
-        out_md   = f"outputs/diff_{source_id}_manual_vs_auto.md"
-        write_diff(a, b, out_json, out_md, label_a=f"{source_id}_manual", label_b=f"{source_id}_auto")
-        print(f"{source_id}: wrote {out_md}")
+    for file_id in doc_ids:
+        if file_id == "ap_master_manual":
+            print("Skipping diff for master manual (auto-only)")
+            continue
+        a = manual_paths[file_id]
+        b = auto_paths[file_id]
+        out_json = f"outputs/diff_{file_id}_manual_vs_auto.json"
+        out_md   = f"outputs/diff_{file_id}_manual_vs_auto.md"
+        write_diff(a, b, out_json, out_md, label_a=f"{file_id}_manual", label_b=f"{file_id}_auto")
+        print(f"{file_id}: wrote {out_md}")
 
     print("\nAll runs OK.")
 

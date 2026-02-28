@@ -1,0 +1,76 @@
+flowchart LR
+  n1(["Start"]):::start_node
+  n2["Invoices are received by email and entered into the ERP by t...\n[ENTER_RECORD]"]:::action_node
+  n3["The clerk validates required fields (vendor, invoice number,...\n[VALIDATE_FIELDS]"]:::action_node
+  n4{"Decision\n<MATCH_3_WAY>"}:::decision_node
+  n5{"Decision\n<THRESHOLD_AMOUNT>"}:::decision_node
+  n6["After approval, payment is scheduled for Net 30 and then pai...\n[SCHEDULE_PAYMENT]"]:::action_node
+  n7["After approval, payment is scheduled for Net 30 and then pai...\n[EXECUTE_PAYMENT]"]:::action_node
+  n8{"Decision\n<IF_CONDITION>"}:::decision_node
+  n9["If an invoice does not have a PO number, AP routes it to the...\n[ROUTE_FOR_REVIEW]"]:::action_node
+  n10["The manager must confirm the expense and provide an account ...\n[REQUEST_CLARIFICATION]"]:::action_node
+  n11{"Decision\n<APPROVE_OR_REJECT>"}:::decision_node
+  n12["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]:::action_node
+  n13["If approved, AP enters the account code and proceeds to sche...\n[UPDATE_RECORD]"]:::action_node
+  n14["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]:::action_node
+  n15["AP performs a 3-way match. If there is a quantity mismatch o...\n[MATCH_3_WAY]"]:::action_node
+  n16{"Decision\n<IF_CONDITION>"}:::decision_node
+  n17["the invoice is placed on hold and AP contacts the vendor for...\n[REQUEST_CLARIFICATION]"]:::action_node
+  n18["Once corrected documents are received, AP updates the invoic...\n[RECEIVE_MESSAGE]"]:::action_node
+  n19["Once corrected documents are received, AP updates the invoic...\n[UPDATE_RECORD]"]:::action_node
+  n21["The AP clerk receives the invoice via the central email port...\n[ENTER_RECORD]"]:::action_node
+  n22["The clerk validates the invoice.\n[VALIDATE_FIELDS]"]:::action_node
+  n23{"Decision\n<IF_CONDITION>"}:::decision_node
+  n24["If the invoice is missing a GL account code, the clerk conta...\n[REQUEST_CLARIFICATION]"]:::action_node
+  n25["Once the account code is updated, the invoice is routed for ...\n[UPDATE_RECORD]"]:::action_node
+  n26["Once the account code is updated, the invoice is routed for ...\n[ROUTE_FOR_REVIEW]"]:::action_node
+  n27["If approved, the invoice is scheduled for payment.\n[SCHEDULE_PAYMENT]"]:::action_node
+  n28["Invoices are entered into the ERP.\n[ENTER_RECORD]"]:::action_node
+  n29["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]:::action_node
+  n30{"Decision\n<IF_CONDITION>"}:::decision_node
+  n31["If a duplicate is detected, the system immediately rejects t...\n[REJECT]"]:::action_node
+  n32["If a duplicate is detected, the system immediately rejects t...\n[NOTIFY]"]:::action_node
+  n33["If approved, the invoice is scheduled for payment.\n[MATCH_3_WAY]"]:::action_node
+  n34["If approved, the invoice is scheduled for payment.\n[SCHEDULE_PAYMENT]"]:::action_node
+  n35([["End"]]):::end_node
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n5 --> n6
+  n6 --> n7
+  n7 --> n8
+  n8 -->|IF_CONDITION| n9
+  n8 -->|IF_CONDITION| n10
+  n10 --> n11
+  n11 -->|APPROVE_OR_REJECT:REJECT| n12
+  n11 -->|APPROVE_OR_REJECT:APPROVE| n13
+  n11 -->|APPROVE_OR_REJECT:APPROVE| n14
+  n14 --> n15
+  n15 --> n16
+  n16 -->|IF_CONDITION:TRUE| n17
+  n16 -->|IF_CONDITION:TRUE| n18
+  n16 -->|IF_CONDITION:TRUE| n19
+  n16 -->|IF_CONDITION:TRUE| n15
+  n21 --> n22
+  n22 --> n23
+  n23 -->|IF_CONDITION| n24
+  n23 -->|IF_CONDITION| n25
+  n23 -->|IF_CONDITION| n26
+  n23 -->|IF_CONDITION| n27
+  n27 --> n28
+  n28 --> n29
+  n29 --> n30
+  n30 -->|IF_CONDITION:TRUE| n31
+  n30 -->|IF_CONDITION:TRUE| n32
+  n30 -->|IF_CONDITION:FALSE| n33
+  n30 -->|IF_CONDITION:FALSE| n34
+  n34 --> n35
+  n19 --> n15
+  n15 --> n35
+  n4 -->|match| n5
+  U_NOTE["Unknowns: 10 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE
+  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
+  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
+  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
+  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;

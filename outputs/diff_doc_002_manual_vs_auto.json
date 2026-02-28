@@ -9,19 +9,19 @@
     "nodes": {
       "a": 12,
       "b": 12,
-      "added_in_b": 0,
-      "removed_in_b": 0
+      "added_in_b": 1,
+      "removed_in_b": 1
     },
     "edges": {
       "a": 11,
       "b": 11,
-      "added_in_b": 2,
-      "removed_in_b": 2
+      "added_in_b": 9,
+      "removed_in_b": 9
     },
     "unknowns": {
       "a": 5,
-      "b": 5,
-      "added_in_b": 2,
+      "b": 3,
+      "added_in_b": 0,
       "removed_in_b": 2
     },
     "evidence_rate": {
@@ -44,28 +44,43 @@
         "REVIEW": 1,
         "UPDATE_RECORD": 1,
         "NOTIFY": 1,
+        "UPDATE_STATUS": 1,
         "ENTER_RECORD": 1,
         "SCHEDULE_PAYMENT": 1,
-        "EXECUTE_PAYMENT": 1,
         "RECEIVE_MESSAGE": 1
       }
     }
   },
   "details": {
-    "nodes_added_in_b": [],
-    "nodes_removed_in_b": [],
+    "nodes_added_in_b": [
+      "task:UPDATE_STATUS"
+    ],
+    "nodes_removed_in_b": [
+      "task:EXECUTE_PAYMENT"
+    ],
     "edges_added_in_b": [
-      "gw:APPROVE_OR_REJECT -> end:end",
-      "gw:HAS_PO -> task:ROUTE_FOR_REVIEW"
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:NOTIFY",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:UPDATE_STATUS",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:ENTER_RECORD",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:SCHEDULE_PAYMENT",
+      "gw:HAS_PO ->|has_po_false| task:REVIEW",
+      "gw:HAS_PO ->|has_po_false| task:UPDATE_RECORD",
+      "task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW",
+      "task:ROUTE_FOR_REVIEW -> gw:HAS_PO",
+      "task:SCHEDULE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
+      "gw:APPROVE_OR_REJECT ->|approve| task:ENTER_RECORD",
+      "gw:APPROVE_OR_REJECT ->|reject| task:NOTIFY",
       "gw:HAS_PO ->|no_po| task:ROUTE_FOR_REVIEW",
-      "task:EXECUTE_PAYMENT -> end:end"
+      "task:ENTER_RECORD -> task:SCHEDULE_PAYMENT",
+      "task:EXECUTE_PAYMENT -> end:end",
+      "task:RECEIVE_MESSAGE -> gw:HAS_PO",
+      "task:REVIEW -> task:UPDATE_RECORD",
+      "task:ROUTE_FOR_REVIEW -> task:REVIEW",
+      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT"
     ],
-    "unknowns_added_in_b": [
-      "Approval authority mentioned without explicit threshold/criteria: 'The manager must confirm the expense and provide an account code.' \u2014 what is the dollar threshold or rule that triggers this approver?",
-      "Decision detected but branches not fully modeled: 'If an invoice does not have a PO number, AP routes it to the department manager.' \u2014 what are the explicit outcomes and next steps?"
-    ],
+    "unknowns_added_in_b": [],
     "unknowns_removed_in_b": [
       "If the invoice DOES have a PO number, what is the standard AP path (2-way/3-way match, approvals)?",
       "What validation is required before routing to manager (vendor verification, duplicate invoice check)?"

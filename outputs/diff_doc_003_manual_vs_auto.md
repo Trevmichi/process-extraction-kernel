@@ -5,8 +5,8 @@
 
 ## Summary
 
-- Nodes: A=9  B=8  (+0 / -0)
-- Edges: A=8  B=8  (+0 / -0)
+- Nodes: A=9  B=6  (+0 / -2)
+- Edges: A=8  B=5  (+2 / -5)
 - Unknowns: A=7  B=5  (+0 / -2)
 - Evidence coverage (node-level): A=100.00%  B=100.00%
 
@@ -16,13 +16,19 @@
 - (none)
 
 ### Nodes removed in B
-- (none)
+- task:RECEIVE_MESSAGE
+- task:UPDATE_STATUS
 
 ### Edges added in B
-- (none)
+- gw:VARIANCE_ABOVE_TOLERANCE ->|variance_above_tolerance| task:REQUEST_CLARIFICATION
+- task:REQUEST_CLARIFICATION -> task:UPDATE_RECORD
 
 ### Edges removed in B
-- (none)
+- gw:VARIANCE_ABOVE_TOLERANCE ->|above_tolerance| task:UPDATE_STATUS
+- task:MATCH_3_WAY -> end:end
+- task:RECEIVE_MESSAGE -> task:UPDATE_RECORD
+- task:REQUEST_CLARIFICATION -> task:RECEIVE_MESSAGE
+- task:UPDATE_STATUS -> task:REQUEST_CLARIFICATION
 
 ### Unknowns added in B
 - (none)

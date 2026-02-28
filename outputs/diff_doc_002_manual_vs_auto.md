@@ -5,30 +5,43 @@
 
 ## Summary
 
-- Nodes: A=12  B=12  (+0 / -0)
-- Edges: A=11  B=11  (+2 / -2)
-- Unknowns: A=5  B=5  (+2 / -2)
+- Nodes: A=12  B=12  (+1 / -1)
+- Edges: A=11  B=11  (+9 / -9)
+- Unknowns: A=5  B=3  (+0 / -2)
 - Evidence coverage (node-level): A=100.00%  B=91.67%
 
 ## Details
 
 ### Nodes added in B
-- (none)
+- task:UPDATE_STATUS
 
 ### Nodes removed in B
-- (none)
+- task:EXECUTE_PAYMENT
 
 ### Edges added in B
-- gw:APPROVE_OR_REJECT -> end:end
-- gw:HAS_PO -> task:ROUTE_FOR_REVIEW
+- gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:NOTIFY
+- gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:UPDATE_STATUS
+- gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:ENTER_RECORD
+- gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:SCHEDULE_PAYMENT
+- gw:HAS_PO ->|has_po_false| task:REVIEW
+- gw:HAS_PO ->|has_po_false| task:UPDATE_RECORD
+- task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW
+- task:ROUTE_FOR_REVIEW -> gw:HAS_PO
+- task:SCHEDULE_PAYMENT -> end:end
 
 ### Edges removed in B
+- gw:APPROVE_OR_REJECT ->|approve| task:ENTER_RECORD
+- gw:APPROVE_OR_REJECT ->|reject| task:NOTIFY
 - gw:HAS_PO ->|no_po| task:ROUTE_FOR_REVIEW
+- task:ENTER_RECORD -> task:SCHEDULE_PAYMENT
 - task:EXECUTE_PAYMENT -> end:end
+- task:RECEIVE_MESSAGE -> gw:HAS_PO
+- task:REVIEW -> task:UPDATE_RECORD
+- task:ROUTE_FOR_REVIEW -> task:REVIEW
+- task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT
 
 ### Unknowns added in B
-- Approval authority mentioned without explicit threshold/criteria: 'The manager must confirm the expense and provide an account code.' — what is the dollar threshold or rule that triggers this approver?
-- Decision detected but branches not fully modeled: 'If an invoice does not have a PO number, AP routes it to the department manager.' — what are the explicit outcomes and next steps?
+- (none)
 
 ### Unknowns removed in B
 - If the invoice DOES have a PO number, what is the standard AP path (2-way/3-way match, approvals)?

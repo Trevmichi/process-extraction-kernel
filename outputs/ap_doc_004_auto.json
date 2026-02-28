@@ -1,9 +1,9 @@
 {
   "meta": {
-    "process_id": "ap_doc_001_auto",
+    "process_id": "ap_doc_004_auto",
     "domain": "accounts_payable",
     "source_ids": [
-      "doc_001"
+      "doc_004"
     ],
     "version": "0.3.1"
   },
@@ -60,8 +60,8 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "\ufeffInvoices are received by email and entered into the ERP by the AP clerk."
+          "source_id": "doc_004",
+          "span": "The AP clerk receives the invoice via the central email portal."
         }
       ],
       "meta": {
@@ -71,9 +71,9 @@
     {
       "id": "n2",
       "kind": "task",
-      "name": "Invoices are received by email and entered into the ERP by t...",
+      "name": "The AP clerk receives the invoice via the central email port...",
       "action": {
-        "type": "ENTER_RECORD",
+        "type": "RECEIVE_MESSAGE",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
@@ -81,18 +81,18 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "Invoices are received by email and entered into the ERP by the AP clerk."
+          "source_id": "doc_004",
+          "span": "The AP clerk receives the invoice via the central email portal."
         }
       ],
       "meta": {
-        "canonical_key": "task:ENTER_RECORD"
+        "canonical_key": "task:RECEIVE_MESSAGE"
       }
     },
     {
       "id": "n3",
       "kind": "task",
-      "name": "The clerk validates required fields (vendor, invoice number,...",
+      "name": "The clerk validates the invoice.",
       "action": {
         "type": "VALIDATE_FIELDS",
         "actor_id": "role_ap_clerk",
@@ -102,8 +102,8 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "The clerk validates required fields (vendor, invoice number, date, amount)."
+          "source_id": "doc_004",
+          "span": "The clerk validates the invoice."
         }
       ],
       "meta": {
@@ -122,8 +122,8 @@
       },
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
+          "source_id": "doc_004",
+          "span": "If the invoice is missing a GL account code"
         }
       ],
       "meta": {
@@ -133,9 +133,9 @@
     {
       "id": "n5",
       "kind": "task",
-      "name": "If the invoice matches the PO and goods receipt, it can be a...",
+      "name": "the clerk contacts the department manager.",
       "action": {
-        "type": "APPROVE",
+        "type": "REQUEST_CLARIFICATION",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
@@ -143,49 +143,50 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
+          "source_id": "doc_004",
+          "span": "the clerk contacts the department manager."
         }
       ],
       "meta": {
-        "canonical_key": "task:APPROVE"
+        "canonical_key": "task:REQUEST_CLARIFICATION"
       }
     },
     {
       "id": "n6",
-      "kind": "gateway",
-      "name": "Decision",
-      "action": null,
-      "decision": {
-        "type": "THRESHOLD_AMOUNT",
-        "inputs": [],
-        "expression": null
+      "kind": "task",
+      "name": "The manager provides the account code.",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_manager",
+        "artifact_id": "art_account_code",
+        "extra": {}
       },
+      "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "Invoices over $5,000 require director approval."
+          "source_id": "doc_004",
+          "span": "The manager provides the account code."
         }
       ],
       "meta": {
-        "canonical_key": "gw:THRESHOLD_AMOUNT"
+        "canonical_key": "task:UPDATE_RECORD"
       }
     },
     {
       "id": "n7",
       "kind": "task",
-      "name": "Invoices over $5,000 require director approval.",
+      "name": "the invoice is routed for director approval.",
       "action": {
         "type": "ROUTE_FOR_REVIEW",
-        "actor_id": "role_director",
+        "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
       },
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "Invoices over $5,000 require director approval."
+          "source_id": "doc_004",
+          "span": "the invoice is routed for director approval."
         }
       ],
       "meta": {
@@ -194,8 +195,28 @@
     },
     {
       "id": "n8",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "APPROVE_OR_REJECT",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "If approved"
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:APPROVE_OR_REJECT"
+      }
+    },
+    {
+      "id": "n9",
       "kind": "task",
-      "name": "After approval, payment is scheduled for Net 30 and then pai...",
+      "name": "the invoice is scheduled for payment.",
       "action": {
         "type": "SCHEDULE_PAYMENT",
         "actor_id": "role_ap_clerk",
@@ -205,33 +226,12 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
+          "source_id": "doc_004",
+          "span": "the invoice is scheduled for payment."
         }
       ],
       "meta": {
         "canonical_key": "task:SCHEDULE_PAYMENT"
-      }
-    },
-    {
-      "id": "n9",
-      "kind": "task",
-      "name": "After approval, payment is scheduled for Net 30 and then pai...",
-      "action": {
-        "type": "EXECUTE_PAYMENT",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_payment",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:EXECUTE_PAYMENT"
       }
     },
     {
@@ -242,8 +242,8 @@
       "decision": null,
       "evidence": [
         {
-          "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
+          "source_id": "doc_004",
+          "span": "If approved, the invoice is scheduled for payment."
         }
       ],
       "meta": {
@@ -270,12 +270,17 @@
     {
       "frm": "n4",
       "to": "n5",
-      "condition": "true"
+      "condition": "condition_true"
     },
     {
-      "frm": "n6",
+      "frm": "n4",
+      "to": "n6",
+      "condition": "condition_true"
+    },
+    {
+      "frm": "n4",
       "to": "n7",
-      "condition": "true"
+      "condition": "condition_true"
     },
     {
       "frm": "n7",
@@ -285,26 +290,11 @@
     {
       "frm": "n8",
       "to": "n9",
-      "condition": null
+      "condition": "approve"
     },
     {
       "frm": "n9",
       "to": "n10",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n5",
-      "condition": "amount>THRESH"
-    },
-    {
-      "frm": "n6",
-      "to": "n5",
-      "condition": "amount<=THRESH"
-    },
-    {
-      "frm": "n5",
-      "to": "n8",
       "condition": null
     }
   ],
@@ -313,12 +303,16 @@
     {
       "id": "auto_u1",
       "type": "missing_path",
-      "question": "If the invoice matches the PO and goods receipt (match), what are the explicit outcomes and next steps?",
+      "question": "Decision detected but branches not fully modeled: 'If the invoice is missing a GL account code' \u2014 what are the explicit outcomes and next steps?",
       "priority": "high",
-      "meta": {
-        "original_question": "Decision detected but branches not fully modeled: 'If the invoice matches the PO and goods receipt, it can be approved.' \u2014 what are the explicit outcomes and next steps?"
-      },
-      "key": "U.MATCH_BRANCHES"
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u2",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If approved' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
     },
     {
       "id": "auto_3",
@@ -329,9 +323,9 @@
     },
     {
       "id": "auto_4",
-      "type": "missing_path",
-      "question": "Is there a rejection path? If rejected, how is the vendor notified and how is the invoice closed?",
-      "priority": "high",
+      "type": "missing_rule",
+      "question": "What is the escalation policy if the vendor does not respond (time limits, reminders, who owns escalation)?",
+      "priority": "medium",
       "key": "U.OTHER"
     },
     {
