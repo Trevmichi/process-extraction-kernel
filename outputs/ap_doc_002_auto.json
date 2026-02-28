@@ -277,9 +277,11 @@
       "name": "Receive invoice",
       "action": {
         "type": "RECEIVE_MESSAGE",
-        "actor_id": "",
+        "actor_id": "sys_erp",
         "artifact_id": "",
-        "extra": {}
+        "extra": {
+          "raw_actor_id": ""
+        }
       },
       "decision": null,
       "evidence": [],
