@@ -1,0 +1,5 @@
+The AP clerk receives the invoice via the central email portal.
+The clerk validates the invoice. If the invoice is missing a GL account code, the clerk contacts the department manager.
+The manager provides the account code.
+Once the account code is updated, the invoice is routed for director approval.
+If approved, the invoice is scheduled for payment.

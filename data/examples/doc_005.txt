@@ -1,0 +1,5 @@
+Invoices are entered into the ERP.
+The system checks for duplicate invoice numbers.
+If a duplicate is detected, the system immediately rejects the invoice and notifies the vendor.
+If it is not a duplicate, the AP clerk proceeds to match the invoice against the purchase order.
+After a successful match, payment is executed.
