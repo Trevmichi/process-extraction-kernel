@@ -132,27 +132,6 @@
     },
     {
       "id": "n5",
-      "kind": "task",
-      "name": "If the invoice matches the PO and goods receipt, it can be a...",
-      "action": {
-        "type": "APPROVE",
-        "actor_id": "role_manager",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:APPROVE"
-      }
-    },
-    {
-      "id": "n6",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -172,7 +151,7 @@
       }
     },
     {
-      "id": "n7",
+      "id": "n6",
       "kind": "task",
       "name": "After approval, payment is scheduled for Net 30 and then pai...",
       "action": {
@@ -193,7 +172,7 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n7",
       "kind": "task",
       "name": "After approval, payment is scheduled for Net 30 and then pai...",
       "action": {
@@ -214,12 +193,12 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n8",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "IF_CONDITION",
+        "type": "HAS_PO",
         "inputs": [],
         "expression": null
       },
@@ -230,16 +209,16 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "gw:HAS_PO"
       }
     },
     {
-      "id": "n10",
+      "id": "n9",
       "kind": "task",
       "name": "If an invoice does not have a PO number, AP routes it to the...",
       "action": {
         "type": "ROUTE_FOR_REVIEW",
-        "actor_id": "role_manager",
+        "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
       },
@@ -255,11 +234,11 @@
       }
     },
     {
-      "id": "n11",
+      "id": "n10",
       "kind": "task",
       "name": "The manager must confirm the expense and provide an account ...",
       "action": {
-        "type": "REVIEW",
+        "type": "REQUEST_CLARIFICATION",
         "actor_id": "role_manager",
         "artifact_id": "art_invoice",
         "extra": {}
@@ -272,32 +251,11 @@
         }
       ],
       "meta": {
-        "canonical_key": "task:REVIEW"
+        "canonical_key": "task:REQUEST_CLARIFICATION"
       }
     },
     {
-      "id": "n12",
-      "kind": "task",
-      "name": "The manager must confirm the expense and provide an account ...",
-      "action": {
-        "type": "UPDATE_RECORD",
-        "actor_id": "role_manager",
-        "artifact_id": "art_account_code",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "The manager must confirm the expense and provide an account code."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:UPDATE_RECORD"
-      }
-    },
-    {
-      "id": "n13",
+      "id": "n11",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -317,7 +275,7 @@
       }
     },
     {
-      "id": "n14",
+      "id": "n12",
       "kind": "task",
       "name": "If the manager rejects the expense, AP notifies the vendor a...",
       "action": {
@@ -338,7 +296,7 @@
       }
     },
     {
-      "id": "n15",
+      "id": "n13",
       "kind": "task",
       "name": "If the manager rejects the expense, AP notifies the vendor a...",
       "action": {
@@ -359,7 +317,7 @@
       }
     },
     {
-      "id": "n16",
+      "id": "n14",
       "kind": "task",
       "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
@@ -380,7 +338,7 @@
       }
     },
     {
-      "id": "n17",
+      "id": "n15",
       "kind": "task",
       "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
@@ -401,7 +359,7 @@
       }
     },
     {
-      "id": "n18",
+      "id": "n16",
       "kind": "task",
       "name": "AP performs a 3-way match.",
       "action": {
@@ -422,7 +380,7 @@
       }
     },
     {
-      "id": "n19",
+      "id": "n17",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -442,7 +400,7 @@
       }
     },
     {
-      "id": "n20",
+      "id": "n18",
       "kind": "task",
       "name": "If there is a quantity mismatch or price variance above the ...",
       "action": {
@@ -463,34 +421,13 @@
       }
     },
     {
-      "id": "n21",
-      "kind": "task",
-      "name": "Once corrected documents are received, AP updates the invoic...",
-      "action": {
-        "type": "RECEIVE_MESSAGE",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_corrected_docs",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:RECEIVE_MESSAGE"
-      }
-    },
-    {
-      "id": "n22",
+      "id": "n19",
       "kind": "task",
       "name": "Once corrected documents are received, AP updates the invoic...",
       "action": {
         "type": "UPDATE_RECORD",
         "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
+        "artifact_id": "art_corrected_docs",
         "extra": {}
       },
       "decision": null,
@@ -505,11 +442,11 @@
       }
     },
     {
-      "id": "n24",
+      "id": "n21",
       "kind": "task",
       "name": "The AP clerk receives the invoice via the central email port...",
       "action": {
-        "type": "ENTER_RECORD",
+        "type": "RECEIVE_MESSAGE",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
@@ -522,11 +459,11 @@
         }
       ],
       "meta": {
-        "canonical_key": "task:ENTER_RECORD"
+        "canonical_key": "task:RECEIVE_MESSAGE"
       }
     },
     {
-      "id": "n25",
+      "id": "n22",
       "kind": "task",
       "name": "The clerk validates the invoice.",
       "action": {
@@ -547,12 +484,12 @@
       }
     },
     {
-      "id": "n26",
+      "id": "n23",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "IF_CONDITION",
+        "type": "HAS_PO",
         "inputs": [],
         "expression": null
       },
@@ -563,57 +500,15 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "gw:HAS_PO"
       }
     },
     {
-      "id": "n27",
+      "id": "n24",
       "kind": "task",
-      "name": "If the invoice is missing a GL account code, the clerk conta...",
+      "name": "The manager provides the account code.",
       "action": {
         "type": "REQUEST_CLARIFICATION",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_account_code",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "If the invoice is missing a GL account code, the clerk contacts the department manager."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:REQUEST_CLARIFICATION"
-      }
-    },
-    {
-      "id": "n28",
-      "kind": "task",
-      "name": "The manager must confirm the expense and provide an account ...",
-      "action": {
-        "type": "UPDATE_RECORD",
-        "actor_id": "role_manager",
-        "artifact_id": "art_account_code",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "The manager must confirm the expense and provide an account code."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:UPDATE_RECORD"
-      }
-    },
-    {
-      "id": "n29",
-      "kind": "task",
-      "name": "Invoices are routed for approval.",
-      "action": {
-        "type": "ROUTE_FOR_REVIEW",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
         "extra": {}
@@ -622,7 +517,49 @@
       "evidence": [
         {
           "source_id": "ap_master_manual",
-          "span": "Invoices are routed for approval."
+          "span": "The manager provides the account code."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REQUEST_CLARIFICATION"
+      }
+    },
+    {
+      "id": "n25",
+      "kind": "task",
+      "name": "Once the account code is updated, the invoice is routed for ...",
+      "action": {
+        "type": "UPDATE_STATUS",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "Once the account code is updated, the invoice is routed for director approval."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_STATUS"
+      }
+    },
+    {
+      "id": "n26",
+      "kind": "task",
+      "name": "Once the account code is updated, the invoice is routed for ...",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_director",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "Once the account code is updated, the invoice is routed for director approval."
         }
       ],
       "meta": {
@@ -630,12 +567,33 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n27",
+      "kind": "task",
+      "name": "If approved, the invoice is scheduled for payment.",
+      "action": {
+        "type": "SCHEDULE_PAYMENT",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "If approved, the invoice is scheduled for payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:SCHEDULE_PAYMENT"
+      }
+    },
+    {
+      "id": "n28",
       "kind": "task",
       "name": "Invoices are entered into the system.",
       "action": {
         "type": "ENTER_RECORD",
-        "actor_id": "role_ap_clerk",
+        "actor_id": "sys_erp",
         "artifact_id": "art_invoice",
         "extra": {}
       },
@@ -651,9 +609,71 @@
       }
     },
     {
+      "id": "n29",
+      "kind": "task",
+      "name": "The system checks for duplicates.",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "The system checks for duplicates."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n30",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "APPROVE_OR_REJECT",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "If a duplicate is found, the invoice is rejected."
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:APPROVE_OR_REJECT"
+      }
+    },
+    {
       "id": "n31",
       "kind": "task",
-      "name": "Invoices are matched to purchase orders and receipts.",
+      "name": "If a duplicate is found, the invoice is rejected.",
+      "action": {
+        "type": "REJECT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "ap_master_manual",
+          "span": "If a duplicate is found, the invoice is rejected."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REJECT"
+      }
+    },
+    {
+      "id": "n32",
+      "kind": "task",
+      "name": "If the invoice is unique, it is matched.",
       "action": {
         "type": "MATCH_3_WAY",
         "actor_id": "role_ap_clerk",
@@ -664,32 +684,11 @@
       "evidence": [
         {
           "source_id": "ap_master_manual",
-          "span": "Invoices are matched to purchase orders and receipts."
+          "span": "If the invoice is unique, it is matched."
         }
       ],
       "meta": {
         "canonical_key": "task:MATCH_3_WAY"
-      }
-    },
-    {
-      "id": "n32",
-      "kind": "task",
-      "name": "Payments are executed.",
-      "action": {
-        "type": "EXECUTE_PAYMENT",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_payment",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "ap_master_manual",
-          "span": "Payments are executed."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:EXECUTE_PAYMENT"
       }
     },
     {
@@ -728,57 +727,67 @@
     {
       "frm": "n4",
       "to": "n5",
-      "condition": "HAS_PO"
+      "condition": null
+    },
+    {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
     },
     {
       "frm": "n6",
+      "to": "n7",
+      "condition": null
+    },
+    {
+      "frm": "n7",
       "to": "n8",
-      "condition": "SCHEDULE_PAYMENT"
+      "condition": null
     },
     {
       "frm": "n8",
       "to": "n9",
-      "condition": null
+      "condition": "condition_no_po"
     },
     {
-      "frm": "n9",
+      "frm": "n8",
       "to": "n10",
-      "condition": "IF_CONDITION"
+      "condition": "condition_no_po"
     },
     {
-      "frm": "n9",
+      "frm": "n10",
       "to": "n11",
-      "condition": "ROUTE_FOR_REVIEW"
-    },
-    {
-      "frm": "n9",
-      "to": "n12",
-      "condition": "REVIEW"
-    },
-    {
-      "frm": "n12",
-      "to": "n13",
       "condition": null
     },
     {
-      "frm": "n13",
+      "frm": "n11",
+      "to": "n12",
+      "condition": "condition_no_po_reject"
+    },
+    {
+      "frm": "n11",
+      "to": "n13",
+      "condition": "condition_no_po_reject"
+    },
+    {
+      "frm": "n11",
       "to": "n14",
-      "condition": "APPROVE_OR_REJECT"
+      "condition": "condition_no_po_approve"
     },
     {
-      "frm": "n13",
+      "frm": "n11",
       "to": "n15",
-      "condition": "APPROVE_OR_REJECT"
+      "condition": "condition_no_po_approve"
     },
     {
-      "frm": "n13",
+      "frm": "n15",
       "to": "n16",
-      "condition": "APPROVE_OR_REJECT"
+      "condition": null
     },
     {
-      "frm": "n13",
+      "frm": "n16",
       "to": "n17",
-      "condition": "ENTER_RECORD"
+      "condition": null
     },
     {
       "frm": "n17",
@@ -792,43 +801,43 @@
     },
     {
       "frm": "n19",
-      "to": "n20",
-      "condition": "VARIANCE_ABOVE_TOLERANCE"
+      "to": "n16",
+      "condition": null
     },
     {
-      "frm": "n19",
-      "to": "n21",
-      "condition": "REQUEST_CLARIFICATION"
-    },
-    {
-      "frm": "n19",
+      "frm": "n21",
       "to": "n22",
-      "condition": "RECEIVE_MESSAGE"
+      "condition": null
     },
     {
-      "frm": "n19",
-      "to": "n18",
-      "condition": "UPDATE_RECORD"
+      "frm": "n22",
+      "to": "n23",
+      "condition": null
     },
     {
-      "frm": "n24",
+      "frm": "n23",
+      "to": "n24",
+      "condition": "missing_gl"
+    },
+    {
+      "frm": "n23",
       "to": "n25",
-      "condition": null
+      "condition": "missing_gl"
     },
     {
-      "frm": "n25",
+      "frm": "n23",
       "to": "n26",
-      "condition": null
+      "condition": "missing_gl"
     },
     {
-      "frm": "n26",
+      "frm": "n23",
       "to": "n27",
-      "condition": "IF_CONDITION"
+      "condition": "missing_gl"
     },
     {
-      "frm": "n26",
+      "frm": "n27",
       "to": "n28",
-      "condition": "REQUEST_CLARIFICATION"
+      "condition": null
     },
     {
       "frm": "n28",
@@ -856,28 +865,8 @@
       "condition": null
     },
     {
-      "frm": "n22",
-      "to": "n18",
-      "condition": null
-    },
-    {
-      "frm": "n18",
+      "frm": "n16",
       "to": "n33",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n5",
-      "condition": "amount>THRESH"
-    },
-    {
-      "frm": "n6",
-      "to": "n5",
-      "condition": "amount<=THRESH"
-    },
-    {
-      "frm": "n5",
-      "to": "n7",
       "condition": null
     }
   ],
@@ -894,6 +883,30 @@
       "key": "U.MATCH_BRANCHES"
     },
     {
+      "id": "auto_u2",
+      "type": "missing_path",
+      "question": "Invoices over $5,000 require director approval \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "meta": {
+        "original_question": "Decision detected but branches not fully modeled: 'Invoices over $5,000 require director approval.' \u2014 what are the explicit outcomes and next steps?"
+      },
+      "key": "U.THRESHOLD_BRANCHES"
+    },
+    {
+      "id": "auto_u3",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If an invoice does not have a PO number, AP routes it to the department manager.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u5",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
       "id": "auto_u6",
       "type": "missing_path",
       "question": "Decision detected but branches not fully modeled: 'If the invoice is missing a GL account code, the clerk contacts the department manager.' \u2014 what are the explicit outcomes and next steps?",
@@ -901,14 +914,21 @@
       "key": "U.OTHER"
     },
     {
-      "id": "auto_7",
+      "id": "auto_u7",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If a duplicate is found, the invoice is rejected.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_8",
       "type": "missing_rule",
       "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
       "priority": "medium",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_8",
+      "id": "auto_9",
       "type": "missing_rule",
       "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
       "priority": "high",
@@ -916,13 +936,6 @@
         "original_question": "What are the tolerances for quantity/price variances in matching (and who sets them)?"
       },
       "key": "U.MATCH_TOLERANCE"
-    },
-    {
-      "id": "auto_9",
-      "type": "missing_path",
-      "question": "Is there a rejection path? If rejected, how is the vendor notified and how is the invoice closed?",
-      "priority": "high",
-      "key": "U.OTHER"
     },
     {
       "id": "auto_10",
@@ -953,7 +966,7 @@
       "key": "U.OTHER"
     },
     {
-      "id": "auto_21",
+      "id": "auto_20",
       "type": "missing_path",
       "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
       "priority": "high",

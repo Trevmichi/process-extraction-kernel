@@ -12,6 +12,7 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 | # | Canonical Key |
 |---|---------------|
 | 1 | `gw:MATCH_3_WAY` |
+| 2 | `task:APPROVE` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
@@ -19,13 +20,20 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 |---|------------------|----------------|-----------|
 | 1 | `gw:MATCH_3_WAY` | `gw:THRESHOLD_AMOUNT` | `match` |
 | 2 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `MATCH_3_WAY` |
-| 3 | `task:VALIDATE_FIELDS` | `gw:MATCH_3_WAY` | _(unconditional)_ |
+| 3 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount<=THRESH` |
+| 4 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount>THRESH` |
+| 5 | `gw:THRESHOLD_AMOUNT` | `task:EXECUTE_PAYMENT` | `SCHEDULE_PAYMENT` |
+| 6 | `task:APPROVE` | `task:SCHEDULE_PAYMENT` | _(unconditional)_ |
+| 7 | `task:EXECUTE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 8 | `task:VALIDATE_FIELDS` | `gw:MATCH_3_WAY` | _(unconditional)_ |
 
 ## doc_002
 
 ### Steps present in sub-doc but absent from Master Manual
 
-_None — all step intents are covered by the Master Manual._
+| # | Canonical Key |
+|---|---------------|
+| 1 | `task:REVIEW` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
@@ -54,13 +62,15 @@ _None — all step intents are covered by the Master Manual._
 | # | From (canonical) | To (canonical) | Condition |
 |---|------------------|----------------|-----------|
 | 1 | `event:start` | `task:MATCH_3_WAY` | _(unconditional)_ |
-| 2 | `task:REQUEST_CLARIFICATION` | `task:UPDATE_RECORD` | _(unconditional)_ |
+| 2 | `gw:VARIANCE_ABOVE_TOLERANCE` | `task:REQUEST_CLARIFICATION` | `VARIANCE_ABOVE_TOLERANCE` |
 
 ## doc_004
 
 ### Steps present in sub-doc but absent from Master Manual
 
-_None — all step intents are covered by the Master Manual._
+| # | Canonical Key |
+|---|---------------|
+| 1 | `gw:IF_CONDITION` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
@@ -68,12 +78,13 @@ _None — all step intents are covered by the Master Manual._
 |---|------------------|----------------|-----------|
 | 1 | `event:start` | `task:RECEIVE_MESSAGE` | _(unconditional)_ |
 | 2 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `approve` |
-| 3 | `gw:IF_CONDITION` | `task:RECEIVE_MESSAGE` | `condition_true` |
+| 3 | `gw:IF_CONDITION` | `task:ENTER_RECORD` | `condition_true` |
 | 4 | `gw:IF_CONDITION` | `task:REQUEST_CLARIFICATION` | `condition_true` |
 | 5 | `gw:IF_CONDITION` | `task:UPDATE_RECORD` | `condition_true` |
-| 6 | `task:RECEIVE_MESSAGE` | `task:VALIDATE_FIELDS` | _(unconditional)_ |
-| 7 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
-| 8 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 6 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
+| 7 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 8 | `task:UPDATE_RECORD` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
+| 9 | `task:VALIDATE_FIELDS` | `gw:IF_CONDITION` | _(unconditional)_ |
 
 ## doc_005
 
@@ -81,7 +92,7 @@ _None — all step intents are covered by the Master Manual._
 
 | # | Canonical Key |
 |---|---------------|
-| 1 | `task:REJECT` |
+| 1 | `gw:IF_CONDITION` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
@@ -91,4 +102,6 @@ _None — all step intents are covered by the Master Manual._
 | 2 | `gw:IF_CONDITION` | `task:MATCH_3_WAY` | `not_duplicate` |
 | 3 | `gw:IF_CONDITION` | `task:NOTIFY` | `duplicate_detected` |
 | 4 | `gw:IF_CONDITION` | `task:REJECT` | `duplicate_detected` |
+| 5 | `task:EXECUTE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 6 | `task:VALIDATE_FIELDS` | `gw:IF_CONDITION` | _(unconditional)_ |
 

@@ -9,7 +9,7 @@
     "nodes": {
       "a": 11,
       "b": 11,
-      "added_in_b": 0,
+      "added_in_b": 1,
       "removed_in_b": 1
     },
     "edges": {
@@ -39,9 +39,10 @@
         "EXECUTE_PAYMENT": 1
       },
       "b": {
-        "RECEIVE_MESSAGE": 2,
+        "RECEIVE_MESSAGE": 1,
         "VALIDATE_FIELDS": 1,
         "REQUEST_CLARIFICATION": 1,
+        "ENTER_RECORD": 1,
         "UPDATE_RECORD": 1,
         "ROUTE_FOR_REVIEW": 1,
         "SCHEDULE_PAYMENT": 1
@@ -49,12 +50,14 @@
     }
   },
   "details": {
-    "nodes_added_in_b": [],
+    "nodes_added_in_b": [
+      "task:ENTER_RECORD"
+    ],
     "nodes_removed_in_b": [
       "task:EXECUTE_PAYMENT"
     ],
     "edges_added_in_b": [
-      "gw:IF_CONDITION ->|condition_true| task:RECEIVE_MESSAGE",
+      "gw:IF_CONDITION ->|condition_true| task:ENTER_RECORD",
       "gw:IF_CONDITION ->|condition_true| task:REQUEST_CLARIFICATION",
       "gw:IF_CONDITION ->|condition_true| task:UPDATE_RECORD",
       "task:SCHEDULE_PAYMENT -> end:end"
