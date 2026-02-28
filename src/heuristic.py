@@ -118,8 +118,9 @@ def _is_rerun_matching_sentence(s: str) -> bool:
     s = (s or "").lower()
     return ("re-runs matching" in s) or ("reruns matching" in s) or ("re-run matching" in s) or ("rerun matching" in s)
 
-def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None) -> List[str]:
+def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None, branch_label: Optional[str] = None) -> List[str]:
     is_rerun = _is_rerun_matching_sentence(s)
+    _bl = (branch_label or "").lower()
     acts: List[str] = []
     for pat, act in VERB_ACTIONS:
         # If this sentence created a MATCH_3_WAY gateway, don't also emit MATCH_3_WAY task
@@ -127,6 +128,11 @@ def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None) -
             continue
         # Existing rerun behavior
         if is_rerun and act == "MATCH_3_WAY":
+            continue
+        # Skip gateway-outcome verbs when sentence is a branch of that outcome
+        if _bl == "approve" and act == "APPROVE":
+            continue
+        if _bl == "reject" and act == "REJECT":
             continue
         if pat.search(s):
             acts.append(act)
@@ -137,6 +143,9 @@ def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None) -
         if a not in seen:
             out.append(a)
             seen.add(a)
+    # ENTER_RECORD subsumes UPDATE_RECORD when both appear in the same sentence
+    if "ENTER_RECORD" in out and "UPDATE_RECORD" in out:
+        out = [a for a in out if a != "UPDATE_RECORD"]
     if is_rerun:
         precedence = {"RECEIVE_MESSAGE": 0, "UPDATE_RECORD": 1}
         out.sort(key=lambda a: precedence.get(a, 99))
@@ -187,7 +196,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
         if label in _BRANCH_GW_TYPES and last_gw_node is not None and \
                 last_gw_node.decision is not None and \
                 last_gw_node.decision.type == _BRANCH_GW_TYPES[label]:
-            acts = _actions_from_sentence(s_clean)
+            acts = _actions_from_sentence(s_clean, branch_label=label)
             last_branch_id: Optional[str] = None
             for act in acts:
                 tid = f"n{next_num}"; next_num += 1
@@ -245,7 +254,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
             _inline_cond = label
 
         gw_type_for_sentence = decision.type if decision is not None else None
-        acts = _actions_from_sentence(s_clean, gw_type_for_sentence)
+        acts = _actions_from_sentence(s_clean, gw_type_for_sentence, branch_label=label)
         if acts:
             _first_edge = True
             for act in acts:

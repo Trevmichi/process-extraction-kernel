@@ -5,26 +5,22 @@ flowchart TD
   n4["The manager must confirm the expense and provide an account ...\n[REVIEW]"]
   n5["The manager must confirm the expense and provide an account ...\n[UPDATE_RECORD]"]
   n6{"Decision\n<APPROVE_OR_REJECT>"}
-  n7["If the manager rejects the expense, AP notifies the vendor a...\n[REJECT]"]
-  n8["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]
-  n9["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]
-  n10["If approved, AP enters the account code and proceeds to sche...\n[UPDATE_RECORD]"]
-  n11["If approved, AP enters the account code and proceeds to sche...\n[APPROVE]"]
-  n12["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]
-  n13["If approved, AP enters the account code and proceeds to sche...\n[EXECUTE_PAYMENT]"]
-  n14([["End"]])
-  n1 --> n2
+  n7["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]
+  n8["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]
+  n9["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]
+  n10["If approved, AP enters the account code and proceeds to sche...\n[EXECUTE_PAYMENT]"]
+  n11([["End"]])
+  n12["Receive invoice\n[RECEIVE_MESSAGE]"]
+  n12 --> n2
   n2 --> n3
   n3 --> n4
   n4 --> n5
   n5 --> n6
   n6 -->|reject| n7
-  n7 --> n8
-  n6 -->|approve| n9
+  n6 -->|approve| n8
+  n8 --> n9
   n9 --> n10
-  n10 --> n11
-  n11 --> n12
-  n12 --> n13
-  n6 --> n14
-  U_NOTE["Unknowns: 6 (see JSON unknowns list)"]
+  n6 --> n11
+  n1 --> n12
+  U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
   n1 -.-> U_NOTE

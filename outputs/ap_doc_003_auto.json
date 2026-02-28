@@ -250,11 +250,6 @@
       "frm": "n2",
       "to": "n8",
       "condition": null
-    },
-    {
-      "frm": "n3",
-      "to": "n2",
-      "condition": "within_tolerance"
     }
   ],
   "rules": [],

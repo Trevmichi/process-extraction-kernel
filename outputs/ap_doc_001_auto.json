@@ -157,27 +157,6 @@
     },
     {
       "id": "n6",
-      "kind": "task",
-      "name": "If the invoice matches the PO and goods receipt, it can be a...",
-      "action": {
-        "type": "APPROVE",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:APPROVE"
-      }
-    },
-    {
-      "id": "n7",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -194,6 +173,27 @@
       ],
       "meta": {
         "canonical_key": "gw:THRESHOLD_AMOUNT"
+      }
+    },
+    {
+      "id": "n7",
+      "kind": "task",
+      "name": "Invoices over $5,000 require director approval.",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_001",
+          "span": "Invoices over $5,000 require director approval."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:APPROVE"
       }
     },
     {
@@ -277,16 +277,6 @@
       "condition": null
     },
     {
-      "frm": "n5",
-      "to": "n6",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n7",
-      "condition": null
-    },
-    {
       "frm": "n7",
       "to": "n8",
       "condition": null
@@ -302,32 +292,32 @@
       "condition": null
     },
     {
-      "frm": "n7",
-      "to": "n6",
+      "frm": "n6",
+      "to": "n7",
       "condition": "amount>5000"
     },
     {
-      "frm": "n7",
-      "to": "n6",
+      "frm": "n6",
+      "to": "n7",
       "condition": "amount<=5000"
     },
     {
       "frm": "n5",
-      "to": "n7",
+      "to": "n6",
       "condition": "match"
     }
   ],
   "rules": [],
   "unknowns": [
     {
-      "id": "auto_3",
+      "id": "auto_4",
       "type": "missing_rule",
       "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
       "priority": "medium",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_4",
+      "id": "auto_5",
       "type": "missing_rule",
       "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
       "priority": "high",
@@ -337,21 +327,21 @@
       "key": "U.MATCH_TOLERANCE"
     },
     {
-      "id": "auto_5",
+      "id": "auto_6",
       "type": "missing_path",
       "question": "Is there a rejection path? If rejected, how is the vendor notified and how is the invoice closed?",
       "priority": "high",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_6",
+      "id": "auto_7",
       "type": "missing_rule",
       "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
       "priority": "low",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_11",
+      "id": "auto_12",
       "type": "missing_path",
       "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
       "priority": "high",
