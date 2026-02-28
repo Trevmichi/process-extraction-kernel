@@ -14,9 +14,9 @@
     },
     "edges": {
       "a": 11,
-      "b": 10,
-      "added_in_b": 0,
-      "removed_in_b": 0
+      "b": 12,
+      "added_in_b": 3,
+      "removed_in_b": 1
     },
     "unknowns": {
       "a": 5,
@@ -50,8 +50,14 @@
   "details": {
     "nodes_added_in_b": [],
     "nodes_removed_in_b": [],
-    "edges_added_in_b": [],
-    "edges_removed_in_b": [],
+    "edges_added_in_b": [
+      "gw:MATCH_3_WAY -> task:APPROVE",
+      "gw:THRESHOLD_AMOUNT -> task:SCHEDULE_PAYMENT",
+      "task:APPROVE -> gw:THRESHOLD_AMOUNT"
+    ],
+    "edges_removed_in_b": [
+      "task:APPROVE -> task:SCHEDULE_PAYMENT"
+    ],
     "unknowns_added_in_b": [],
     "unknowns_removed_in_b": []
   }

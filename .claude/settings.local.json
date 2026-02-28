@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -m src.main)",
+      "Bash(powershell -Command \"Select-String -Path outputs/ap_doc_002_auto.json -SimpleMatch -Pattern ''\"\"HAS_PO\"\"'',''\"\"APPROVE_OR_REJECT\"\"''\")",
+      "Bash(powershell -Command \"Select-String -Path outputs/ap_doc_003_auto.json -SimpleMatch -Pattern ''\"\"VARIANCE_ABOVE_TOLERANCE\"\"''\")"
+    ]
+  }
+}

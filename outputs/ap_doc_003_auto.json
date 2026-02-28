@@ -95,9 +95,9 @@
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "IF_CONDITION",
+        "type": "VARIANCE_ABOVE_TOLERANCE",
         "inputs": [],
-        "expression": "there is a quantity mismatch or price variance above the tolerance"
+        "expression": null
       },
       "evidence": [
         {
@@ -106,11 +106,53 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "gw:VARIANCE_ABOVE_TOLERANCE"
       }
     },
     {
       "id": "n4",
+      "kind": "task",
+      "name": "If there is a quantity mismatch or price variance above the ...",
+      "action": {
+        "type": "UPDATE_STATUS",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_STATUS"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "If there is a quantity mismatch or price variance above the ...",
+      "action": {
+        "type": "REQUEST_CLARIFICATION",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REQUEST_CLARIFICATION"
+      }
+    },
+    {
+      "id": "n6",
       "kind": "task",
       "name": "Once corrected documents are received, AP updates the invoic...",
       "action": {
@@ -131,28 +173,7 @@
       }
     },
     {
-      "id": "n5",
-      "kind": "task",
-      "name": "Once corrected documents are received, AP updates the invoic...",
-      "action": {
-        "type": "MATCH_3_WAY",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_003",
-          "span": "Once corrected documents are received, AP updates the invoice and re-runs matching."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:MATCH_3_WAY"
-      }
-    },
-    {
-      "id": "n6",
+      "id": "n7",
       "kind": "task",
       "name": "Once corrected documents are received, AP updates the invoic...",
       "action": {
@@ -173,7 +194,7 @@
       }
     },
     {
-      "id": "n7",
+      "id": "n8",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -203,7 +224,7 @@
     {
       "frm": "n3",
       "to": "n4",
-      "condition": null
+      "condition": "above_tolerance"
     },
     {
       "frm": "n4",
@@ -219,17 +240,25 @@
       "frm": "n6",
       "to": "n7",
       "condition": null
+    },
+    {
+      "frm": "n7",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n8",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n2",
+      "condition": "within_tolerance"
     }
   ],
   "rules": [],
   "unknowns": [
-    {
-      "id": "auto_u1",
-      "type": "missing_path",
-      "question": "Decision detected but branches not fully modeled: 'If there is a quantity mismatch or price variance above the tolerance, the invoice is placed on hold and AP contacts the vendor for clarification.' \u2014 what are the explicit outcomes and next steps?",
-      "priority": "high",
-      "key": "U.OTHER"
-    },
     {
       "id": "auto_2",
       "type": "missing_rule",
@@ -242,13 +271,27 @@
     },
     {
       "id": "auto_3",
+      "type": "missing_path",
+      "question": "If variance is within tolerance, what happens next (auto-approve, manager review, or pay hold)?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_4",
+      "type": "missing_rule",
+      "question": "What is the escalation policy if the vendor does not respond (time limits, reminders, who owns escalation)?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_5",
       "type": "missing_rule",
       "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
       "priority": "low",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_6",
+      "id": "auto_10",
       "type": "missing_path",
       "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
       "priority": "high",

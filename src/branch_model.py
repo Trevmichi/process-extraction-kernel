@@ -82,6 +82,21 @@ def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
             proc.unknowns.append({"id": f"auto_u{len(proc.unknowns)+1}", "type": "missing_rule", "question": q2, "priority": "medium"})
             edits.append({"type": "add_unknown", "question": q2})
 
+    # 2.5) VARIANCE_ABOVE_TOLERANCE: ensure both above_tolerance and within_tolerance are represented
+    gw_var = _find_node_by_ck(proc, "gw:VARIANCE_ABOVE_TOLERANCE")
+    match_task = _find_node_by_ck(proc, "task:MATCH_3_WAY")
+    end_nodes = [n for n in proc.nodes if n.kind == "end"]
+    end = end_nodes[0] if end_nodes else None
+
+    if gw_var:
+        # above_tolerance typically exists already; ensure within_tolerance exists
+        # Prefer sending within_tolerance to MATCH_3_WAY if present, else End
+        target = match_task or end
+        if target:
+            if not _has_edge(proc, gw_var.id, target.id, "within_tolerance"):
+                proc.edges.append(Edge(frm=gw_var.id, to=target.id, condition="within_tolerance"))
+                edits.append({"type": "add_edge", "from": "gw:VARIANCE_ABOVE_TOLERANCE", "to": _ck(target) or target.id, "condition": "within_tolerance"})
+
     # 3) Remove redundant unlabeled edges when labeled edge exists for same frm->to
     labeled_pairs = {(e.frm, e.to) for e in proc.edges if (e.condition or "").strip() != ""}
     proc.edges = [
@@ -95,6 +110,8 @@ def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
         _prune_branch_unknown(proc, "If the invoice matches the PO and goods receipt")
     if gw_thr and _has_labeled_out(proc, gw_thr.id):
         _prune_branch_unknown(proc, "Invoices over $5,000 require director approval")
+    if gw_var and _has_labeled_out(proc, gw_var.id):
+        _prune_branch_unknown(proc, "If there is a quantity mismatch or price variance above the tolerance")
 
     return edits
 
