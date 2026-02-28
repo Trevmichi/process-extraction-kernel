@@ -1,7 +1,8 @@
 ﻿from __future__ import annotations
 import re
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, TypedDict, Literal
 from .models import ProcessDoc, Node, Edge, Action, Decision, Evidence
+from .ontology import ActionType, DecisionType
 
 VERB_ACTIONS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b(receive|received)\b", re.I), "RECEIVE_MESSAGE"),
@@ -30,6 +31,16 @@ _BRANCH_GW_TYPES: Dict[str, str] = {
     "above_tolerance": "VARIANCE_ABOVE_TOLERANCE",
     "within_tolerance": "VARIANCE_ABOVE_TOLERANCE",
 }
+
+class ParsedIntent(TypedDict, total=False):
+    kind: Literal["action", "decision"]
+    intent: str  # ActionType or DecisionType
+    actor_id: str
+    artifact_id: str
+    branch_label: Optional[str]
+    expression: Optional[str]
+    evidence_span: str
+    inputs: List[str]  # Decision.inputs (for MATCH_3_WAY)
 
 def _split_sentences(text: str) -> List[str]:
     # Normalize wrapped lines: keep blank lines as paragraph breaks, flatten other newlines
@@ -151,6 +162,35 @@ def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None, b
         out.sort(key=lambda a: precedence.get(a, 99))
     return out
 
+def _classify_sentence(s: str) -> List[ParsedIntent]:
+    """Classify a sentence into a list of ParsedIntent dicts (decision first, then actions)."""
+    intents: List[ParsedIntent] = []
+    label = _branch_label(s)
+    decision = _detect_gateway(s)
+    gw_type = decision.type if decision is not None else None
+
+    if decision is not None:
+        intents.append({
+            "kind": "decision",
+            "intent": decision.type,
+            "branch_label": label,
+            "expression": decision.expression,
+            "inputs": list(decision.inputs),
+            "evidence_span": s,
+        })
+
+    for act in _actions_from_sentence(s, gw_type, branch_label=label):
+        intents.append({
+            "kind": "action",
+            "intent": act,
+            "actor_id": _guess_actor(act),
+            "artifact_id": _guess_artifact(act),
+            "branch_label": label,
+            "evidence_span": s,
+        })
+
+    return intents
+
 def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessDoc:
     actors = [
         {"id": "role_ap_clerk", "type": "human_role", "name": "AP Clerk"},
@@ -188,23 +228,26 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
 
     for s in sentences:
         s_clean = s.strip()
+        intents = _classify_sentence(s_clean)
 
-        label = _branch_label(s_clean)
-        decision = _detect_gateway(s_clean)
+        # Extract branch_label shared across all intents for this sentence
+        label: Optional[str] = intents[0].get("branch_label") if intents else None
+        decision_intents = [i for i in intents if i.get("kind") == "decision"]
+        action_intents  = [i for i in intents if i.get("kind") == "action"]
 
         # Branch reuse: if this sentence is a branch of the immediately prior gateway, reuse it
         if label in _BRANCH_GW_TYPES and last_gw_node is not None and \
                 last_gw_node.decision is not None and \
                 last_gw_node.decision.type == _BRANCH_GW_TYPES[label]:
-            acts = _actions_from_sentence(s_clean, branch_label=label)
             last_branch_id: Optional[str] = None
-            for act in acts:
+            for ai in action_intents:
+                act = ai["intent"]
                 tid = f"n{next_num}"; next_num += 1
                 nodes.append(Node(
                     id=tid,
                     kind="task",
                     name=s_clean[:60] + ("..." if len(s_clean) > 60 else ""),
-                    action=Action(type=act, actor_id=_guess_actor(act), artifact_id=_guess_artifact(act)),
+                    action=Action(type=act, actor_id=ai.get("actor_id", ""), artifact_id=ai.get("artifact_id", "")),
                     evidence=ev(s_clean),
                     meta={"canonical_key": f"task:{act}"},
                 ))
@@ -216,15 +259,20 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
             cur_id = last_gw_node.id
             continue
 
-        if decision is not None:
+        # Gateway creation
+        for di in decision_intents:
             gid = f"n{next_num}"; next_num += 1
             gw_node = Node(
                 id=gid,
                 kind="gateway",
                 name="Decision",
-                decision=decision,
+                decision=Decision(
+                    type=di["intent"],
+                    expression=di.get("expression"),
+                    inputs=di.get("inputs", []),
+                ),
                 evidence=ev(s_clean),
-                meta={"canonical_key": f"gw:{decision.type}"},
+                meta={"canonical_key": f"gw:{di['intent']}"},
             )
             nodes.append(gw_node)
             edges.append(Edge(frm=cur_id, to=gid))
@@ -253,11 +301,10 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
                 _BRANCH_GW_TYPES[label] == last_gw_node.decision.type:
             _inline_cond = label
 
-        gw_type_for_sentence = decision.type if decision is not None else None
-        acts = _actions_from_sentence(s_clean, gw_type_for_sentence, branch_label=label)
-        if acts:
+        if action_intents:
             _first_edge = True
-            for act in acts:
+            for ai in action_intents:
+                act = ai["intent"]
                 task_key = f"task:{act}"
                 if task_key == last_task_key:
                     continue
@@ -266,7 +313,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str) -> ProcessD
                     id=tid,
                     kind="task",
                     name=s_clean[:60] + ("..." if len(s_clean) > 60 else ""),
-                    action=Action(type=act, actor_id=_guess_actor(act), artifact_id=_guess_artifact(act)),
+                    action=Action(type=act, actor_id=ai.get("actor_id", ""), artifact_id=ai.get("artifact_id", "")),
                     evidence=ev(s_clean),
                     meta={"canonical_key": task_key},
                 ))

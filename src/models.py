@@ -1,6 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Literal
+from .ontology import (
+    ActionType, DecisionType, ActorId, ArtifactId,
+    VALID_ACTIONS, VALID_DECISIONS, VALID_ACTORS, VALID_ARTIFACTS,
+)
 
 NodeKind = Literal["event", "task", "gateway", "end"]
 
@@ -11,16 +15,30 @@ class Evidence:
 
 @dataclass
 class Action:
-    type: str
-    actor_id: str
-    artifact_id: str
+    type: ActionType
+    actor_id: ActorId | str
+    artifact_id: ArtifactId | str
     extra: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.type not in VALID_ACTIONS:
+            raise ValueError(f"Invalid Action.type {self.type!r}; expected one of {sorted(VALID_ACTIONS)}")
+        if self.actor_id not in VALID_ACTORS:
+            self.extra["raw_actor_id"] = self.actor_id
+            self.actor_id = "sys_erp"
+        if self.artifact_id not in VALID_ARTIFACTS:
+            self.extra["raw_artifact_id"] = self.artifact_id
+            self.artifact_id = ""
 
 @dataclass
 class Decision:
-    type: str
+    type: DecisionType
     inputs: List[str] = field(default_factory=list)
     expression: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.type not in VALID_DECISIONS:
+            raise ValueError(f"Invalid Decision.type {self.type!r}; expected one of {sorted(VALID_DECISIONS)}")
 
 @dataclass
 class Node:
