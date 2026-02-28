@@ -1,28 +1,34 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2["Invoices are received by email and entered into the ERP by t...\n[ENTER_RECORD]"]:::action_node
-  n3["The clerk validates required fields (vendor, invoice number,...\n[VALIDATE_FIELDS]"]:::action_node
-  n4{"Decision\n<IF_CONDITION>"}:::decision_node
-  n5["If the invoice matches the PO and goods receipt, it can be a...\n[APPROVE]"]:::action_node
-  n6{"Decision\n<THRESHOLD_AMOUNT>"}:::decision_node
-  n7["Invoices over $5,000 require director approval.\n[ROUTE_FOR_REVIEW]"]:::action_node
-  n8["After approval, payment is scheduled for Net 30 and then pai...\n[SCHEDULE_PAYMENT]"]:::action_node
-  n9["After approval, payment is scheduled for Net 30 and then pai...\n[EXECUTE_PAYMENT]"]:::action_node
-  n10([["End"]]):::end_node
+  n1(["Start"])
+  n2["Invoices are received by email and entered into the ERP by t...\n[RECEIVE_MESSAGE]"]
+  n3["Invoices are received by email and entered into the ERP by t...\n[ENTER_RECORD]"]
+  n4["The clerk validates required fields (vendor, invoice number,...\n[VALIDATE_FIELDS]"]
+  n5{"Decision\n<MATCH_3_WAY>"}
+  n6{"Decision\n<THRESHOLD_AMOUNT>"}
+  n7["If the invoice matches the PO and goods receipt, it can be a...\n[APPROVE]"]
+  n8["After approval, payment is scheduled for Net 30 and then pai...\n[SCHEDULE_PAYMENT]"]
+  n9["After approval, payment is scheduled for Net 30 and then pai...\n[EXECUTE_PAYMENT]"]
+  n10([["End"]])
   n1 --> n2
   n2 --> n3
   n3 --> n4
-  n4 -->|true| n5
-  n6 -->|true| n7
+  n4 --> n5
+  n6 -->|MATCH_3_WAY| n7
   n7 --> n8
   n8 --> n9
   n9 --> n10
-  n6 -->|amount>THRESH| n5
-  n6 -->|amount<=THRESH| n5
-  n5 --> n8
-  U_NOTE["Unknowns: 4 (see JSON unknowns list)"]
+  n6 -->|amount>THRESH| n7
+  n6 -->|amount<=THRESH| n7
+  n5 -->|match| n6
+  U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#bbf,stroke:#333,stroke-width:1px
+  style n3 fill:#bbf,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#fdb,stroke:#333,stroke-width:1px
+  style n6 fill:#fdb,stroke:#333,stroke-width:1px
+  style n7 fill:#bbf,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#bbf,stroke:#333,stroke-width:1px
+  style n10 fill:#f99,stroke:#333,stroke-width:2px

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 from typing import Dict, List
 from .models import ProcessDoc, Node
 
@@ -10,23 +10,33 @@ def _node_label(n: Node) -> str:
         base = f"{base}\\n<{n.decision.type}>"
     return base.replace('"', "'")
 
+def _node_style(n: Node) -> str:
+    if n.kind == "event":
+        return f"  style {n.id} fill:#9f9,stroke:#333,stroke-width:2px"
+    if n.kind == "end":
+        return f"  style {n.id} fill:#f99,stroke:#333,stroke-width:2px"
+    if n.kind == "gateway":
+        return f"  style {n.id} fill:#fdb,stroke:#333,stroke-width:1px"
+    # task (and any other kind)
+    return f"  style {n.id} fill:#bbf,stroke:#333,stroke-width:1px"
+
 def to_mermaid(process: ProcessDoc) -> str:
     nodes_by_id: Dict[str, Node] = {n.id: n for n in process.nodes}
 
     lines: List[str] = []
     lines.append("flowchart LR")
 
-    # Node declarations with shapes and class annotations
+    # Node declarations with shapes
     for n in process.nodes:
         label = _node_label(n)
         if n.kind == "event":
-            lines.append(f'  {n.id}(["{label}"]):::start_node')
+            lines.append(f'  {n.id}(["{label}"])')
         elif n.kind == "end":
-            lines.append(f'  {n.id}([["{label}"]]):::end_node')
+            lines.append(f'  {n.id}([["{label}"]])')
         elif n.kind == "gateway":
-            lines.append(f'  {n.id}{{"{label}"}}:::decision_node')
+            lines.append(f'  {n.id}{{"{label}"}}')
         else:
-            lines.append(f'  {n.id}["{label}"]:::action_node')
+            lines.append(f'  {n.id}["{label}"]')
 
     # Edges
     for e in process.edges:
@@ -45,10 +55,8 @@ def to_mermaid(process: ProcessDoc) -> str:
         if starts:
             lines.append(f"  {starts[0].id} -.-> U_NOTE")
 
-    # Styling
-    lines.append("  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;")
-    lines.append("  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;")
-    lines.append("  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;")
-    lines.append("  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;")
+    # Individual style statements (maximum IDE compatibility)
+    for n in process.nodes:
+        lines.append(_node_style(n))
 
     return "\n".join(lines) + "\n"

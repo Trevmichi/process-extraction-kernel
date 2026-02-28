@@ -70,27 +70,6 @@
     },
     {
       "id": "n2",
-      "kind": "task",
-      "name": "If an invoice does not have a PO number, AP routes it to the...",
-      "action": {
-        "type": "ROUTE_FOR_REVIEW",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_002",
-          "span": "If an invoice does not have a PO number, AP routes it to the department manager."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:ROUTE_FOR_REVIEW"
-      }
-    },
-    {
-      "id": "n3",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -102,7 +81,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If an invoice does not have a PO number, AP routes it to the department manager."
+          "span": "If an invoice does not have a PO number"
         }
       ],
       "meta": {
@@ -110,9 +89,30 @@
       }
     },
     {
+      "id": "n3",
+      "kind": "task",
+      "name": "AP routes it to the department manager",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "AP routes it to the department manager"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:ROUTE_FOR_REVIEW"
+      }
+    },
+    {
       "id": "n4",
       "kind": "task",
-      "name": "The manager must confirm the expense and provide an account ...",
+      "name": "The manager must confirm the expense",
       "action": {
         "type": "REVIEW",
         "actor_id": "role_manager",
@@ -123,7 +123,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "The manager must confirm the expense and provide an account code."
+          "span": "The manager must confirm the expense"
         }
       ],
       "meta": {
@@ -133,9 +133,9 @@
     {
       "id": "n5",
       "kind": "task",
-      "name": "The manager must confirm the expense and provide an account ...",
+      "name": "and provide an account code",
       "action": {
-        "type": "UPDATE_RECORD",
+        "type": "ENTER_RECORD",
         "actor_id": "role_manager",
         "artifact_id": "art_account_code",
         "extra": {}
@@ -144,11 +144,11 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "The manager must confirm the expense and provide an account code."
+          "span": "and provide an account code"
         }
       ],
       "meta": {
-        "canonical_key": "task:UPDATE_RECORD"
+        "canonical_key": "task:ENTER_RECORD"
       }
     },
     {
@@ -164,7 +164,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice. If approved, AP enters the account code and proceeds to schedule payment."
+          "span": "If the manager rejects the expense"
         }
       ],
       "meta": {
@@ -174,7 +174,7 @@
     {
       "id": "n7",
       "kind": "task",
-      "name": "If the manager rejects the expense, AP notifies the vendor a...",
+      "name": "AP notifies the vendor",
       "action": {
         "type": "NOTIFY",
         "actor_id": "role_ap_clerk",
@@ -185,7 +185,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
+          "span": "AP notifies the vendor"
         }
       ],
       "meta": {
@@ -195,7 +195,7 @@
     {
       "id": "n8",
       "kind": "task",
-      "name": "If the manager rejects the expense, AP notifies the vendor a...",
+      "name": "and closes the invoice",
       "action": {
         "type": "UPDATE_STATUS",
         "actor_id": "role_ap_clerk",
@@ -206,7 +206,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
+          "span": "and closes the invoice"
         }
       ],
       "meta": {
@@ -216,7 +216,7 @@
     {
       "id": "n9",
       "kind": "task",
-      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "name": "AP enters the account code",
       "action": {
         "type": "ENTER_RECORD",
         "actor_id": "role_ap_clerk",
@@ -227,7 +227,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+          "span": "AP enters the account code"
         }
       ],
       "meta": {
@@ -237,7 +237,7 @@
     {
       "id": "n10",
       "kind": "task",
-      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "name": "and proceeds to schedule payment",
       "action": {
         "type": "SCHEDULE_PAYMENT",
         "actor_id": "role_ap_clerk",
@@ -248,7 +248,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+          "span": "and proceeds to schedule payment"
         }
       ],
       "meta": {
@@ -299,17 +299,17 @@
     {
       "frm": "n2",
       "to": "n3",
-      "condition": null
+      "condition": "no_po"
     },
     {
-      "frm": "n3",
+      "frm": "n2",
       "to": "n4",
-      "condition": "HAS_PO_FALSE"
+      "condition": "no_po"
     },
     {
-      "frm": "n3",
+      "frm": "n2",
       "to": "n5",
-      "condition": "HAS_PO_FALSE"
+      "condition": "no_po"
     },
     {
       "frm": "n5",
@@ -319,22 +319,22 @@
     {
       "frm": "n6",
       "to": "n7",
-      "condition": "APPROVE_OR_REJECT_FALSE"
+      "condition": "no_po_reject"
     },
     {
       "frm": "n6",
       "to": "n8",
-      "condition": "APPROVE_OR_REJECT_FALSE"
+      "condition": "no_po_reject"
     },
     {
       "frm": "n6",
       "to": "n9",
-      "condition": "APPROVE_OR_REJECT_TRUE"
+      "condition": "no_po_approve"
     },
     {
       "frm": "n6",
       "to": "n10",
-      "condition": "APPROVE_OR_REJECT_TRUE"
+      "condition": "no_po_approve"
     },
     {
       "frm": "n10",

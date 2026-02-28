@@ -1,13 +1,13 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2["Invoices are entered into the ERP.\n[ENTER_RECORD]"]:::action_node
-  n3["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]:::action_node
-  n4{"Decision\n<IF_CONDITION>"}:::decision_node
-  n5["the system immediately rejects the invoice\n[REJECT]"]:::action_node
-  n6["and notifies the vendor.\n[NOTIFY]"]:::action_node
-  n7["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]:::action_node
-  n8["After a successful match, payment is executed.\n[EXECUTE_PAYMENT]"]:::action_node
-  n9([["End"]]):::end_node
+  n1(["Start"])
+  n2["Invoices are entered into the ERP.\n[ENTER_RECORD]"]
+  n3["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]
+  n4{"Decision\n<IF_CONDITION>"}
+  n5["the system immediately rejects the invoice\n[REJECT]"]
+  n6["and notifies the vendor.\n[NOTIFY]"]
+  n7["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]
+  n8["After a successful match, payment is executed.\n[EXECUTE_PAYMENT]"]
+  n9([["End"]])
   n1 --> n2
   n2 --> n3
   n3 --> n4
@@ -18,7 +18,12 @@ flowchart LR
   n8 --> n9
   U_NOTE["Unknowns: 4 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#bbf,stroke:#333,stroke-width:1px
+  style n3 fill:#bbf,stroke:#333,stroke-width:1px
+  style n4 fill:#fdb,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n6 fill:#bbf,stroke:#333,stroke-width:1px
+  style n7 fill:#bbf,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#f99,stroke:#333,stroke-width:2px

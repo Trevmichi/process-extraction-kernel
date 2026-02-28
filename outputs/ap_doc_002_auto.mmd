@@ -1,30 +1,38 @@
 flowchart LR
-  n1(["Start"]):::start_node
-  n2["If an invoice does not have a PO number, AP routes it to the...\n[ROUTE_FOR_REVIEW]"]:::action_node
-  n3{"Decision\n<HAS_PO>"}:::decision_node
-  n4["The manager must confirm the expense and provide an account ...\n[REVIEW]"]:::action_node
-  n5["The manager must confirm the expense and provide an account ...\n[UPDATE_RECORD]"]:::action_node
-  n6{"Decision\n<APPROVE_OR_REJECT>"}:::decision_node
-  n7["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]:::action_node
-  n8["If the manager rejects the expense, AP notifies the vendor a...\n[UPDATE_STATUS]"]:::action_node
-  n9["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]:::action_node
-  n10["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]:::action_node
-  n11([["End"]]):::end_node
-  n12["Receive invoice\n[RECEIVE_MESSAGE]"]:::action_node
+  n1(["Start"])
+  n2{"Decision\n<HAS_PO>"}
+  n3["AP routes it to the department manager\n[ROUTE_FOR_REVIEW]"]
+  n4["The manager must confirm the expense\n[REVIEW]"]
+  n5["and provide an account code\n[ENTER_RECORD]"]
+  n6{"Decision\n<APPROVE_OR_REJECT>"}
+  n7["AP notifies the vendor\n[NOTIFY]"]
+  n8["and closes the invoice\n[UPDATE_STATUS]"]
+  n9["AP enters the account code\n[ENTER_RECORD]"]
+  n10["and proceeds to schedule payment\n[SCHEDULE_PAYMENT]"]
+  n11([["End"]])
+  n12["Receive invoice\n[RECEIVE_MESSAGE]"]
   n12 --> n2
-  n2 --> n3
-  n3 -->|HAS_PO_FALSE| n4
-  n3 -->|HAS_PO_FALSE| n5
+  n2 -->|no_po| n3
+  n2 -->|no_po| n4
+  n2 -->|no_po| n5
   n5 --> n6
-  n6 -->|APPROVE_OR_REJECT_FALSE| n7
-  n6 -->|APPROVE_OR_REJECT_FALSE| n8
-  n6 -->|APPROVE_OR_REJECT_TRUE| n9
-  n6 -->|APPROVE_OR_REJECT_TRUE| n10
+  n6 -->|no_po_reject| n7
+  n6 -->|no_po_reject| n8
+  n6 -->|no_po_approve| n9
+  n6 -->|no_po_approve| n10
   n10 --> n11
   n1 --> n12
   U_NOTE["Unknowns: 3 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
-  classDef start_node fill:#9f9,stroke:#333,stroke-width:2px;
-  classDef end_node fill:#f99,stroke:#333,stroke-width:2px;
-  classDef action_node fill:#bbf,stroke:#333,stroke-width:1px;
-  classDef decision_node fill:#fdb,stroke:#333,stroke-width:1px;
+  style n1 fill:#9f9,stroke:#333,stroke-width:2px
+  style n2 fill:#fdb,stroke:#333,stroke-width:1px
+  style n3 fill:#bbf,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
+  style n5 fill:#bbf,stroke:#333,stroke-width:1px
+  style n6 fill:#fdb,stroke:#333,stroke-width:1px
+  style n7 fill:#bbf,stroke:#333,stroke-width:1px
+  style n8 fill:#bbf,stroke:#333,stroke-width:1px
+  style n9 fill:#bbf,stroke:#333,stroke-width:1px
+  style n10 fill:#bbf,stroke:#333,stroke-width:1px
+  style n11 fill:#f99,stroke:#333,stroke-width:2px
+  style n12 fill:#bbf,stroke:#333,stroke-width:1px

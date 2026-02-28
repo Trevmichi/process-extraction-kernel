@@ -8,14 +8,14 @@
   "summary": {
     "nodes": {
       "a": 11,
-      "b": 10,
+      "b": 11,
       "added_in_b": 0,
       "removed_in_b": 1
     },
     "edges": {
       "a": 11,
-      "b": 9,
-      "added_in_b": 4,
+      "b": 10,
+      "added_in_b": 5,
       "removed_in_b": 6
     },
     "unknowns": {
@@ -39,7 +39,7 @@
         "EXECUTE_PAYMENT": 1
       },
       "b": {
-        "RECEIVE_MESSAGE": 1,
+        "RECEIVE_MESSAGE": 2,
         "VALIDATE_FIELDS": 1,
         "REQUEST_CLARIFICATION": 1,
         "UPDATE_RECORD": 1,
@@ -54,18 +54,19 @@
       "task:EXECUTE_PAYMENT"
     ],
     "edges_added_in_b": [
+      "gw:APPROVE_OR_REJECT ->|approved| task:SCHEDULE_PAYMENT",
+      "gw:IF_CONDITION ->|condition_true| task:RECEIVE_MESSAGE",
       "gw:IF_CONDITION ->|condition_true| task:REQUEST_CLARIFICATION",
-      "gw:IF_CONDITION ->|condition_true| task:ROUTE_FOR_REVIEW",
       "gw:IF_CONDITION ->|condition_true| task:UPDATE_RECORD",
       "task:SCHEDULE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
+      "gw:APPROVE_OR_REJECT ->|approve| task:SCHEDULE_PAYMENT",
       "gw:IF_CONDITION ->|missing| task:REQUEST_CLARIFICATION",
       "gw:IF_CONDITION ->|not_missing| task:ROUTE_FOR_REVIEW",
       "task:EXECUTE_PAYMENT -> end:end",
       "task:REQUEST_CLARIFICATION -> task:UPDATE_RECORD",
-      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT",
-      "task:UPDATE_RECORD -> task:ROUTE_FOR_REVIEW"
+      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT"
     ],
     "unknowns_added_in_b": [
       "Decision detected but branches not fully modeled: 'If approved' \u2014 what are the explicit outcomes and next steps?",

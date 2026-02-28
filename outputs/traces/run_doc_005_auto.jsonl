@@ -19,3 +19,5 @@
 {"ts": "2026-02-28T15:34:20.183557Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_005", "path": "data/examples/doc_005.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:39:34.373928Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_005", "path": "data/examples/doc_005.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:44:17.730066Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_005", "path": "data/examples/doc_005.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T15:57:39.095964Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_005", "path": "data/examples/doc_005.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T15:59:38.380530Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_005", "path": "data/examples/doc_005.txt", "mode": "heuristic"}, "cost": {}}

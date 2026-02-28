@@ -117,3 +117,5 @@
 {"ts": "2026-02-28T15:33:37.152192Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:38:46.960357Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
 {"ts": "2026-02-28T15:43:30.968118Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T15:57:39.087182Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-28T15:58:59.222679Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}

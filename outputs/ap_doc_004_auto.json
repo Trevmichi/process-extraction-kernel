@@ -156,7 +156,7 @@
       "kind": "task",
       "name": "The manager provides the account code.",
       "action": {
-        "type": "UPDATE_RECORD",
+        "type": "RECEIVE_MESSAGE",
         "actor_id": "role_manager",
         "artifact_id": "art_account_code",
         "extra": {}
@@ -169,11 +169,32 @@
         }
       ],
       "meta": {
-        "canonical_key": "task:UPDATE_RECORD"
+        "canonical_key": "task:RECEIVE_MESSAGE"
       }
     },
     {
       "id": "n7",
+      "kind": "task",
+      "name": "Once the account code is updated",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_004",
+          "span": "Once the account code is updated"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n8",
       "kind": "task",
       "name": "the invoice is routed for director approval.",
       "action": {
@@ -194,7 +215,7 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n9",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -214,7 +235,7 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n10",
       "kind": "task",
       "name": "the invoice is scheduled for payment.",
       "action": {
@@ -235,7 +256,7 @@
       }
     },
     {
-      "id": "n10",
+      "id": "n11",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -290,11 +311,16 @@
     {
       "frm": "n8",
       "to": "n9",
-      "condition": "approve"
+      "condition": null
     },
     {
       "frm": "n9",
       "to": "n10",
+      "condition": "approved"
+    },
+    {
+      "frm": "n10",
+      "to": "n11",
       "condition": null
     }
   ],

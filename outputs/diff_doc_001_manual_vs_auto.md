@@ -5,41 +5,30 @@
 
 ## Summary
 
-- Nodes: A=11  B=10  (+2 / -2)
-- Edges: A=11  B=11  (+7 / -6)
-- Unknowns: A=5  B=4  (+1 / -2)
+- Nodes: A=11  B=10  (+0 / -0)
+- Edges: A=11  B=11  (+3 / -2)
+- Unknowns: A=5  B=5  (+0 / -0)
 - Evidence coverage (node-level): A=100.00%  B=100.00%
 
 ## Details
 
 ### Nodes added in B
-- gw:IF_CONDITION
-- task:ROUTE_FOR_REVIEW
+- (none)
 
 ### Nodes removed in B
-- gw:MATCH_3_WAY
-- task:RECEIVE_MESSAGE
+- (none)
 
 ### Edges added in B
-- event:start -> task:ENTER_RECORD
-- gw:IF_CONDITION ->|true| task:APPROVE
 - gw:THRESHOLD_AMOUNT ->|amount<=thresh| task:APPROVE
 - gw:THRESHOLD_AMOUNT ->|amount>thresh| task:APPROVE
-- gw:THRESHOLD_AMOUNT ->|true| task:ROUTE_FOR_REVIEW
-- task:ROUTE_FOR_REVIEW -> task:SCHEDULE_PAYMENT
-- task:VALIDATE_FIELDS -> gw:IF_CONDITION
+- gw:THRESHOLD_AMOUNT ->|match_3_way| task:APPROVE
 
 ### Edges removed in B
-- event:start -> task:RECEIVE_MESSAGE
-- gw:MATCH_3_WAY ->|match| gw:THRESHOLD_AMOUNT
 - gw:THRESHOLD_AMOUNT ->|amount<=5000| task:APPROVE
 - gw:THRESHOLD_AMOUNT ->|amount>5000| task:APPROVE
-- task:RECEIVE_MESSAGE -> task:ENTER_RECORD
-- task:VALIDATE_FIELDS -> gw:MATCH_3_WAY
 
 ### Unknowns added in B
-- If the invoice matches the PO and goods receipt (match), what are the explicit outcomes and next steps?
+- (none)
 
 ### Unknowns removed in B
-- If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?
-- What is the match tolerance for price/quantity variances in matching (and who sets it)?
+- (none)
