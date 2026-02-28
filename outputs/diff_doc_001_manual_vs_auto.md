@@ -6,7 +6,7 @@
 ## Summary
 
 - Nodes: A=11  B=10  (+0 / -0)
-- Edges: A=11  B=12  (+3 / -1)
+- Edges: A=11  B=10  (+0 / -0)
 - Unknowns: A=5  B=5  (+0 / -0)
 - Evidence coverage (node-level): A=100.00%  B=100.00%
 
@@ -19,12 +19,10 @@
 - (none)
 
 ### Edges added in B
-- gw:MATCH_3_WAY -> task:APPROVE
-- gw:THRESHOLD_AMOUNT -> task:SCHEDULE_PAYMENT
-- task:APPROVE -> gw:THRESHOLD_AMOUNT
+- (none)
 
 ### Edges removed in B
-- task:APPROVE -> task:SCHEDULE_PAYMENT
+- (none)
 
 ### Unknowns added in B
 - (none)

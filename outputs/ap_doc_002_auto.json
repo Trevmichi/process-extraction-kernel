@@ -176,27 +176,6 @@
       "kind": "task",
       "name": "If the manager rejects the expense, AP notifies the vendor a...",
       "action": {
-        "type": "REJECT",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_002",
-          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:REJECT"
-      }
-    },
-    {
-      "id": "n8",
-      "kind": "task",
-      "name": "If the manager rejects the expense, AP notifies the vendor a...",
-      "action": {
         "type": "NOTIFY",
         "actor_id": "role_ap_clerk",
         "artifact_id": "art_invoice",
@@ -214,7 +193,7 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n8",
       "kind": "task",
       "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
@@ -235,49 +214,7 @@
       }
     },
     {
-      "id": "n10",
-      "kind": "task",
-      "name": "If approved, AP enters the account code and proceeds to sche...",
-      "action": {
-        "type": "UPDATE_RECORD",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_002",
-          "span": "If approved, AP enters the account code and proceeds to schedule payment."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:UPDATE_RECORD"
-      }
-    },
-    {
-      "id": "n11",
-      "kind": "task",
-      "name": "If approved, AP enters the account code and proceeds to sche...",
-      "action": {
-        "type": "APPROVE",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_002",
-          "span": "If approved, AP enters the account code and proceeds to schedule payment."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:APPROVE"
-      }
-    },
-    {
-      "id": "n12",
+      "id": "n9",
       "kind": "task",
       "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
@@ -298,7 +235,7 @@
       }
     },
     {
-      "id": "n13",
+      "id": "n10",
       "kind": "task",
       "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
@@ -319,7 +256,7 @@
       }
     },
     {
-      "id": "n14",
+      "id": "n11",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -333,11 +270,27 @@
       "meta": {
         "canonical_key": "end:end"
       }
+    },
+    {
+      "id": "n12",
+      "kind": "task",
+      "name": "Receive invoice",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "",
+        "artifact_id": "",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": {
+        "canonical_key": "task:RECEIVE_MESSAGE"
+      }
     }
   ],
   "edges": [
     {
-      "frm": "n1",
+      "frm": "n12",
       "to": "n2",
       "condition": null
     },
@@ -367,14 +320,14 @@
       "condition": "reject"
     },
     {
-      "frm": "n7",
+      "frm": "n6",
       "to": "n8",
-      "condition": null
+      "condition": "approve"
     },
     {
-      "frm": "n6",
+      "frm": "n8",
       "to": "n9",
-      "condition": "approve"
+      "condition": null
     },
     {
       "frm": "n9",
@@ -382,23 +335,13 @@
       "condition": null
     },
     {
-      "frm": "n10",
+      "frm": "n6",
       "to": "n11",
       "condition": null
     },
     {
-      "frm": "n11",
+      "frm": "n1",
       "to": "n12",
-      "condition": null
-    },
-    {
-      "frm": "n12",
-      "to": "n13",
-      "condition": null
-    },
-    {
-      "frm": "n6",
-      "to": "n14",
       "condition": null
     }
   ],
@@ -415,13 +358,6 @@
       "id": "auto_u2",
       "type": "missing_rule",
       "question": "Approval authority mentioned without explicit threshold/criteria: 'The manager must confirm the expense and provide an account code.' \u2014 what is the dollar threshold or rule that triggers this approver?",
-      "priority": "high",
-      "key": "U.OTHER"
-    },
-    {
-      "id": "auto_u3",
-      "type": "missing_path",
-      "question": "Decision detected but branches not fully modeled: 'If the manager rejects the expense, AP notifies the vendor and closes the invoice.' \u2014 what are the explicit outcomes and next steps?",
       "priority": "high",
       "key": "U.OTHER"
     },

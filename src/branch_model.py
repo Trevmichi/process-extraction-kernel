@@ -1,7 +1,9 @@
 ﻿from __future__ import annotations
 import re
 from typing import Dict, List, Optional
-from .models import ProcessDoc, Edge, Node
+from .models import ProcessDoc, Edge, Node, Action
+
+ADD_IMPLIED_WITHIN_TOLERANCE = False  # set True to auto-add within_tolerance edge
 
 def _ck(n: Node) -> str:
     return (n.meta or {}).get("canonical_key", "")
@@ -28,12 +30,44 @@ def _prune_branch_unknown(proc: ProcessDoc, snippet_contains: str) -> None:
         if not (u.get("type") == "missing_path" and snippet_contains in (u.get("question") or ""))
     ]
 
+def _next_id(proc: ProcessDoc) -> str:
+    used = {n.id for n in proc.nodes}
+    i = 1
+    while f"n{i}" in used:
+        i += 1
+    return f"n{i}"
+
 def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
     """
     Adds simple branch edges for known gateway types.
     Returns list of edits made (for trace/debug).
     """
     edits: List[Dict] = []
+
+    # 0) Inject implicit RECEIVE_MESSAGE if HAS_PO gateway exists but no RECEIVE_MESSAGE task
+    _gw_has_po = _find_node_by_ck(proc, "gw:HAS_PO")
+    if _gw_has_po and _find_node_by_ck(proc, "task:RECEIVE_MESSAGE") is None:
+        _start = next(
+            (n for n in proc.nodes if n.kind == "event" and (
+                _ck(n) == "event:start" or (n.name or "").strip().lower() == "start"
+            )),
+            None,
+        )
+        if _start:
+            _start_out = next((e for e in proc.edges if e.frm == _start.id), None)
+            _new_id = _next_id(proc)
+            _recv_node = Node(
+                id=_new_id,
+                kind="task",
+                name="Receive invoice",
+                action=Action(type="RECEIVE_MESSAGE", actor_id="", artifact_id=""),
+                meta={"canonical_key": "task:RECEIVE_MESSAGE"},
+            )
+            proc.nodes.append(_recv_node)
+            proc.edges.append(Edge(frm=_start.id, to=_new_id))
+            if _start_out is not None:
+                _start_out.frm = _new_id
+            edits.append({"type": "inject_node", "id": _new_id, "canonical_key": "task:RECEIVE_MESSAGE"})
 
     gw_thr = _find_node_by_ck(proc, "gw:THRESHOLD_AMOUNT")
     gw_match = _find_node_by_ck(proc, "gw:MATCH_3_WAY")
@@ -55,6 +89,26 @@ def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
         if not _has_edge(proc, gw_thr.id, approve.id, lo):
             proc.edges.append(Edge(frm=gw_thr.id, to=approve.id, condition=lo))
             edits.append({"type": "add_edge", "from": "gw:THRESHOLD_AMOUNT", "to": "task:APPROVE", "condition": lo})
+
+        # doc_001 cleanup: wire APPROVE -> SCHEDULE_PAYMENT directly
+        sched = _find_node_by_ck(proc, "task:SCHEDULE_PAYMENT")
+        if sched:
+            # Remove sequential artifact: APPROVE -> THRESHOLD_AMOUNT
+            before = len(proc.edges)
+            proc.edges = [e for e in proc.edges if not (e.frm == approve.id and e.to == gw_thr.id)]
+            if len(proc.edges) < before:
+                edits.append({"type": "remove_edge", "from": "task:APPROVE", "to": "gw:THRESHOLD_AMOUNT"})
+
+            # Remove any edge: THRESHOLD_AMOUNT -> SCHEDULE_PAYMENT
+            before = len(proc.edges)
+            proc.edges = [e for e in proc.edges if not (e.frm == gw_thr.id and e.to == sched.id)]
+            if len(proc.edges) < before:
+                edits.append({"type": "remove_edge", "from": "gw:THRESHOLD_AMOUNT", "to": "task:SCHEDULE_PAYMENT"})
+
+            # Ensure APPROVE -> SCHEDULE_PAYMENT (unlabeled)
+            if not _has_edge(proc, approve.id, sched.id, None):
+                proc.edges.append(Edge(frm=approve.id, to=sched.id, condition=None))
+                edits.append({"type": "add_edge", "from": "task:APPROVE", "to": "task:SCHEDULE_PAYMENT", "condition": None})
 
     # 2) MATCH_3_WAY: add "match" edge to THRESHOLD gateway if present, else APPROVE
     if gw_match:
@@ -88,7 +142,7 @@ def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
     end_nodes = [n for n in proc.nodes if n.kind == "end"]
     end = end_nodes[0] if end_nodes else None
 
-    if gw_var:
+    if gw_var and ADD_IMPLIED_WITHIN_TOLERANCE:
         # above_tolerance typically exists already; ensure within_tolerance exists
         # Prefer sending within_tolerance to MATCH_3_WAY if present, else End
         target = match_task or end
@@ -112,6 +166,12 @@ def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
         _prune_branch_unknown(proc, "Invoices over $5,000 require director approval")
     if gw_var and _has_labeled_out(proc, gw_var.id):
         _prune_branch_unknown(proc, "If there is a quantity mismatch or price variance above the tolerance")
+    gw_has_po_node = _find_node_by_ck(proc, "gw:HAS_PO")
+    gw_aor = _find_node_by_ck(proc, "gw:APPROVE_OR_REJECT")
+    if gw_has_po_node and _has_labeled_out(proc, gw_has_po_node.id):
+        _prune_branch_unknown(proc, "If an invoice does not have a PO number")
+    if gw_aor and _has_labeled_out(proc, gw_aor.id):
+        _prune_branch_unknown(proc, "If the manager rejects the expense")
 
     return edits
 

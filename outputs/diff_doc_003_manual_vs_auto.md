@@ -6,7 +6,7 @@
 ## Summary
 
 - Nodes: A=9  B=8  (+0 / -0)
-- Edges: A=8  B=9  (+1 / -0)
+- Edges: A=8  B=8  (+0 / -0)
 - Unknowns: A=7  B=5  (+0 / -2)
 - Evidence coverage (node-level): A=100.00%  B=100.00%
 
@@ -19,7 +19,7 @@
 - (none)
 
 ### Edges added in B
-- gw:VARIANCE_ABOVE_TOLERANCE ->|within_tolerance| task:MATCH_3_WAY
+- (none)
 
 ### Edges removed in B
 - (none)
