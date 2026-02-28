@@ -74,9 +74,9 @@
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "IF_CONDITION",
+        "type": "HAS_PO",
         "inputs": [],
-        "expression": "an invoice does not have a PO number"
+        "expression": "invoice.po_number exists"
       },
       "evidence": [
         {
@@ -85,18 +85,81 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "gw:HAS_PO"
       }
     },
     {
       "id": "n3",
+      "kind": "task",
+      "name": "\ufeffIf an invoice does not have a PO number, AP routes it to th...",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "\ufeffIf an invoice does not have a PO number, AP routes it to the department manager."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:ROUTE_FOR_REVIEW"
+      }
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "The manager must confirm the expense and provide an account ...",
+      "action": {
+        "type": "REVIEW",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "The manager must confirm the expense and provide an account code."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REVIEW"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "The manager must confirm the expense and provide an account ...",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "The manager must confirm the expense and provide an account code."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n6",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
       "decision": {
-        "type": "IF_CONDITION",
+        "type": "APPROVE_OR_REJECT",
         "inputs": [],
-        "expression": "the manager rejects the expense"
+        "expression": null
       },
       "evidence": [
         {
@@ -105,19 +168,62 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "gw:APPROVE_OR_REJECT"
       }
     },
     {
-      "id": "n4",
-      "kind": "gateway",
-      "name": "Decision",
-      "action": null,
-      "decision": {
-        "type": "IF_CONDITION",
-        "inputs": [],
-        "expression": "approved"
+      "id": "n7",
+      "kind": "task",
+      "name": "If the manager rejects the expense, AP notifies the vendor a...",
+      "action": {
+        "type": "REJECT",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
       },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:REJECT"
+      }
+    },
+    {
+      "id": "n8",
+      "kind": "task",
+      "name": "If the manager rejects the expense, AP notifies the vendor a...",
+      "action": {
+        "type": "NOTIFY",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:NOTIFY"
+      }
+    },
+    {
+      "id": "n9",
+      "kind": "task",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "action": {
+        "type": "ENTER_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
       "evidence": [
         {
           "source_id": "doc_002",
@@ -125,11 +231,95 @@
         }
       ],
       "meta": {
-        "canonical_key": "gw:IF_CONDITION"
+        "canonical_key": "task:ENTER_RECORD"
       }
     },
     {
-      "id": "n5",
+      "id": "n10",
+      "kind": "task",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:UPDATE_RECORD"
+      }
+    },
+    {
+      "id": "n11",
+      "kind": "task",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:APPROVE"
+      }
+    },
+    {
+      "id": "n12",
+      "kind": "task",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "action": {
+        "type": "SCHEDULE_PAYMENT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:SCHEDULE_PAYMENT"
+      }
+    },
+    {
+      "id": "n13",
+      "kind": "task",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
+      "action": {
+        "type": "EXECUTE_PAYMENT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:EXECUTE_PAYMENT"
+      }
+    },
+    {
+      "id": "n14",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -165,6 +355,51 @@
       "frm": "n4",
       "to": "n5",
       "condition": null
+    },
+    {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": "reject"
+    },
+    {
+      "frm": "n7",
+      "to": "n8",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n9",
+      "condition": "approve"
+    },
+    {
+      "frm": "n9",
+      "to": "n10",
+      "condition": null
+    },
+    {
+      "frm": "n10",
+      "to": "n11",
+      "condition": null
+    },
+    {
+      "frm": "n11",
+      "to": "n12",
+      "condition": null
+    },
+    {
+      "frm": "n12",
+      "to": "n13",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n14",
+      "condition": null
     }
   ],
   "rules": [],
@@ -172,7 +407,7 @@
     {
       "id": "auto_u1",
       "type": "missing_path",
-      "question": "Decision detected but branches not fully modeled: '\ufeffIf an invoice does not have a PO number, AP routes it to the department manager.' \u2014 what are the explicit outcomes and next steps?",
+      "question": "Decision detected but branches not fully modeled: 'If an invoice does not have a PO number, AP routes it to the department manager.' \u2014 what are the explicit outcomes and next steps?",
       "priority": "high",
       "key": "U.OTHER"
     },
@@ -185,22 +420,22 @@
     },
     {
       "id": "auto_u3",
-      "type": "unmapped_text",
-      "question": "Could not map sentence to an atomic action: 'The manager must confirm the expense and provide an account code.' \u2014 what action(s) should this become?",
-      "priority": "medium",
-      "key": "U.OTHER"
-    },
-    {
-      "id": "auto_u4",
       "type": "missing_path",
       "question": "Decision detected but branches not fully modeled: 'If the manager rejects the expense, AP notifies the vendor and closes the invoice.' \u2014 what are the explicit outcomes and next steps?",
       "priority": "high",
       "key": "U.OTHER"
     },
     {
-      "id": "auto_u5",
+      "id": "auto_4",
+      "type": "missing_rule",
+      "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_5",
       "type": "missing_path",
-      "question": "Decision detected but branches not fully modeled: 'If approved, AP enters the account code and proceeds to schedule payment.' \u2014 what are the explicit outcomes and next steps?",
+      "question": "If the invoice HAS a PO number, what is the standard path (2-way vs 3-way match, approvals)?",
       "priority": "high",
       "key": "U.OTHER"
     },

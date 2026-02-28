@@ -157,6 +157,27 @@
     },
     {
       "id": "n6",
+      "kind": "task",
+      "name": "If the invoice matches the PO and goods receipt, it can be a...",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_001",
+          "span": "If the invoice matches the PO and goods receipt, it can be approved."
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:APPROVE"
+      }
+    },
+    {
+      "id": "n7",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -173,27 +194,6 @@
       ],
       "meta": {
         "canonical_key": "gw:THRESHOLD_AMOUNT"
-      }
-    },
-    {
-      "id": "n7",
-      "kind": "task",
-      "name": "After approval, payment is scheduled for Net 30 and then pai...",
-      "action": {
-        "type": "APPROVE",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:APPROVE"
       }
     },
     {
@@ -277,6 +277,16 @@
       "condition": null
     },
     {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": null
+    },
+    {
       "frm": "n7",
       "to": "n8",
       "condition": null
@@ -292,18 +302,18 @@
       "condition": null
     },
     {
-      "frm": "n6",
-      "to": "n7",
+      "frm": "n7",
+      "to": "n6",
       "condition": "amount>5000"
     },
     {
-      "frm": "n6",
-      "to": "n7",
+      "frm": "n7",
+      "to": "n6",
       "condition": "amount<=5000"
     },
     {
       "frm": "n5",
-      "to": "n6",
+      "to": "n7",
       "condition": "match"
     }
   ],

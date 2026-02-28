@@ -1,12 +1,30 @@
 flowchart TD
   n1(["Start"])
-  n2{"Decision\n<IF_CONDITION>"}
-  n3{"Decision\n<IF_CONDITION>"}
-  n4{"Decision\n<IF_CONDITION>"}
-  n5([["End"]])
+  n2{"Decision\n<HAS_PO>"}
+  n3["﻿If an invoice does not have a PO number, AP routes it to th...\n[ROUTE_FOR_REVIEW]"]
+  n4["The manager must confirm the expense and provide an account ...\n[REVIEW]"]
+  n5["The manager must confirm the expense and provide an account ...\n[UPDATE_RECORD]"]
+  n6{"Decision\n<APPROVE_OR_REJECT>"}
+  n7["If the manager rejects the expense, AP notifies the vendor a...\n[REJECT]"]
+  n8["If the manager rejects the expense, AP notifies the vendor a...\n[NOTIFY]"]
+  n9["If approved, AP enters the account code and proceeds to sche...\n[ENTER_RECORD]"]
+  n10["If approved, AP enters the account code and proceeds to sche...\n[UPDATE_RECORD]"]
+  n11["If approved, AP enters the account code and proceeds to sche...\n[APPROVE]"]
+  n12["If approved, AP enters the account code and proceeds to sche...\n[SCHEDULE_PAYMENT]"]
+  n13["If approved, AP enters the account code and proceeds to sche...\n[EXECUTE_PAYMENT]"]
+  n14([["End"]])
   n1 --> n2
   n2 --> n3
   n3 --> n4
   n4 --> n5
+  n5 --> n6
+  n6 -->|reject| n7
+  n7 --> n8
+  n6 -->|approve| n9
+  n9 --> n10
+  n10 --> n11
+  n11 --> n12
+  n12 --> n13
+  n6 --> n14
   U_NOTE["Unknowns: 6 (see JSON unknowns list)"]
   n1 -.-> U_NOTE

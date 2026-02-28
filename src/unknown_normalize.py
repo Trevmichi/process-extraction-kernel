@@ -4,6 +4,8 @@ from typing import Dict, List
 
 def _clean(s: str) -> str:
     s = (s or "").strip()
+    s = s.replace("\ufeff", "")      # Unicode BOM
+    s = s.replace("ï»¿", "")         # Common mojibake BOM rendering
     # normalize whitespace and punctuation spacing
     s = re.sub(r"\s+", " ", s)
     s = s.replace("’", "'")
