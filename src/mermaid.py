@@ -30,9 +30,9 @@ def to_mermaid(process: ProcessDoc) -> str:
     for n in process.nodes:
         label = _node_label(n)
         if n.kind == "event":
-            lines.append(f'  {n.id}(["{label}"])')
+            lines.append(f'  {n.id}(({label}))')
         elif n.kind == "end":
-            lines.append(f'  {n.id}([["{label}"]])')
+            lines.append(f'  {n.id}({label})')
         elif n.kind == "gateway":
             lines.append(f'  {n.id}{{"{label}"}}')
         else:
@@ -42,7 +42,8 @@ def to_mermaid(process: ProcessDoc) -> str:
     for e in process.edges:
         cond = (e.condition or "").strip()
         if cond:
-            lines.append(f"  {e.frm} -->|{cond}| {e.to}")
+            label_str = f'"{cond}"' if ":" in cond else cond
+            lines.append(f"  {e.frm} -->|{label_str}| {e.to}")
         else:
             lines.append(f"  {e.frm} --> {e.to}")
 

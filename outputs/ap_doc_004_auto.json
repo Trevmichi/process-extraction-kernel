@@ -316,7 +316,7 @@
     {
       "frm": "n9",
       "to": "n10",
-      "condition": "approved"
+      "condition": "approve"
     },
     {
       "frm": "n10",

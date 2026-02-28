@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["The AP clerk receives the invoice via the central email port...\n[RECEIVE_MESSAGE]"]
   n3["The clerk validates the invoice.\n[VALIDATE_FIELDS]"]
   n4{"Decision\n<IF_CONDITION>"}
@@ -9,7 +9,7 @@ flowchart LR
   n8["the invoice is routed for director approval.\n[ROUTE_FOR_REVIEW]"]
   n9{"Decision\n<APPROVE_OR_REJECT>"}
   n10["the invoice is scheduled for payment.\n[SCHEDULE_PAYMENT]"]
-  n11([["End"]])
+  n11(End)
   n1 --> n2
   n2 --> n3
   n3 --> n4
@@ -18,7 +18,7 @@ flowchart LR
   n4 -->|condition_true| n7
   n7 --> n8
   n8 --> n9
-  n9 -->|approved| n10
+  n9 -->|approve| n10
   n10 --> n11
   U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
   n1 -.-> U_NOTE

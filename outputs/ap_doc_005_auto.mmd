@@ -1,5 +1,5 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Invoices are entered into the ERP.\n[ENTER_RECORD]"]
   n3["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]
   n4{"Decision\n<IF_CONDITION>"}
@@ -7,7 +7,7 @@ flowchart LR
   n6["and notifies the vendor.\n[NOTIFY]"]
   n7["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]
   n8["After a successful match, payment is executed.\n[EXECUTE_PAYMENT]"]
-  n9([["End"]])
+  n9(End)
   n1 --> n2
   n2 --> n3
   n3 --> n4

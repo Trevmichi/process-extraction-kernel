@@ -6,7 +6,7 @@
 ## Summary
 
 - Nodes: A=11  B=11  (+0 / -1)
-- Edges: A=11  B=10  (+5 / -6)
+- Edges: A=11  B=10  (+4 / -5)
 - Unknowns: A=3  B=5  (+2 / -0)
 - Evidence coverage (node-level): A=100.00%  B=100.00%
 
@@ -19,14 +19,12 @@
 - task:EXECUTE_PAYMENT
 
 ### Edges added in B
-- gw:APPROVE_OR_REJECT ->|approved| task:SCHEDULE_PAYMENT
 - gw:IF_CONDITION ->|condition_true| task:RECEIVE_MESSAGE
 - gw:IF_CONDITION ->|condition_true| task:REQUEST_CLARIFICATION
 - gw:IF_CONDITION ->|condition_true| task:UPDATE_RECORD
 - task:SCHEDULE_PAYMENT -> end:end
 
 ### Edges removed in B
-- gw:APPROVE_OR_REJECT ->|approve| task:SCHEDULE_PAYMENT
 - gw:IF_CONDITION ->|missing| task:REQUEST_CLARIFICATION
 - gw:IF_CONDITION ->|not_missing| task:ROUTE_FOR_REVIEW
 - task:EXECUTE_PAYMENT -> end:end

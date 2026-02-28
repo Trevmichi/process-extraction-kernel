@@ -31,12 +31,12 @@ def run_one_manual(source_id: str, extractor, input_path: str, out_json: str, ou
     return errors, added
 
 
-def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str):
+def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str, gap_report: str = ""):
     text = Path(input_path).read_text(encoding="utf-8")
     trace_event(out_trace, "RECEIVE_INPUT", {"source_id": source_id, "path": input_path, "mode": "heuristic"})
 
     from src.heuristic import heuristic_extract_ap
-    proc = heuristic_extract_ap(text, source_id=source_id, process_id=f"ap_{source_id}_auto")
+    proc = heuristic_extract_ap(text, source_id=source_id, process_id=f"ap_{source_id}_auto", gap_report=gap_report)
 
     errors = []
     added = referee_add_unknowns(proc)
@@ -100,6 +100,10 @@ def main():
             print(f"{source_id}_auto: OK -> {out_json}, {out_mmd} (referee added {len(added)} unknowns)")
 
     # Auto-only docs (no manual extractor counterpart)
+    # Load any existing gap report to feed back into the master manual extraction
+    _gap_report_path = Path("outputs/gap_analysis_report.md")
+    _gap_report = _gap_report_path.read_text(encoding="utf-8") if _gap_report_path.exists() else ""
+
     auto_only_jobs = [
         ("ap_master_manual", "data/examples/ap_master_manual.txt"),
     ]
@@ -108,7 +112,7 @@ def main():
         out_mmd  = f"outputs/{file_id}_auto.mmd"
         out_trace = f"outputs/traces/run_{file_id}_auto.jsonl"
 
-        errors, added = run_one_heuristic(file_id, in_path, out_json, out_mmd, out_trace)
+        errors, added = run_one_heuristic(file_id, in_path, out_json, out_mmd, out_trace, gap_report=_gap_report)
         auto_paths[file_id] = out_json
 
         if errors:
@@ -131,6 +135,11 @@ def main():
         out_md   = f"outputs/diff_{file_id}_manual_vs_auto.md"
         write_diff(a, b, out_json, out_md, label_a=f"{file_id}_manual", label_b=f"{file_id}_auto")
         print(f"{file_id}: wrote {out_md}")
+
+    print("\n=== GAP ANALYSIS ===")
+    from src.gap_analyzer import write_gap_analysis
+    gap_report = write_gap_analysis("outputs")
+    print(f"Gap analysis written to {gap_report}")
 
     print("\nAll runs OK.")
 

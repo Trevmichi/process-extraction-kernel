@@ -1,14 +1,14 @@
 flowchart LR
-  n1(["Start"])
+  n1((Start))
   n2["Enter into ERP\n[ENTER_RECORD]"]
   n3["Check for duplicates\n[VALIDATE_FIELDS]"]
   n4{"Duplicate detected?\n<IF_CONDITION>"}
   n5["Reject invoice\n[REJECT]"]
   n6["Notify vendor\n[NOTIFY]"]
-  n7([["End"]])
+  n7(End)
   n8["Match against PO\n[MATCH_3_WAY]"]
   n9["Execute payment\n[EXECUTE_PAYMENT]"]
-  n10([["Paid"]])
+  n10(Paid)
   n11["Receive invoice/message\n[RECEIVE_MESSAGE]"]
   n11 --> n2
   n2 --> n3
