@@ -48,7 +48,10 @@ def classify_text_block_llm(text: str, gap_report: str = "") -> List[dict]:
     import json
     from openai import OpenAI
 
+    print(f"DEBUG: Prompting Gemma 3 with {len(text)} chars...")
+
     # Connects to the local Ollama server running on your machine
+    intents: List[dict] = []
     try:
         client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
@@ -59,14 +62,25 @@ def classify_text_block_llm(text: str, gap_report: str = "") -> List[dict]:
                 {"role": "user", "content": text}
             ],
             response_format={"type": "json_object"},
-            temperature=0.0
+            temperature=0.0,
+            # Explicit context window for 15k-token stress-test chunks
+            extra_body={"options": {"num_ctx": 16384}},
         )
 
         # Parse the JSON object and extract the intents array
         raw_json = response.choices[0].message.content
         parsed_data = json.loads(raw_json)
-        return parsed_data.get("intents", [])
+        intents = parsed_data.get("intents", [])
 
     except Exception as e:
         print(f"[LOCAL SEAM ERROR] {e}")
         return []
+
+    # Validate LLM output quality — fewer than 5 intents is a silent fail
+    if len(intents) < 5:
+        raise ValueError(
+            f"LLM under-performed or failed to return data. "
+            f"Got {len(intents)} intent(s), expected >= 5."
+        )
+
+    return intents

@@ -156,7 +156,7 @@
       "kind": "task",
       "name": "The manager provides the account code.",
       "action": {
-        "type": "RECEIVE_MESSAGE",
+        "type": "ENTER_RECORD",
         "actor_id": "role_manager",
         "artifact_id": "art_account_code",
         "extra": {}
@@ -169,7 +169,7 @@
         }
       ],
       "meta": {
-        "canonical_key": "task:RECEIVE_MESSAGE"
+        "canonical_key": "task:ENTER_RECORD"
       }
     },
     {
