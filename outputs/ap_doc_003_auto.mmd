@@ -1,0 +1,16 @@
+flowchart TD
+  n1(["Start"])
+  n2["﻿AP performs a 3-way match.\n[MATCH_3_WAY]"]
+  n3{"Decision\n<IF_CONDITION>"}
+  n4["Once corrected documents are received, AP updates the invoic...\n[RECEIVE_MESSAGE]"]
+  n5["Once corrected documents are received, AP updates the invoic...\n[MATCH_3_WAY]"]
+  n6["Once corrected documents are received, AP updates the invoic...\n[UPDATE_RECORD]"]
+  n7([["End"]])
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
+  U_NOTE["Unknowns: 4 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE

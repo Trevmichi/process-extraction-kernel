@@ -1,0 +1,12 @@
+flowchart TD
+  n1(["Start"])
+  n2{"Decision\n<IF_CONDITION>"}
+  n3{"Decision\n<IF_CONDITION>"}
+  n4{"Decision\n<IF_CONDITION>"}
+  n5([["End"]])
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  U_NOTE["Unknowns: 6 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE

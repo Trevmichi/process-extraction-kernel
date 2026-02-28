@@ -1,0 +1,216 @@
+{
+  "meta": {
+    "process_id": "ap_doc_002_auto",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_002"
+    ],
+    "version": "0.3.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "\ufeffIf an invoice does not have a PO number, AP routes it to the department manager."
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": "an invoice does not have a PO number"
+      },
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "\ufeffIf an invoice does not have a PO number, AP routes it to the department manager."
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n3",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": "the manager rejects the expense"
+      },
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n4",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": {
+        "type": "IF_CONDITION",
+        "inputs": [],
+        "expression": "approved"
+      },
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "gw:IF_CONDITION"
+      }
+    },
+    {
+      "id": "n5",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n1",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "auto_u1",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: '\ufeffIf an invoice does not have a PO number, AP routes it to the department manager.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u2",
+      "type": "missing_rule",
+      "question": "Approval authority mentioned without explicit threshold/criteria: 'The manager must confirm the expense and provide an account code.' \u2014 what is the dollar threshold or rule that triggers this approver?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u3",
+      "type": "unmapped_text",
+      "question": "Could not map sentence to an atomic action: 'The manager must confirm the expense and provide an account code.' \u2014 what action(s) should this become?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u4",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If the manager rejects the expense, AP notifies the vendor and closes the invoice.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_u5",
+      "type": "missing_path",
+      "question": "Decision detected but branches not fully modeled: 'If approved, AP enters the account code and proceeds to schedule payment.' \u2014 what are the explicit outcomes and next steps?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_6",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    }
+  ],
+  "assumptions": []
+}

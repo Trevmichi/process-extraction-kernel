@@ -1,0 +1,392 @@
+{
+  "meta": {
+    "process_id": "ap_invoice_doc_002",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_002"
+    ],
+    "version": "0.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    },
+    {
+      "id": "art_account_code",
+      "type": "field",
+      "name": "Account Code"
+    },
+    {
+      "id": "art_corrected_docs",
+      "type": "document",
+      "name": "Corrected Documents"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If an invoice does not have a PO number"
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "gateway",
+      "name": "Has PO number?",
+      "action": null,
+      "decision": {
+        "type": "HAS_PO",
+        "inputs": [],
+        "expression": "invoice.po_number exists"
+      },
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "does not have a PO number"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "Route to manager for coding",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {
+          "to": "role_manager"
+        }
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "AP routes it to the department manager"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "Manager confirms expense",
+      "action": {
+        "type": "REVIEW",
+        "actor_id": "role_manager",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "must confirm the expense"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "Manager provides account code",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_manager",
+        "artifact_id": "art_account_code",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "provide an account code"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n6",
+      "kind": "gateway",
+      "name": "Manager decision",
+      "action": null,
+      "decision": {
+        "type": "APPROVE_OR_REJECT",
+        "inputs": [
+          "art_invoice"
+        ],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If the manager rejects the expense"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n7",
+      "kind": "task",
+      "name": "Notify vendor and close",
+      "action": {
+        "type": "NOTIFY",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {
+          "to": "vendor"
+        }
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "AP notifies the vendor and closes the invoice"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n8",
+      "kind": "task",
+      "name": "Enter account code in ERP",
+      "action": {
+        "type": "ENTER_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_account_code",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "AP enters the account code"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n9",
+      "kind": "task",
+      "name": "Schedule payment",
+      "action": {
+        "type": "SCHEDULE_PAYMENT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "proceeds to schedule payment"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n10",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "schedule payment"
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    },
+    {
+      "id": "n11",
+      "kind": "task",
+      "name": "Receive invoice/message",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "If an invoice does not have a PO number"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:RECEIVE_MESSAGE"
+      }
+    },
+    {
+      "id": "n12",
+      "kind": "task",
+      "name": "Execute payment",
+      "action": {
+        "type": "EXECUTE_PAYMENT",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_002",
+          "span": "proceeds to schedule payment"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:EXECUTE_PAYMENT"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n11",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": "no_po"
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": null
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": null
+    },
+    {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": "reject"
+    },
+    {
+      "frm": "n6",
+      "to": "n8",
+      "condition": "approve"
+    },
+    {
+      "frm": "n8",
+      "to": "n9",
+      "condition": null
+    },
+    {
+      "frm": "n1",
+      "to": "n11",
+      "condition": null
+    },
+    {
+      "frm": "n9",
+      "to": "n12",
+      "condition": null
+    },
+    {
+      "frm": "n12",
+      "to": "n10",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "u1",
+      "type": "missing_path",
+      "question": "If the invoice DOES have a PO number, what is the standard AP path (2-way/3-way match, approvals)?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "u2",
+      "type": "missing_rule",
+      "question": "What validation is required before routing to manager (vendor verification, duplicate invoice check)?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_3",
+      "type": "missing_rule",
+      "question": "What are the payment terms (Net 30/45/60) and are there early-pay discounts?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_4",
+      "type": "missing_path",
+      "question": "If the invoice HAS a PO number, what is the standard path (2-way vs 3-way match, approvals)?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_5",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    }
+  ],
+  "assumptions": []
+}

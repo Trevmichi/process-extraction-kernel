@@ -1,0 +1,337 @@
+{
+  "meta": {
+    "process_id": "ap_invoice_doc_003",
+    "domain": "accounts_payable",
+    "source_ids": [
+      "doc_003"
+    ],
+    "version": "0.1"
+  },
+  "actors": [
+    {
+      "id": "role_ap_clerk",
+      "type": "human_role",
+      "name": "AP Clerk"
+    },
+    {
+      "id": "role_manager",
+      "type": "human_role",
+      "name": "Department Manager"
+    },
+    {
+      "id": "role_director",
+      "type": "human_role",
+      "name": "Director"
+    },
+    {
+      "id": "sys_erp",
+      "type": "system",
+      "name": "ERP"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_invoice",
+      "type": "document",
+      "name": "Invoice"
+    },
+    {
+      "id": "art_po",
+      "type": "record",
+      "name": "Purchase Order"
+    },
+    {
+      "id": "art_grn",
+      "type": "record",
+      "name": "Goods Receipt"
+    },
+    {
+      "id": "art_payment",
+      "type": "record",
+      "name": "Payment"
+    },
+    {
+      "id": "art_account_code",
+      "type": "field",
+      "name": "Account Code"
+    },
+    {
+      "id": "art_corrected_docs",
+      "type": "document",
+      "name": "Corrected Documents"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "AP performs a 3-way match"
+        }
+      ],
+      "meta": {
+        "canonical_key": "event:start"
+      }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "Run 3-way match",
+      "action": {
+        "type": "MATCH_3_WAY",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {
+          "inputs": [
+            "art_po",
+            "art_grn"
+          ]
+        }
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "performs a 3-way match"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n3",
+      "kind": "gateway",
+      "name": "Variance above tolerance?",
+      "action": null,
+      "decision": {
+        "type": "VARIANCE_ABOVE_TOLERANCE",
+        "inputs": [],
+        "expression": null
+      },
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "price variance above the tolerance"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "Place invoice on hold",
+      "action": {
+        "type": "UPDATE_STATUS",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {
+          "status": "hold"
+        }
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "invoice is placed on hold"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "Contact vendor",
+      "action": {
+        "type": "REQUEST_CLARIFICATION",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {
+          "to": "vendor"
+        }
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "contacts the vendor for clarification"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n6",
+      "kind": "task",
+      "name": "Receive corrected documents",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_corrected_docs",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "Once corrected documents are received"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n7",
+      "kind": "task",
+      "name": "Update invoice",
+      "action": {
+        "type": "UPDATE_RECORD",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "AP updates the invoice"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n8",
+      "kind": "task",
+      "name": "Re-run matching",
+      "action": {
+        "type": "MATCH_3_WAY",
+        "actor_id": "sys_erp",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "re-runs matching"
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "id": "n9",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_003",
+          "span": "re-runs matching"
+        }
+      ],
+      "meta": {
+        "canonical_key": "end:end"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "frm": "n1",
+      "to": "n2",
+      "condition": null
+    },
+    {
+      "frm": "n2",
+      "to": "n3",
+      "condition": null
+    },
+    {
+      "frm": "n3",
+      "to": "n4",
+      "condition": "above_tolerance"
+    },
+    {
+      "frm": "n4",
+      "to": "n5",
+      "condition": null
+    },
+    {
+      "frm": "n5",
+      "to": "n6",
+      "condition": null
+    },
+    {
+      "frm": "n6",
+      "to": "n7",
+      "condition": null
+    },
+    {
+      "frm": "n7",
+      "to": "n8",
+      "condition": null
+    },
+    {
+      "frm": "n8",
+      "to": "n9",
+      "condition": null
+    }
+  ],
+  "rules": [],
+  "unknowns": [
+    {
+      "id": "u1",
+      "type": "missing_rule",
+      "question": "What are the tolerance thresholds for quantity/price variance?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "u2",
+      "type": "missing_path",
+      "question": "If variance is within tolerance, what is the next step (auto-approve, manager review)?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_3",
+      "type": "missing_rule",
+      "question": "What is the match tolerance for price/quantity variances in matching (and who sets it)?",
+      "priority": "high",
+      "meta": {
+        "original_question": "What are the tolerances for quantity/price variances in matching (and who sets them)?"
+      },
+      "key": "U.MATCH_TOLERANCE"
+    },
+    {
+      "id": "auto_4",
+      "type": "missing_path",
+      "question": "If variance is within tolerance, what happens next (auto-approve, manager review, or pay hold)?",
+      "priority": "high",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_5",
+      "type": "missing_rule",
+      "question": "What is the escalation policy if the vendor does not respond (time limits, reminders, who owns escalation)?",
+      "priority": "medium",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_6",
+      "type": "missing_rule",
+      "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?",
+      "priority": "low",
+      "key": "U.OTHER"
+    },
+    {
+      "id": "auto_11",
+      "type": "missing_path",
+      "question": "If 3-way match fails (no_match), what is the process (hold, vendor contact, reject, override)?",
+      "priority": "high",
+      "key": "U.NO_MATCH_PATH"
+    }
+  ],
+  "assumptions": []
+}

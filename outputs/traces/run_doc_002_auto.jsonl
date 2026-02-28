@@ -1,0 +1,78 @@
+{"ts": "2026-02-24T05:47:11.635360Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:47:11.635360Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:47:11.635360Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:47:11.635360Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:51:41.664353Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:51:41.664353Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:51:41.664353Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:51:41.664353Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:54:45.196519Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:54:45.196519Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:54:45.196519Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:54:45.196519Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:57:42.984353Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:57:42.984353Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:57:42.984353Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:57:42.984353Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:59:42.747742Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:59:42.747742Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:59:42.747742Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T05:59:42.747742Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:02:10.855925Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:02:10.855925Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:02:10.855925Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:02:10.855925Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:05:22.315126Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:05:22.315126Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:05:22.315126Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_5", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:05:22.315126Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:05:22.315126Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:11:22.234775Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:11:22.234775Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:11:22.234775Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:11:22.234775Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:11:22.234775Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:16:57.765666Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:16:57.765666Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:16:57.765666Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:16:57.765666Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:16:57.781297Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:21:06.419196Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:21:06.419196Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:21:06.419196Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:21:06.419196Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:21:06.419196Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:29:42.859005Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:29:42.859005Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:29:42.859005Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:29:42.859005Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:29:42.859005Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:31:19.387495Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:31:19.387495Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:31:19.387495Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:31:19.387495Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:31:19.387495Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:33:15.028623Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:33:15.028623Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:33:15.028623Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:33:15.028623Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:33:15.028623Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:36:19.210592Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:36:19.210592Z", "action_type": "DRAFT_PROCESS", "payload": {"process_id": "ap_doc_002_auto", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:36:19.210592Z", "action_type": "GAP_DETECT", "payload": {"added_unknowns": [{"id": "auto_6", "type": "missing_rule", "question": "What are the invoice intake channels (email, EDI, portal) and does intake differ by vendor?", "priority": "low"}], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:36:19.210592Z", "action_type": "BRANCH_MODEL", "payload": {"edits": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:36:19.210592Z", "action_type": "VALIDATE_MODEL", "payload": {"errors": [], "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:45:39.648418Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:50:57.077506Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:51:23.678517Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:54:27.730956Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:58:34.963861Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T06:59:05.146738Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:06:08.796394Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:15:37.610010Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:18:13.657960Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:20:22.822237Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:26:47.667344Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T07:31:57.637742Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T18:24:45.947999Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}
+{"ts": "2026-02-24T18:31:56.045849Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_002", "path": "data/examples/doc_002.txt", "mode": "heuristic"}, "cost": {}}

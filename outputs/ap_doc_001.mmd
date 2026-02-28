@@ -1,0 +1,25 @@
+flowchart TD
+  n1(["Start"])
+  n2["Enter invoice in ERP\n[ENTER_RECORD]"]
+  n3["Validate invoice fields\n[VALIDATE_FIELDS]"]
+  n4{"3-way match?\n<MATCH_3_WAY>"}
+  n5{"Amount > 5000?\n<THRESHOLD_AMOUNT>"}
+  n6["Approve invoice\n[APPROVE]"]
+  n7["Director approves\n[APPROVE]"]
+  n8["Schedule payment\n[SCHEDULE_PAYMENT]"]
+  n9([["End"]])
+  n10["Receive invoice/message\n[RECEIVE_MESSAGE]"]
+  n11["Execute payment\n[EXECUTE_PAYMENT]"]
+  n10 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 -->|match| n5
+  n5 -->|amount>5000| n7
+  n5 -->|amount<=5000| n6
+  n6 --> n8
+  n7 --> n8
+  n1 --> n10
+  n8 --> n11
+  n11 --> n9
+  U_NOTE["Unknowns: 5 (see JSON unknowns list)"]
+  n1 -.-> U_NOTE
