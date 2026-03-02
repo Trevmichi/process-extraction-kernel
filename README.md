@@ -1,181 +1,295 @@
-# AI-Driven Process Mining & Extraction Kernel — Accounts Payable
+# Enterprise AP Automation: Deterministic Process Extraction & Graph Routing
 
-An end-to-end, local-first process mining engine that reads Accounts Payable policy documents and automatically extracts, graphs, validates, and audits the underlying business process — entirely on your own hardware, with no cloud API calls.
-
-The system ingests raw SOP text, classifies every sentence into a canonical intent ontology using a local LLM, assembles a typed process graph, renders it as a Mermaid.js flowchart, and produces a Gap Analysis report that compares sub-documents against the Master Manual.
+> **Core Philosophy:** Process Mining must precede Process Automation.
+>
+> Most AI automation fails because it asks an LLM to simultaneously *understand* a process
+> and *execute* it — leading to hallucinations, inconsistent decisions, and zero audit trail.
+> This system separates the two concerns completely:
+>
+> - **The Brain** — A local LLM reads unstructured SOPs and extracts the rules, nodes, and edges.
+> - **The Rails** — A compiled LangGraph state machine executes those rules deterministically, forever.
+>
+> Once mined, the process graph becomes code. The LLM is only ever called for narrow, bounded tasks
+> (extract *these three fields* from *this text*). All routing decisions are made by the graph.
 
 ---
 
-## Hardware Target
+## What This System Does
 
-| Component | Spec |
-|-----------|------|
-| GPU | NVIDIA RTX 5070 (or equivalent ≥ 12 GB VRAM) |
-| RAM | 64 GB |
+This repository is an end-to-end Enterprise AI pipeline for Accounts Payable invoice processing. It ingests raw policy documents, mines the embedded business logic, compiles it into an executable graph, and processes unstructured invoices through that graph using tightly constrained LLM micro-agents.
+
+| Property | Value |
+|----------|-------|
+| **Routing engine** | 100% deterministic (LangGraph) |
+| **LLM hallucination surface** | Two bounded extraction tasks only |
+| **Auditability** | Full per-step audit log on every invoice |
+| **Deployment** | Fully local — no cloud API calls |
+| **LLM** | Gemma 3:12b via Ollama (`localhost:11434`) |
+
+---
+
+## Architecture: The 7-Phase Pipeline
+
+```
+  Raw SOP Text
+       │
+       ▼
+┌──────────────────┐     ┌──────────────────┐
+│  Phase 1 & 2     │────▶│  Phase 3         │
+│  Process Mining  │     │  Micro-Agents    │
+│  & Compilation   │     │  (LLM bounded)   │
+└──────────────────┘     └──────────────────┘
+       │                          │
+       ▼                          ▼
+┌──────────────────┐     ┌──────────────────┐
+│  Phase 5 & 7     │     │  Phase 4         │
+│  Dynamic Logic   │     │  Batch Runner    │
+│  Patching        │     │  (Queue sim.)    │
+└──────────────────┘     └──────────────────┘
+       │                          │
+       └──────────┬───────────────┘
+                  ▼
+        ┌──────────────────┐
+        │  Phase 6         │
+        │  Enterprise UI   │
+        │  (Streamlit)     │
+        └──────────────────┘
+```
+
+### Phase 1 & 2 — Process Mining & Graph Compilation
+
+The pipeline reads Accounts Payable policy documents (`.txt` SOPs) and runs them through a local **Gemma 3:12b** model via the OpenAI-compatible Ollama API.
+
+Each sentence is classified against a strict canonical ontology of **14 action types** and **6 decision types** (`RECEIVE_MESSAGE`, `VALIDATE_FIELDS`, `MATCH_3_WAY`, `APPROVE`, etc.). The extracted intents are assembled into a typed `ProcessDoc` graph of `Node` and `Edge` objects with full deduplication, sequential wiring, and gateway branching.
+
+The resulting graph is serialized to a machine-readable JSON (`outputs/ap_master_manual_auto.json`) and a human-readable Mermaid flowchart (`outputs/ap_master_manual_auto.mmd`).
+
+`build_ap_graph(json_path)` in `src/agent/compiler.py` then reads this JSON and compiles it into an executable **LangGraph `CompiledGraph`** — a finite state machine where every transition is governed by the extracted rules, not by an LLM at runtime.
+
+**Self-Healing Extraction:** If the LLM returns zero intents for a chunk, the engine recursively splits it in half and retries, tracking depth for heatmap analytics. A Gap Analyzer (`src/gap_analyzer.py`) compares sub-documents against the Master Manual and feeds missing coverage back into the next extraction run as a `CRITICAL REQUIREMENTS` prompt block.
+
+### Phase 3 — LLM Micro-Agents (Bounded Data Extraction)
+
+Two nodes in the compiled graph call the LLM. All other nodes are deterministic.
+
+| Node | LLM Task | Output |
+|------|----------|--------|
+| `ENTER_RECORD` | Extract `vendor`, `amount`, `has_po` from raw invoice text | Updates `APState` |
+| `VALIDATE_FIELDS` | Check if extracted fields are non-null and valid | Sets `status = VALIDATED` or `MISSING_DATA` |
+
+The LLM is given an explicit JSON schema and instructed to return *only* that schema. All downstream routing reads the state values; the LLM never makes a routing decision.
+
+### Phase 4 — Batch Processing
+
+`batch_runner.py` simulates a real-world invoice queue. It compiles the graph once, then runs a list of raw-text invoices through it sequentially, printing a formatted results table and aggregate summary at the end.
+
+### Phase 5 & 7 — Dynamic Logic Patching
+
+The Master Manual SOP may have gaps — missing thresholds, missing exception routes. `patch_logic.py` programmatically injects guardrails directly into the JSON graph before compilation, without touching the source document.
+
+**Patches currently applied:**
+
+| Patch | Trigger | Outcome |
+|-------|---------|---------|
+| Amount Threshold | `amount > $10,000` after 3-way match passes | `ESCALATE_TO_DIRECTOR` |
+| Bad Data Rejection | `status == MISSING_DATA` after validation | `REJECT_INVOICE` |
+| No-PO Exception | `has_po == False` after validation passes | `MANUAL_REVIEW_NO_PO` |
+
+These patches are re-applied every time `patch_logic.py` is run, making the guardrail layer fully version-controlled and reproducible.
+
+### Phase 6 — Enterprise UI
+
+`app.py` is a Streamlit dashboard that exposes the full agent pipeline to non-technical users.
+
+- **Tabbed input:** paste raw text, upload a `.txt` file, or pick a test example
+- **Live status widget:** shows extraction and routing progress in real time (`st.status`)
+- **Metric cards:** vendor, amount, PO status, final routing decision
+- **Color-coded banners:** green APPROVED, amber ESCALATED/EXCEPTION, red REJECTED
+- **Audit trail expander:** every LLM call and graph transition, labelled and icon-tagged
+- **Batch Ledger sidebar:** session history with status breakdown and recent-invoice table
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
 | LLM | Gemma 3:12b via [Ollama](https://ollama.com) |
-
-The LLM path routes to a local Ollama server on `localhost:11434`. The regex heuristic fallback runs on CPU with no GPU required.
-
----
-
-## Core Capabilities
-
-### Automated NLP Process Extraction
-Each source document is sent to a local **Gemma 3:12b** model via the OpenAI-compatible Ollama API. The LLM classifies every sentence against a strict canonical ontology of 14 action types and 6 decision types (`RECEIVE_MESSAGE`, `VALIDATE_FIELDS`, `MATCH_3_WAY`, `APPROVE_OR_REJECT`, etc.) and returns structured JSON intents. The extracted intents are assembled into a typed `ProcessDoc` graph of `Node` and `Edge` objects with full deduplication, sequential wiring, and gateway branching.
-
-### Intelligent Self-Healing & VRAM Management
-If the LLM returns zero intents for a chunk, the engine:
-1. Waits 10 seconds and retries at temperature 0.0.
-2. If still empty — **recursively splits the chunk in half** and processes each sub-chunk independently (Self-Healing).
-3. Calls `ollama stop` before each recursive call to free zombie KV-cache VRAM.
-4. Tracks the maximum recursion depth per chunk for heatmap analytics.
-
-A 15-second VRAM cool-down and `gc.collect()` pause runs between benchmark tiers to protect the RTX 5070's thermal envelope.
-
-### Gap Analysis — Shadow Process Audit
-After all documents are processed, the gap analyzer (`src/gap_analyzer.py`) compares every sub-document against the **Master Manual**:
-
-- **Missing Steps** — intents present in a sub-document but absent from the Master Manual.
-- **Missing Logic Paths** — directed edges `(A → B, condition)` in a sub-document but absent from the Master Manual.
-
-Results are written to `outputs/gap_analysis_report.md`.
-
-On the **next run**, the Master Manual extraction reads this report and injects it into the LLM system prompt as a `CRITICAL REQUIREMENTS` block — a self-reinforcing feedback loop that iteratively closes coverage gaps without manual intervention.
-
-### Mermaid.js Flowchart Generation
-Each `ProcessDoc` is serialized to a Mermaid `flowchart LR` diagram (`src/mermaid.py`) with:
-- **Node shapes:** circle = Start, diamond = Gateway, rectangle = Task, rounded box = End
-- **Color coding:** green Start, blue Task, orange Gateway, red End
-- Edge labels containing `:` auto-quoted for Mermaid parser compatibility
-- Open unknowns attached as a note on the Start node
-
-### Schema Discovery & Ontology Evolution
-Every non-canonical intent the LLM emits is caught by `Action.__post_init__` / `Decision.__post_init__`, logged to `data/analytics/schema_suggestions.json` with a frequency counter, and coerced to a safe sentinel. After each run, `outputs/schema_suggestions.md` lists the top unknown types with recommended alias mappings — making ontology gaps immediately actionable.
+| LLM interface | `langchain-ollama` (`ChatOllama`) |
+| Graph execution | [LangGraph](https://github.com/langchain-ai/langgraph) (`StateGraph`) |
+| State schema | Python `TypedDict` with `Annotated` reducers |
+| Web UI | [Streamlit](https://streamlit.io) |
+| Analytics | `matplotlib`, `numpy`, SQLite |
+| Runtime | Python 3.11+, local-only (no cloud) |
 
 ---
 
-## Getting Started
+## Quickstart
 
-### 1. Create the virtual environment
+### 1. Environment setup
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate      # Windows
-# source .venv/bin/activate  # macOS / Linux
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+# source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-### 2. Start Ollama with Gemma 3:12b
+### 2. Start Ollama
 
 ```bash
 ollama pull gemma3:12b
 ollama serve
 ```
 
-Verify the model is available before running:
+Verify the model is available:
 
 ```bash
 ollama list
+# Should show: gemma3:12b
 ```
 
-### 3. Run the production pipeline
+### 3. Mine a process document (optional — pre-mined JSON is included)
 
 ```powershell
 $env:USE_LLM_CLASSIFIER="true"; py -m src.main
 ```
 
-On subsequent runs the Gap Report from the previous run is automatically fed back into the LLM prompt to close missing coverage.
+This reads `data/examples/ap_master_manual.txt`, classifies it with the LLM, and writes `outputs/ap_master_manual_auto.json` and `outputs/ap_master_manual_auto.mmd`.
+
+### 4. Patch the baseline logic
+
+```bash
+py patch_logic.py
+```
+
+Reads `outputs/ap_master_manual_auto.json`, injects the three guardrail patches, and writes `outputs/ap_master_manual_auto_patched.json`. Run this after every re-extraction.
+
+### 5. Run the batch tester
+
+```bash
+py batch_runner.py
+```
+
+Processes 4 diverse test invoices through the patched graph and prints a results table.
+
+### 6. Launch the UI
+
+```bash
+streamlit run app.py
+```
+
+Opens the enterprise dashboard at `http://localhost:8501`.
 
 ---
 
-## Outputs
+## Benchmark & Analytics
 
-All generated artifacts are written to `outputs/`. Files matching `*.json`, `*.mmd`, and `*.png` are wiped at the start of each `main()` invocation for a clean extraction. Markdown reports and `.jsonl` traces are preserved between runs.
-
-| File | Description |
-|------|-------------|
-| `ap_master_manual_auto.mmd` | **Primary output.** Renderable Mermaid flowchart of the full AP process extracted from the Master Manual. Open in VS Code with the *yzane.mermaid-editor* extension. |
-| `gap_analysis_report.md` | **Shadow process audit.** Lists every step and logic path found in sub-documents but missing from the Master Manual, organized by document. |
-| `schema_suggestions.md` | **Ontology discovery report.** Lists non-canonical action/decision types emitted by the LLM, sorted by frequency, with recommended alias mappings for `ACTION_ALIASES` / `DECISION_ALIASES`. |
-| `ap_master_manual_auto.json` | Master Manual process graph in machine-readable JSON. |
-| `ap_<doc_id>_auto.mmd` | Per-document Mermaid flowcharts. |
-| `performance_curve.png` | SP (Success Probability) vs chunk size from the benchmarker. |
-| `logic_density_profile.png` | Nodes-per-chunk line graph for the 1.25k gold-standard run. |
-| `process_complexity_heatmap.png` | Self-healing depth heatmap — red zones indicate dense/hard-to-parse sections. |
-
----
-
-## Visualization
-
-Install the **yzane.mermaid-editor** extension in VS Code to preview `.mmd` files directly in the editor. Open `outputs/ap_master_manual_auto.mmd` and use the split-preview panel.
-
-### Color Legend
-
-| Color | Shape | Meaning |
-|-------|-------|---------|
-| Green (`#9f9`) | Circle `(( ))` | **Start** event |
-| Blue (`#bbf`) | Rectangle `[ ]` | **Action / Task** node |
-| Orange (`#fdb`) | Diamond `{ }` | **Decision / Gateway** node |
-| Red (`#f99`) | Rounded box `( )` | **End** event |
-
----
-
-## Running the Benchmarker
-
-The benchmarker (`src/benchmarker.py`) runs the full extraction pipeline against `data/ap_heavy_stress.txt` and produces the analytics charts above.
+The benchmarker (`src/benchmarker.py`) runs the full extraction pipeline and produces analytics charts.
 
 ```bash
 py -m src.benchmarker
 ```
 
-Current configuration: `TEST_CHUNKS = [1250]` (Gold Standard baseline). The run produces:
-- `outputs/performance_curve.png`
-- `outputs/logic_density_profile.png`
-- `outputs/process_complexity_heatmap.png`
-- `outputs/schema_suggestions.md`
-- A terminal summary of the top unknown schema types for immediate ontology action.
+| Output | Description |
+|--------|-------------|
+| `outputs/performance_curve.png` | Success Probability vs chunk size |
+| `outputs/logic_density_profile.png` | Nodes-per-chunk for the gold-standard 1.25k run |
+| `outputs/process_complexity_heatmap.png` | Self-healing depth heatmap — red = dense/hard sections |
+| `outputs/schema_suggestions.md` | Non-canonical LLM intent types, sorted by frequency |
 
-Results are persisted to `data/analytics/metrics.db` (`hyperparameter_results` table) and are skipped on re-run if a result already exists for that chunk size.
-
----
-
-## Knowledge Base
-
-Persistent analytics data lives in `data/analytics/` and is **never wiped** by pipeline runs.
-
-| File | Description |
-|------|-------------|
-| `data/analytics/metrics.db` | SQLite database — `extraction_logs` and `hyperparameter_results` tables |
-| `data/analytics/schema_suggestions.json` | Live frequency counter of non-canonical LLM intent types |
+Current config: `TEST_CHUNKS = [1250]` (Gold Standard baseline). Results are persisted to `data/analytics/metrics.db` and skipped on re-run.
 
 ---
 
-## Project Structure
+## Repository Structure
 
 ```
 process-extraction-kernel/
-├── data/
-│   ├── analytics/              # Persistent knowledge base (never wiped)
-│   │   ├── metrics.db               # SQLite metrics store
-│   │   └── schema_suggestions.json  # Live ontology miss counter
-│   └── examples/               # Source policy documents (.txt)
-├── outputs/                    # Generated artifacts (*.json/*.mmd/*.png wiped each run)
-│   └── traces/                 # Execution trace logs (.jsonl, preserved)
+│
+├── app.py                  # Streamlit enterprise UI
+├── run_agent.py            # Single-invoice CLI runner
+├── batch_runner.py         # Batch queue simulator
+├── patch_logic.py          # Programmatic logic patching script
+├── requirements.txt
+│
 ├── src/
-│   ├── main.py                 # Orchestration entry point
-│   ├── llm_classifier.py       # LLM seam — Ollama/OpenAI-compatible, self-healing
-│   ├── heuristic.py            # Regex classifier + graph builder (CPU fallback)
-│   ├── ontology.py             # Canonical intent ontology + validation sets
-│   ├── models.py               # Typed dataclasses (ProcessDoc, Node, Edge, Action…)
-│   ├── mermaid.py              # ProcessDoc → Mermaid serializer
-│   ├── gap_analyzer.py         # Sub-doc vs. Master Manual gap analysis
-│   ├── benchmarker.py          # Grid-search benchmark suite + analytics charts
-│   ├── visualizer.py           # Performance curve, heatmap, density profile, schema report
-│   ├── database.py             # SQLite metrics store
-│   ├── calibrator.py           # Chunk splitting + single-run extraction helper
-│   ├── extract.py              # Manually-authored process extractors
-│   ├── render.py               # JSON serializer
-│   └── diff_tool.py            # Manual vs. auto graph differ
-└── tests/
-    └── test_validate.py
+│   ├── agent/
+│   │   ├── state.py        # APState TypedDict (invoice fields + audit_log)
+│   │   ├── nodes.py        # Node executor (LLM smart nodes + deterministic pass-through)
+│   │   ├── router.py       # Deterministic edge router (condition predicate table)
+│   │   └── compiler.py     # build_ap_graph() — JSON → CompiledGraph
+│   │
+│   ├── main.py             # Process mining orchestration entry point
+│   ├── llm_classifier.py   # LLM seam — Ollama, self-healing recursive splitter
+│   ├── heuristic.py        # Regex classifier + graph builder (CPU fallback, alias maps)
+│   ├── ontology.py         # Canonical intent ontology + validation sets
+│   ├── models.py           # Typed dataclasses (ProcessDoc, Node, Edge, Action…)
+│   ├── mermaid.py          # ProcessDoc → Mermaid.js serializer
+│   ├── gap_analyzer.py     # Sub-doc vs Master Manual shadow process audit
+│   ├── benchmarker.py      # Chunk-size grid-search + analytics
+│   ├── visualizer.py       # Charts: performance curve, heatmap, density profile
+│   └── database.py         # SQLite metrics persistence
+│
+├── outputs/
+│   ├── ap_master_manual_auto.json         # Extracted process graph (source)
+│   ├── ap_master_manual_auto_patched.json # Patched graph with guardrails (used at runtime)
+│   ├── ap_master_manual_auto.mmd          # Mermaid flowchart (open in VS Code)
+│   └── *.png                              # Benchmarker analytics charts
+│
+└── data/
+    ├── examples/                          # Source SOP documents (.txt)
+    └── analytics/
+        ├── metrics.db                     # SQLite metrics store (never wiped)
+        └── schema_suggestions.json        # Live ontology miss counter
 ```
+
+### Key module responsibilities
+
+| Module | Role |
+|--------|------|
+| `src/agent/compiler.py` | Reads the patched JSON, deduplicates edges, wires conditional and unconditional edges, returns a `CompiledGraph` |
+| `src/agent/router.py` | A lookup table of condition-string → predicate lambdas; evaluated in edge order; falls back to decision-type routing |
+| `src/agent/nodes.py` | `ENTER_RECORD` and `VALIDATE_FIELDS` call `ChatOllama`; all other intents are pure deterministic state transitions |
+| `patch_logic.py` | Reads the base JSON, applies ordered patches, writes a new JSON — re-runnable and version-controlled |
+| `app.py` | Caches the compiled graph with `@st.cache_resource`; session history in `st.session_state` |
+
+---
+
+## Design Principles
+
+> **Zero Hallucination at the Decision Layer**
+>
+> The LangGraph router is a pure function of the current `APState`. It reads a lookup table of
+> condition predicates — no LLM, no probability, no ambiguity. A `$45,000` invoice with
+> `po_match=True` will always route to `ESCALATE_TO_DIRECTOR`. Always.
+
+> **100% Auditable**
+>
+> Every node that executes appends to `APState.audit_log`. The final state always contains
+> the complete sequence of decisions made — which LLM extracted what, which gateway fired which
+> branch, which guardrail was triggered. The Streamlit UI surfaces this as a labelled timeline.
+
+> **Separation of Mining and Execution**
+>
+> Process mining (Phases 1–2) runs once and produces a JSON artifact. Execution (Phase 3+)
+> reads that artifact. If the SOP changes, re-run the miner and re-patch. The agent code
+> never needs to change.
+
+---
+
+## Mermaid Visualization
+
+Install the **yzane.mermaid-editor** extension in VS Code to preview `.mmd` files directly. Open `outputs/ap_master_manual_auto.mmd` and use the split-preview panel.
+
+| Color | Shape | Meaning |
+|-------|-------|---------|
+| Green `#9f9` | Circle `(( ))` | Start event |
+| Blue `#bbf` | Rectangle `[ ]` | Action / Task node |
+| Orange `#fdb` | Diamond `{ }` | Decision / Gateway |
+| Red `#f99` | Rounded box `( )` | End event |
