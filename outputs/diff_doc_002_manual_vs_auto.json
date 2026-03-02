@@ -15,8 +15,8 @@
     "edges": {
       "a": 11,
       "b": 11,
-      "added_in_b": 8,
-      "removed_in_b": 8
+      "added_in_b": 10,
+      "removed_in_b": 10
     },
     "unknowns": {
       "a": 5,
@@ -66,13 +66,17 @@
       "gw:HAS_PO ->|no_po| task:ENTER_RECORD",
       "gw:HAS_PO ->|no_po| task:REVIEW",
       "task:ENTER_RECORD -> gw:APPROVE_OR_REJECT",
+      "task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW",
+      "task:ROUTE_FOR_REVIEW -> gw:HAS_PO",
       "task:SCHEDULE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
       "gw:APPROVE_OR_REJECT ->|approve| task:ENTER_RECORD",
       "gw:APPROVE_OR_REJECT ->|reject| task:NOTIFY",
+      "gw:HAS_PO ->|no_po| task:ROUTE_FOR_REVIEW",
       "task:ENTER_RECORD -> task:SCHEDULE_PAYMENT",
       "task:EXECUTE_PAYMENT -> end:end",
+      "task:RECEIVE_MESSAGE -> gw:HAS_PO",
       "task:REVIEW -> task:UPDATE_RECORD",
       "task:ROUTE_FOR_REVIEW -> task:REVIEW",
       "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT",

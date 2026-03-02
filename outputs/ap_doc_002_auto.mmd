@@ -1,20 +1,20 @@
 flowchart LR
   n1((Start))
-  n2{"Decision\n<HAS_PO>"}
-  n3["AP routes it to the department manager\n[ROUTE_FOR_REVIEW]"]
-  n4["The manager must confirm the expense\n[REVIEW]"]
-  n5["and provide an account code\n[ENTER_RECORD]"]
+  n2["If an invoice does not have a PO number, AP routes it to the...\n[ROUTE_FOR_REVIEW]"]
+  n3{"Decision\n<HAS_PO>"}
+  n4["The manager must confirm the expense and provide an account ...\n[REVIEW]"]
+  n5["The manager must confirm the expense and provide an account ...\n[ENTER_RECORD]"]
   n6{"Decision\n<APPROVE_OR_REJECT>"}
-  n7["AP notifies the vendor\n[NOTIFY]"]
-  n8["and closes the invoice\n[UPDATE_STATUS]"]
+  n7["AP notifies the vendor and closes the invoice.\n[NOTIFY]"]
+  n8["AP notifies the vendor and closes the invoice.\n[UPDATE_STATUS]"]
   n9["AP enters the account code\n[ENTER_RECORD]"]
-  n10["and proceeds to schedule payment\n[SCHEDULE_PAYMENT]"]
+  n10["and proceeds to schedule payment.\n[SCHEDULE_PAYMENT]"]
   n11(End)
   n12["Receive invoice\n[RECEIVE_MESSAGE]"]
   n12 --> n2
-  n2 -->|no_po| n3
-  n2 -->|no_po| n4
-  n2 -->|no_po| n5
+  n2 --> n3
+  n3 -->|no_po| n4
+  n3 -->|no_po| n5
   n5 --> n6
   n6 -->|no_po_reject| n7
   n6 -->|no_po_reject| n8
@@ -25,8 +25,8 @@ flowchart LR
   U_NOTE["Unknowns: 3 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
   style n1 fill:#9f9,stroke:#333,stroke-width:2px
-  style n2 fill:#fdb,stroke:#333,stroke-width:1px
-  style n3 fill:#bbf,stroke:#333,stroke-width:1px
+  style n2 fill:#bbf,stroke:#333,stroke-width:1px
+  style n3 fill:#fdb,stroke:#333,stroke-width:1px
   style n4 fill:#bbf,stroke:#333,stroke-width:1px
   style n5 fill:#bbf,stroke:#333,stroke-width:1px
   style n6 fill:#fdb,stroke:#333,stroke-width:1px

@@ -131,6 +131,97 @@ def log_calibration_result(
         )
 
 
+def log_hyperparameter_result(
+    doc_name: str,
+    chunk_size_tokens: int,
+    num_chunks: int,
+    total_node_count: int,
+    total_unknown_count: int,
+    latency_sec: float,
+    success_probability: float,
+    max_recursion_depth: int = 0,
+) -> None:
+    """Insert one hyperparameter grid-search row."""
+    _init_hyperparameter_table()
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO hyperparameter_results
+                (timestamp, doc_name, chunk_size_tokens, num_chunks,
+                 total_node_count, total_unknown_count, latency_sec,
+                 success_probability, max_recursion_depth)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ts, doc_name, chunk_size_tokens, num_chunks,
+             total_node_count, total_unknown_count,
+             round(latency_sec, 4), round(success_probability, 6),
+             max_recursion_depth),
+        )
+
+
+def get_hyperparameter_result(
+    doc_name: str,
+    chunk_size_tokens: int,
+) -> "dict | None":
+    """
+    Return the most recent hyperparameter_results row for *doc_name* +
+    *chunk_size_tokens* as a plain dict, or None if no row exists yet.
+    """
+    _init_hyperparameter_table()
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT chunk_size_tokens, num_chunks, total_node_count,
+                   total_unknown_count, latency_sec, success_probability,
+                   max_recursion_depth
+            FROM   hyperparameter_results
+            WHERE  doc_name = ? AND chunk_size_tokens = ?
+            ORDER  BY id DESC
+            LIMIT  1
+            """,
+            (doc_name, chunk_size_tokens),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "chunk_size_tokens":   row["chunk_size_tokens"],
+        "num_chunks":          row["num_chunks"],
+        "total_node_count":    row["total_node_count"],
+        "total_unknown_count": row["total_unknown_count"],
+        "latency_sec":         row["latency_sec"],
+        "success_probability": row["success_probability"],
+        "max_recursion_depth": row["max_recursion_depth"],
+    }
+
+
+def _init_hyperparameter_table() -> None:
+    """Create hyperparameter_results table if it does not exist."""
+    with _connect() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS hyperparameter_results (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp            TEXT    NOT NULL,
+                doc_name             TEXT    NOT NULL,
+                chunk_size_tokens    INTEGER NOT NULL,
+                num_chunks           INTEGER NOT NULL,
+                total_node_count     INTEGER NOT NULL,
+                total_unknown_count  INTEGER NOT NULL,
+                latency_sec          REAL    NOT NULL,
+                success_probability  REAL    NOT NULL,
+                max_recursion_depth  INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        # Migrate tables created before max_recursion_depth was added
+        try:
+            conn.execute(
+                "ALTER TABLE hyperparameter_results "
+                "ADD COLUMN max_recursion_depth INTEGER NOT NULL DEFAULT 0"
+            )
+        except Exception:
+            pass  # column already present
+
+
 def get_performance_trends() -> None:
     """Print a summary table of the last 5 extraction log entries."""
     init_db()

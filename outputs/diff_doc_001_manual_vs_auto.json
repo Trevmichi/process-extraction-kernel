@@ -8,15 +8,15 @@
   "summary": {
     "nodes": {
       "a": 11,
-      "b": 9,
+      "b": 10,
       "added_in_b": 0,
-      "removed_in_b": 1
+      "removed_in_b": 0
     },
     "edges": {
       "a": 11,
-      "b": 10,
-      "added_in_b": 5,
-      "removed_in_b": 5
+      "b": 11,
+      "added_in_b": 3,
+      "removed_in_b": 2
     },
     "unknowns": {
       "a": 5,
@@ -38,6 +38,7 @@
         "EXECUTE_PAYMENT": 1
       },
       "b": {
+        "RECEIVE_MESSAGE": 1,
         "ENTER_RECORD": 1,
         "VALIDATE_FIELDS": 1,
         "APPROVE": 1,
@@ -48,22 +49,15 @@
   },
   "details": {
     "nodes_added_in_b": [],
-    "nodes_removed_in_b": [
-      "task:RECEIVE_MESSAGE"
-    ],
+    "nodes_removed_in_b": [],
     "edges_added_in_b": [
-      "event:start -> task:ENTER_RECORD",
+      "gw:MATCH_3_WAY ->|match_3_way| task:APPROVE",
       "gw:THRESHOLD_AMOUNT ->|amount<=thresh| task:APPROVE",
-      "gw:THRESHOLD_AMOUNT ->|amount>thresh| task:APPROVE",
-      "gw:THRESHOLD_AMOUNT ->|match_3_way| task:APPROVE",
-      "gw:THRESHOLD_AMOUNT ->|schedule_payment| task:EXECUTE_PAYMENT"
+      "gw:THRESHOLD_AMOUNT ->|amount>thresh| task:APPROVE"
     ],
     "edges_removed_in_b": [
-      "event:start -> task:RECEIVE_MESSAGE",
       "gw:THRESHOLD_AMOUNT ->|amount<=5000| task:APPROVE",
-      "gw:THRESHOLD_AMOUNT ->|amount>5000| task:APPROVE",
-      "task:RECEIVE_MESSAGE -> task:ENTER_RECORD",
-      "task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT"
+      "gw:THRESHOLD_AMOUNT ->|amount>5000| task:APPROVE"
     ],
     "unknowns_added_in_b": [],
     "unknowns_removed_in_b": []

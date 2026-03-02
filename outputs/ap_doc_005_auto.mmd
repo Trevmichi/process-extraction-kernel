@@ -1,29 +1,26 @@
 flowchart LR
   n1((Start))
-  n2["Invoices are entered into the ERP.\n[ENTER_RECORD]"]
-  n3["The system checks for duplicate invoice numbers.\n[VALIDATE_FIELDS]"]
-  n4{"Decision\n<IF_CONDITION>"}
-  n5["the system immediately rejects the invoice\n[REJECT]"]
-  n6["and notifies the vendor.\n[NOTIFY]"]
-  n7["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]
-  n8["After a successful match, payment is executed.\n[EXECUTE_PAYMENT]"]
-  n9(End)
+  n2["Invoices are entered into the ERP\n[ENTER_RECORD]"]
+  n3{"Decision\n<IF_CONDITION>"}
+  n4["If a duplicate is detected, the system immediately rejects t...\n[REJECT]"]
+  n5["and notifies the vendor\n[NOTIFY]"]
+  n6["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]
+  n7["After a successful match, payment is executed\n[EXECUTE_PAYMENT]"]
+  n8(End)
   n1 --> n2
   n2 --> n3
-  n3 --> n4
-  n4 -->|duplicate_detected| n5
-  n4 -->|duplicate_detected| n6
-  n4 -->|not_duplicate| n7
-  n4 -->|successful_match| n8
-  n8 --> n9
+  n3 -->|duplicate_detected| n4
+  n3 -->|duplicate_detected| n5
+  n3 -->|not_duplicate| n6
+  n3 -->|successful_match| n7
+  n7 --> n8
   U_NOTE["Unknowns: 4 (see JSON unknowns list)"]
   n1 -.-> U_NOTE
   style n1 fill:#9f9,stroke:#333,stroke-width:2px
   style n2 fill:#bbf,stroke:#333,stroke-width:1px
-  style n3 fill:#bbf,stroke:#333,stroke-width:1px
-  style n4 fill:#fdb,stroke:#333,stroke-width:1px
+  style n3 fill:#fdb,stroke:#333,stroke-width:1px
+  style n4 fill:#bbf,stroke:#333,stroke-width:1px
   style n5 fill:#bbf,stroke:#333,stroke-width:1px
   style n6 fill:#bbf,stroke:#333,stroke-width:1px
   style n7 fill:#bbf,stroke:#333,stroke-width:1px
-  style n8 fill:#bbf,stroke:#333,stroke-width:1px
-  style n9 fill:#f99,stroke:#333,stroke-width:2px
+  style n8 fill:#f99,stroke:#333,stroke-width:2px

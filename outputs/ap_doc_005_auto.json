@@ -71,7 +71,7 @@
     {
       "id": "n2",
       "kind": "task",
-      "name": "Invoices are entered into the ERP.",
+      "name": "Invoices are entered into the ERP",
       "action": {
         "type": "ENTER_RECORD",
         "actor_id": "sys_erp",
@@ -82,7 +82,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "Invoices are entered into the ERP."
+          "span": "Invoices are entered into the ERP"
         }
       ],
       "meta": {
@@ -91,27 +91,6 @@
     },
     {
       "id": "n3",
-      "kind": "task",
-      "name": "The system checks for duplicate invoice numbers.",
-      "action": {
-        "type": "VALIDATE_FIELDS",
-        "actor_id": "sys_erp",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_005",
-          "span": "The system checks for duplicate invoice numbers."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:VALIDATE_FIELDS"
-      }
-    },
-    {
-      "id": "n4",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -123,7 +102,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "If a duplicate is detected"
+          "span": "The system checks for duplicate invoice numbers"
         }
       ],
       "meta": {
@@ -131,9 +110,9 @@
       }
     },
     {
-      "id": "n5",
+      "id": "n4",
       "kind": "task",
-      "name": "the system immediately rejects the invoice",
+      "name": "If a duplicate is detected, the system immediately rejects t...",
       "action": {
         "type": "REJECT",
         "actor_id": "sys_erp",
@@ -144,7 +123,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "the system immediately rejects the invoice"
+          "span": "If a duplicate is detected, the system immediately rejects the invoice"
         }
       ],
       "meta": {
@@ -152,9 +131,9 @@
       }
     },
     {
-      "id": "n6",
+      "id": "n5",
       "kind": "task",
-      "name": "and notifies the vendor.",
+      "name": "and notifies the vendor",
       "action": {
         "type": "NOTIFY",
         "actor_id": "sys_erp",
@@ -165,7 +144,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "and notifies the vendor."
+          "span": "and notifies the vendor"
         }
       ],
       "meta": {
@@ -173,7 +152,7 @@
       }
     },
     {
-      "id": "n7",
+      "id": "n6",
       "kind": "task",
       "name": "the AP clerk proceeds to match the invoice against the purch...",
       "action": {
@@ -186,7 +165,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "the AP clerk proceeds to match the invoice against the purchase order."
+          "span": "the AP clerk proceeds to match the invoice against the purchase order"
         }
       ],
       "meta": {
@@ -194,9 +173,9 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n7",
       "kind": "task",
-      "name": "After a successful match, payment is executed.",
+      "name": "After a successful match, payment is executed",
       "action": {
         "type": "EXECUTE_PAYMENT",
         "actor_id": "sys_erp",
@@ -207,7 +186,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "After a successful match, payment is executed."
+          "span": "After a successful match, payment is executed"
         }
       ],
       "meta": {
@@ -215,7 +194,7 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n8",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -245,31 +224,26 @@
     {
       "frm": "n3",
       "to": "n4",
-      "condition": null
+      "condition": "duplicate_detected"
     },
     {
-      "frm": "n4",
+      "frm": "n3",
       "to": "n5",
       "condition": "duplicate_detected"
     },
     {
-      "frm": "n4",
+      "frm": "n3",
       "to": "n6",
-      "condition": "duplicate_detected"
-    },
-    {
-      "frm": "n4",
-      "to": "n7",
       "condition": "not_duplicate"
     },
     {
-      "frm": "n4",
-      "to": "n8",
+      "frm": "n3",
+      "to": "n7",
       "condition": "successful_match"
     },
     {
-      "frm": "n8",
-      "to": "n9",
+      "frm": "n7",
+      "to": "n8",
       "condition": null
     }
   ],
@@ -278,7 +252,7 @@
     {
       "id": "auto_u1",
       "type": "missing_path",
-      "question": "Decision detected but branches not fully modeled: 'If a duplicate is detected' \u2014 what are the explicit outcomes and next steps?",
+      "question": "Decision detected but branches not fully modeled: 'The system checks for duplicate invoice numbers' \u2014 what are the explicit outcomes and next steps?",
       "priority": "high",
       "key": "U.OTHER"
     },

@@ -6,7 +6,7 @@
 ## Summary
 
 - Nodes: A=12  B=12  (+1 / -2)
-- Edges: A=11  B=11  (+8 / -8)
+- Edges: A=11  B=11  (+10 / -10)
 - Unknowns: A=5  B=3  (+0 / -2)
 - Evidence coverage (node-level): A=100.00%  B=91.67%
 
@@ -27,13 +27,17 @@
 - gw:HAS_PO ->|no_po| task:ENTER_RECORD
 - gw:HAS_PO ->|no_po| task:REVIEW
 - task:ENTER_RECORD -> gw:APPROVE_OR_REJECT
+- task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW
+- task:ROUTE_FOR_REVIEW -> gw:HAS_PO
 - task:SCHEDULE_PAYMENT -> end:end
 
 ### Edges removed in B
 - gw:APPROVE_OR_REJECT ->|approve| task:ENTER_RECORD
 - gw:APPROVE_OR_REJECT ->|reject| task:NOTIFY
+- gw:HAS_PO ->|no_po| task:ROUTE_FOR_REVIEW
 - task:ENTER_RECORD -> task:SCHEDULE_PAYMENT
 - task:EXECUTE_PAYMENT -> end:end
+- task:RECEIVE_MESSAGE -> gw:HAS_PO
 - task:REVIEW -> task:UPDATE_RECORD
 - task:ROUTE_FOR_REVIEW -> task:REVIEW
 - task:SCHEDULE_PAYMENT -> task:EXECUTE_PAYMENT

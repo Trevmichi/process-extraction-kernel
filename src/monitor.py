@@ -36,6 +36,14 @@ _WATCH_CHUNK_SIZE = 5000
 _RED_THRESHOLD = 0.80
 
 _DB_PATH = Path("data/analytics/metrics.db")
+
+# ---------------------------------------------------------------------------
+# Safety: directories the watchdog must NEVER monitor
+# ---------------------------------------------------------------------------
+_EXCLUDED_WATCH_DIRS: tuple[str, ...] = (
+    "outputs",
+    "data/analytics",
+)
 _AUDIT_CSV = Path("data/analytics/master_audit_log.csv")
 _AUDIT_FIELDNAMES = [
     "timestamp", "filename", "total_words", "chunk_size",
@@ -269,6 +277,17 @@ def watchdog(
     from src.visualizer import generate_dashboard
 
     watch_path = Path(input_dir)
+
+    # Safety guard: refuse to watch excluded directories (outputs/, data/analytics/)
+    resolved = watch_path.resolve()
+    for _excl in _EXCLUDED_WATCH_DIRS:
+        excl_resolved = Path(_excl).resolve()
+        if resolved == excl_resolved or str(resolved).startswith(str(excl_resolved) + "\\") or str(resolved).startswith(str(excl_resolved) + "/"):
+            raise ValueError(
+                f"[monitor] SAFETY BLOCK: '{input_dir}' resolves to a protected directory "
+                f"('{_excl}' is excluded from watchdog monitoring)."
+            )
+
     watch_path.mkdir(parents=True, exist_ok=True)
 
     # Seed the seen-set with files already present so we only react to new arrivals
