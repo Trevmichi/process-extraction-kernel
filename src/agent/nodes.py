@@ -91,13 +91,15 @@ def execute_node(state: APState, node_data: dict) -> dict:
 
     # ---- Smart node: data extraction ----------------------------------------
     if intent == "ENTER_RECORD":
-        prompt = (
-            "You are a data extractor. Read the following invoice text and "
-            "output a JSON object with exactly three keys: "
-            "'vendor' (string), 'amount' (number, no symbols), and "
-            "'has_po' (boolean).\n"
-            f"Invoice text: {state['raw_invoice_text']}"
-        )
+        prompt = f"""
+You are a precise data extractor. Read the following invoice/PO text and output a JSON object with exactly three keys:
+1. 'vendor' (string)
+2. 'amount' (float, KEEP the decimal point, but remove currency symbols and commas. e.g., output 835.45 instead of $835.45)
+3. 'has_po' (boolean)
+
+Text:
+{state['raw_invoice_text']}
+"""
         parsed = _call_llm_json(prompt)
         updates["audit_log"] = [f"Extracted data: {parsed}"]
         if "_error" not in parsed:
