@@ -11,21 +11,17 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 
 | # | Canonical Key |
 |---|---------------|
-| 1 | `gw:MATCH_3_WAY` |
-| 2 | `task:APPROVE` |
+| 1 | `gw:THRESHOLD_AMOUNT` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
 | # | From (canonical) | To (canonical) | Condition |
 |---|------------------|----------------|-----------|
 | 1 | `gw:MATCH_3_WAY` | `gw:THRESHOLD_AMOUNT` | `match` |
-| 2 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `MATCH_3_WAY` |
-| 3 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount<=THRESH` |
-| 4 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount>THRESH` |
-| 5 | `gw:THRESHOLD_AMOUNT` | `task:EXECUTE_PAYMENT` | `SCHEDULE_PAYMENT` |
-| 6 | `task:APPROVE` | `task:SCHEDULE_PAYMENT` | _(unconditional)_ |
-| 7 | `task:EXECUTE_PAYMENT` | `end:end` | _(unconditional)_ |
-| 8 | `task:VALIDATE_FIELDS` | `gw:MATCH_3_WAY` | _(unconditional)_ |
+| 2 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount<=THRESH` |
+| 3 | `gw:THRESHOLD_AMOUNT` | `task:APPROVE` | `amount>THRESH` |
+| 4 | `task:APPROVE` | `task:SCHEDULE_PAYMENT` | _(unconditional)_ |
+| 5 | `task:SCHEDULE_PAYMENT` | `task:EXECUTE_PAYMENT` | _(unconditional)_ |
 
 ## doc_002
 
@@ -33,25 +29,63 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 
 | # | Canonical Key |
 |---|---------------|
-| 1 | `task:REVIEW` |
+| 1 | `gw:APPROVE_OR_REJECT` |
+| 2 | `task:REVIEW` |
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
 | # | From (canonical) | To (canonical) | Condition |
 |---|------------------|----------------|-----------|
-| 1 | `event:start` | `task:RECEIVE_MESSAGE` | _(unconditional)_ |
-| 2 | `gw:APPROVE_OR_REJECT` | `task:ENTER_RECORD` | `no_po_approve` |
-| 3 | `gw:APPROVE_OR_REJECT` | `task:NOTIFY` | `no_po_reject` |
-| 4 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `no_po_approve` |
-| 5 | `gw:APPROVE_OR_REJECT` | `task:UPDATE_STATUS` | `no_po_reject` |
-| 6 | `gw:HAS_PO` | `task:ENTER_RECORD` | `no_po` |
-| 7 | `gw:HAS_PO` | `task:REVIEW` | `no_po` |
-| 8 | `gw:HAS_PO` | `task:ROUTE_FOR_REVIEW` | `no_po` |
-| 9 | `task:ENTER_RECORD` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
-| 10 | `task:RECEIVE_MESSAGE` | `gw:HAS_PO` | _(unconditional)_ |
-| 11 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 1 | `gw:APPROVE_OR_REJECT` | `task:ENTER_RECORD` | `no_po_approve` |
+| 2 | `gw:APPROVE_OR_REJECT` | `task:NOTIFY` | `no_po_reject` |
+| 3 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `no_po_approve` |
+| 4 | `gw:APPROVE_OR_REJECT` | `task:UPDATE_STATUS` | `no_po_reject` |
+| 5 | `gw:HAS_PO` | `task:ENTER_RECORD` | `no_po` |
+| 6 | `gw:HAS_PO` | `task:REVIEW` | `no_po` |
+| 7 | `task:ENTER_RECORD` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
+| 8 | `task:RECEIVE_MESSAGE` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
+| 9 | `task:ROUTE_FOR_REVIEW` | `gw:HAS_PO` | _(unconditional)_ |
+| 10 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
 
 ## doc_003
+
+### Steps present in sub-doc but absent from Master Manual
+
+| # | Canonical Key |
+|---|---------------|
+| 1 | `gw:VARIANCE_ABOVE_TOLERANCE` |
+
+### Logic paths present in sub-doc but absent from Master Manual
+
+| # | From (canonical) | To (canonical) | Condition |
+|---|------------------|----------------|-----------|
+| 1 | `event:start` | `task:MATCH_3_WAY` | _(unconditional)_ |
+| 2 | `gw:VARIANCE_ABOVE_TOLERANCE` | `task:REQUEST_CLARIFICATION` | `VARIANCE_ABOVE_TOLERANCE` |
+| 3 | `task:MATCH_3_WAY` | `gw:VARIANCE_ABOVE_TOLERANCE` | _(unconditional)_ |
+| 4 | `task:REQUEST_CLARIFICATION` | `task:UPDATE_RECORD` | _(unconditional)_ |
+
+## doc_004
+
+### Steps present in sub-doc but absent from Master Manual
+
+| # | Canonical Key |
+|---|---------------|
+| 1 | `gw:APPROVE_OR_REJECT` |
+
+### Logic paths present in sub-doc but absent from Master Manual
+
+| # | From (canonical) | To (canonical) | Condition |
+|---|------------------|----------------|-----------|
+| 1 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `approve` |
+| 2 | `gw:IF_CONDITION` | `task:ENTER_RECORD` | `condition_true` |
+| 3 | `gw:IF_CONDITION` | `task:REQUEST_CLARIFICATION` | `condition_true` |
+| 4 | `gw:IF_CONDITION` | `task:UPDATE_RECORD` | `condition_true` |
+| 5 | `task:RECEIVE_MESSAGE` | `task:VALIDATE_FIELDS` | _(unconditional)_ |
+| 6 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
+| 7 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 8 | `task:UPDATE_RECORD` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
+
+## doc_005
 
 ### Steps present in sub-doc but absent from Master Manual
 
@@ -61,47 +95,9 @@ _None — all step intents are covered by the Master Manual._
 
 | # | From (canonical) | To (canonical) | Condition |
 |---|------------------|----------------|-----------|
-| 1 | `event:start` | `task:MATCH_3_WAY` | _(unconditional)_ |
-| 2 | `gw:VARIANCE_ABOVE_TOLERANCE` | `task:REQUEST_CLARIFICATION` | `VARIANCE_ABOVE_TOLERANCE` |
-
-## doc_004
-
-### Steps present in sub-doc but absent from Master Manual
-
-| # | Canonical Key |
-|---|---------------|
-| 1 | `gw:IF_CONDITION` |
-
-### Logic paths present in sub-doc but absent from Master Manual
-
-| # | From (canonical) | To (canonical) | Condition |
-|---|------------------|----------------|-----------|
-| 1 | `event:start` | `task:RECEIVE_MESSAGE` | _(unconditional)_ |
-| 2 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `approve` |
-| 3 | `gw:IF_CONDITION` | `task:ENTER_RECORD` | `condition_true` |
-| 4 | `gw:IF_CONDITION` | `task:REQUEST_CLARIFICATION` | `condition_true` |
-| 5 | `gw:IF_CONDITION` | `task:UPDATE_RECORD` | `condition_true` |
-| 6 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
-| 7 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
-| 8 | `task:UPDATE_RECORD` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
-| 9 | `task:VALIDATE_FIELDS` | `gw:IF_CONDITION` | _(unconditional)_ |
-
-## doc_005
-
-### Steps present in sub-doc but absent from Master Manual
-
-| # | Canonical Key |
-|---|---------------|
-| 1 | `gw:IF_CONDITION` |
-
-### Logic paths present in sub-doc but absent from Master Manual
-
-| # | From (canonical) | To (canonical) | Condition |
-|---|------------------|----------------|-----------|
-| 1 | `gw:IF_CONDITION` | `task:EXECUTE_PAYMENT` | `successful_match` |
-| 2 | `gw:IF_CONDITION` | `task:MATCH_3_WAY` | `not_duplicate` |
-| 3 | `gw:IF_CONDITION` | `task:NOTIFY` | `duplicate_detected` |
-| 4 | `gw:IF_CONDITION` | `task:REJECT` | `duplicate_detected` |
-| 5 | `task:EXECUTE_PAYMENT` | `end:end` | _(unconditional)_ |
-| 6 | `task:VALIDATE_FIELDS` | `gw:IF_CONDITION` | _(unconditional)_ |
+| 1 | `event:start` | `task:ENTER_RECORD` | _(unconditional)_ |
+| 2 | `gw:IF_CONDITION` | `task:EXECUTE_PAYMENT` | `successful_match` |
+| 3 | `gw:IF_CONDITION` | `task:MATCH_3_WAY` | `not_duplicate` |
+| 4 | `gw:IF_CONDITION` | `task:NOTIFY` | `duplicate_detected` |
+| 5 | `gw:IF_CONDITION` | `task:REJECT` | `duplicate_detected` |
 

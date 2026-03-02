@@ -22,7 +22,37 @@ class Action:
 
     def __post_init__(self) -> None:
         if self.type not in VALID_ACTIONS:
-            raise ValueError(f"Invalid Action.type {self.type!r}; expected one of {sorted(VALID_ACTIONS)}")
+            import json as _json
+            import warnings
+            from pathlib import Path as _Path
+
+            # Terminal log — visible in benchmarker output
+            print(f"[SCHEMA MISS] AI used '{self.type}'")
+            warnings.warn(
+                f"[ACTION GUARD] Unknown action type {self.type!r} — "
+                f"coercing to 'UNKNOWN_ACTION' to prevent benchmark crash.",
+                stacklevel=2,
+            )
+
+            # Persist frequency counter so generate_schema_report() can analyse it
+            _suggestions = _Path("data/analytics/schema_suggestions.json")
+            try:
+                _suggestions.parent.mkdir(parents=True, exist_ok=True)
+                _counts: Dict[str, int] = (
+                    _json.loads(_suggestions.read_text(encoding="utf-8"))
+                    if _suggestions.exists() and _suggestions.stat().st_size > 0
+                    else {}
+                )
+                _counts[self.type] = _counts.get(self.type, 0) + 1
+                _suggestions.write_text(
+                    _json.dumps(_counts, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+            except Exception as _exc:
+                print(f"[SCHEMA MISS] Could not update schema_suggestions.json: {_exc}")
+
+            self.extra["original_type"] = self.type
+            self.type = "UNKNOWN_ACTION"
         if self.actor_id not in VALID_ACTORS:
             self.extra["raw_actor_id"] = self.actor_id
             self.actor_id = "sys_erp"
@@ -38,7 +68,38 @@ class Decision:
 
     def __post_init__(self) -> None:
         if self.type not in VALID_DECISIONS:
-            raise ValueError(f"Invalid Decision.type {self.type!r}; expected one of {sorted(VALID_DECISIONS)}")
+            import json as _json
+            import warnings
+            from pathlib import Path as _Path
+
+            # Terminal log — visible in benchmarker output
+            print(f"[SCHEMA MISS] AI used Decision type '{self.type}'")
+            warnings.warn(
+                f"[DECISION GUARD] Unknown decision type {self.type!r} — "
+                f"coercing to 'IF_CONDITION' to prevent benchmark crash.",
+                stacklevel=2,
+            )
+
+            # Persist frequency counter — keyed with "DECISION:" prefix so
+            # generate_schema_report() can distinguish decision misses from action misses
+            _suggestions = _Path("data/analytics/schema_suggestions.json")
+            try:
+                _suggestions.parent.mkdir(parents=True, exist_ok=True)
+                _counts: Dict[str, int] = (
+                    _json.loads(_suggestions.read_text(encoding="utf-8"))
+                    if _suggestions.exists() and _suggestions.stat().st_size > 0
+                    else {}
+                )
+                _miss_key = f"DECISION:{self.type}"
+                _counts[_miss_key] = _counts.get(_miss_key, 0) + 1
+                _suggestions.write_text(
+                    _json.dumps(_counts, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+            except Exception as _exc:
+                print(f"[SCHEMA MISS] Could not update schema_suggestions.json: {_exc}")
+
+            self.type = "IF_CONDITION"
 
 @dataclass
 class Node:

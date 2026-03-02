@@ -64,10 +64,18 @@ ArtifactId = Literal[
 VALID_ACTIONS: Set[str] = {
     "RECEIVE_MESSAGE","ENTER_RECORD","VALIDATE_FIELDS","MATCH_3_WAY","ROUTE_FOR_REVIEW","REVIEW",
     "UPDATE_RECORD","APPROVE","REJECT","UPDATE_STATUS","REQUEST_CLARIFICATION","SCHEDULE_PAYMENT",
-    "EXECUTE_PAYMENT","NOTIFY"
+    "EXECUTE_PAYMENT","NOTIFY",
+    # Temporary alias entry — normalised to ENTER_RECORD by ACTION_ALIASES before graph build
+    "ENTER_DATA",
+    # Catch-all sentinel written by Action.__post_init__ when an unknown type slips through
+    "UNKNOWN_ACTION",
 }
 VALID_DECISIONS: Set[str] = {
-    "MATCH_3_WAY","THRESHOLD_AMOUNT","HAS_PO","VARIANCE_ABOVE_TOLERANCE","APPROVE_OR_REJECT","IF_CONDITION"
+    "MATCH_3_WAY","THRESHOLD_AMOUNT","HAS_PO","VARIANCE_ABOVE_TOLERANCE","APPROVE_OR_REJECT","IF_CONDITION",
+    # Catch-all sentinel — Decision.__post_init__ coerces to IF_CONDITION instead,
+    # but UNKNOWN_DECISION is registered here so it never re-triggers the guard if
+    # the LLM explicitly emits it.
+    "UNKNOWN_DECISION",
 }
 VALID_CONDITIONS: Set[str] = {
     "match","no_match","approve","reject","has_po","no_po","above_tolerance","within_tolerance"

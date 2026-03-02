@@ -71,7 +71,28 @@
     {
       "id": "n2",
       "kind": "task",
-      "name": "Invoices are received by email and entered into the ERP by t...",
+      "name": "Invoices are received by email",
+      "action": {
+        "type": "RECEIVE_MESSAGE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_001",
+          "span": "Invoices are received by email"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:RECEIVE_MESSAGE"
+      }
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "entered into the ERP",
       "action": {
         "type": "ENTER_RECORD",
         "actor_id": "role_ap_clerk",
@@ -82,7 +103,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "Invoices are received by email and entered into the ERP by the AP clerk."
+          "span": "entered into the ERP"
         }
       ],
       "meta": {
@@ -90,9 +111,9 @@
       }
     },
     {
-      "id": "n3",
+      "id": "n4",
       "kind": "task",
-      "name": "The clerk validates required fields (vendor, invoice number,...",
+      "name": "The clerk validates required fields",
       "action": {
         "type": "VALIDATE_FIELDS",
         "actor_id": "role_ap_clerk",
@@ -103,7 +124,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "The clerk validates required fields (vendor, invoice number, date, amount)."
+          "span": "The clerk validates required fields"
         }
       ],
       "meta": {
@@ -111,7 +132,7 @@
       }
     },
     {
-      "id": "n4",
+      "id": "n5",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -123,7 +144,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
+          "span": "If the invoice matches the PO and goods receipt"
         }
       ],
       "meta": {
@@ -131,7 +152,28 @@
       }
     },
     {
-      "id": "n5",
+      "id": "n6",
+      "kind": "task",
+      "name": "it can be approved",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [
+        {
+          "source_id": "doc_001",
+          "span": "it can be approved"
+        }
+      ],
+      "meta": {
+        "canonical_key": "task:APPROVE"
+      }
+    },
+    {
+      "id": "n7",
       "kind": "gateway",
       "name": "Decision",
       "action": null,
@@ -143,7 +185,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "Invoices over $5,000 require director approval."
+          "span": "Invoices over $5,000 require director approval"
         }
       ],
       "meta": {
@@ -151,30 +193,9 @@
       }
     },
     {
-      "id": "n6",
+      "id": "n8",
       "kind": "task",
-      "name": "If the invoice matches the PO and goods receipt, it can be a...",
-      "action": {
-        "type": "APPROVE",
-        "actor_id": "role_director",
-        "artifact_id": "art_invoice",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_001",
-          "span": "If the invoice matches the PO and goods receipt, it can be approved."
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:APPROVE"
-      }
-    },
-    {
-      "id": "n7",
-      "kind": "task",
-      "name": "After approval, payment is scheduled for Net 30 and then pai...",
+      "name": "payment is scheduled",
       "action": {
         "type": "SCHEDULE_PAYMENT",
         "actor_id": "role_ap_clerk",
@@ -185,7 +206,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
+          "span": "payment is scheduled"
         }
       ],
       "meta": {
@@ -193,9 +214,9 @@
       }
     },
     {
-      "id": "n8",
+      "id": "n9",
       "kind": "task",
-      "name": "After approval, payment is scheduled for Net 30 and then pai...",
+      "name": "then paid",
       "action": {
         "type": "EXECUTE_PAYMENT",
         "actor_id": "sys_erp",
@@ -206,7 +227,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "After approval, payment is scheduled for Net 30 and then paid."
+          "span": "then paid"
         }
       ],
       "meta": {
@@ -214,7 +235,7 @@
       }
     },
     {
-      "id": "n9",
+      "id": "n10",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -247,14 +268,14 @@
       "condition": null
     },
     {
-      "frm": "n5",
-      "to": "n6",
-      "condition": "MATCH_3_WAY"
+      "frm": "n4",
+      "to": "n5",
+      "condition": null
     },
     {
       "frm": "n5",
-      "to": "n8",
-      "condition": "SCHEDULE_PAYMENT"
+      "to": "n6",
+      "condition": "MATCH_3_WAY"
     },
     {
       "frm": "n8",
@@ -262,23 +283,28 @@
       "condition": null
     },
     {
-      "frm": "n5",
+      "frm": "n9",
+      "to": "n10",
+      "condition": null
+    },
+    {
+      "frm": "n7",
       "to": "n6",
       "condition": "amount>THRESH"
     },
     {
-      "frm": "n5",
+      "frm": "n7",
       "to": "n6",
       "condition": "amount<=THRESH"
     },
     {
       "frm": "n6",
-      "to": "n7",
+      "to": "n8",
       "condition": null
     },
     {
-      "frm": "n4",
-      "to": "n5",
+      "frm": "n5",
+      "to": "n7",
       "condition": "match"
     }
   ],

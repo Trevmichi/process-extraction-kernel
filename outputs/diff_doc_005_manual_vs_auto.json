@@ -8,15 +8,15 @@
   "summary": {
     "nodes": {
       "a": 11,
-      "b": 9,
+      "b": 8,
       "added_in_b": 0,
-      "removed_in_b": 2
+      "removed_in_b": 3
     },
     "edges": {
       "a": 10,
-      "b": 8,
-      "added_in_b": 5,
-      "removed_in_b": 7
+      "b": 7,
+      "added_in_b": 6,
+      "removed_in_b": 9
     },
     "unknowns": {
       "a": 3,
@@ -40,7 +40,6 @@
       },
       "b": {
         "ENTER_RECORD": 1,
-        "VALIDATE_FIELDS": 1,
         "REJECT": 1,
         "NOTIFY": 1,
         "MATCH_3_WAY": 1,
@@ -52,26 +51,30 @@
     "nodes_added_in_b": [],
     "nodes_removed_in_b": [
       "end:paid",
-      "task:RECEIVE_MESSAGE"
+      "task:RECEIVE_MESSAGE",
+      "task:VALIDATE_FIELDS"
     ],
     "edges_added_in_b": [
       "event:start -> task:ENTER_RECORD",
       "gw:IF_CONDITION ->|duplicate_detected| task:NOTIFY",
       "gw:IF_CONDITION ->|duplicate_detected| task:REJECT",
       "gw:IF_CONDITION ->|successful_match| task:EXECUTE_PAYMENT",
+      "task:ENTER_RECORD -> gw:IF_CONDITION",
       "task:EXECUTE_PAYMENT -> end:end"
     ],
     "edges_removed_in_b": [
       "event:start -> task:RECEIVE_MESSAGE",
       "gw:IF_CONDITION ->|duplicate| task:REJECT",
+      "task:ENTER_RECORD -> task:VALIDATE_FIELDS",
       "task:EXECUTE_PAYMENT -> end:paid",
       "task:MATCH_3_WAY -> task:EXECUTE_PAYMENT",
       "task:NOTIFY -> end:end",
       "task:RECEIVE_MESSAGE -> task:ENTER_RECORD",
-      "task:REJECT -> task:NOTIFY"
+      "task:REJECT -> task:NOTIFY",
+      "task:VALIDATE_FIELDS -> gw:IF_CONDITION"
     ],
     "unknowns_added_in_b": [
-      "Decision detected but branches not fully modeled: 'If a duplicate is detected' \u2014 what are the explicit outcomes and next steps?"
+      "Decision detected but branches not fully modeled: 'The system checks for duplicate invoice numbers' \u2014 what are the explicit outcomes and next steps?"
     ],
     "unknowns_removed_in_b": []
   }

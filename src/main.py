@@ -2,6 +2,8 @@
 import time
 from pathlib import Path
 
+from tqdm import tqdm
+
 from src.render import to_json
 from src.mermaid import to_mermaid
 from src.trace import trace_event
@@ -56,7 +58,7 @@ def main():
     _outputs = Path("outputs")
     _outputs.mkdir(exist_ok=True)
     _deleted = 0
-    for _ext in ("*.json", "*.mmd", "*.png"):
+    for _ext in ("*.json", "*.mmd"):
         for _f in _outputs.glob(_ext):
             _f.unlink()
             _deleted += 1
@@ -82,7 +84,7 @@ def main():
     auto_paths = {}
 
     print("=== MANUAL EXTRACTS ===")
-    for source_id, extractor, in_path in manual_jobs:
+    for source_id, extractor, in_path in tqdm(manual_jobs, desc="Manual extracts", unit="doc"):
         out_json = f"outputs/ap_{source_id}.json"
         out_mmd  = f"outputs/ap_{source_id}.mmd"
         out_trace = f"outputs/traces/run_{source_id}.jsonl"
@@ -102,8 +104,11 @@ def main():
     _model_name = "llm:gemma3:12b" if _llm_mode else "heuristic"
     _COOLDOWN_SEC = 2  # VRAM cool-down between LLM chunks (ignored in heuristic mode)
 
+    if _llm_mode:
+        print("[GPU HEARTBEAT: ACTIVE] LLM mode enabled — model=gemma3:12b  num_gpu=1  temp=0.1")
+
     print("\n=== HEURISTIC EXTRACTS (AUTO) ===")
-    for idx, (source_id, _, in_path) in enumerate(manual_jobs):
+    for idx, (source_id, _, in_path) in enumerate(tqdm(manual_jobs, desc="Auto extracts", unit="doc")):
         out_json = f"outputs/ap_{source_id}_auto.json"
         out_mmd  = f"outputs/ap_{source_id}_auto.mmd"
         out_trace = f"outputs/traces/run_{source_id}_auto.jsonl"
@@ -132,7 +137,7 @@ def main():
     auto_only_jobs = [
         ("ap_master_manual", "data/examples/ap_master_manual.txt"),
     ]
-    for file_id, in_path in auto_only_jobs:
+    for file_id, in_path in tqdm(auto_only_jobs, desc="Master doc", unit="doc"):
         if _llm_mode:
             print(f"[cool-down] {_COOLDOWN_SEC}s VRAM cool-down ...")
             time.sleep(_COOLDOWN_SEC)

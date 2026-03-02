@@ -26,6 +26,32 @@ VERB_ACTIONS: List[Tuple[re.Pattern, str]] = [
 
 APPROVER_WORDS = re.compile(r"\b(director|cfo|vp|controller|manager)\b", re.I)
 
+# ---------------------------------------------------------------------------
+# Schema alias map — LLM synonym → canonical ActionType
+# Applied before every Action object is constructed so non-canonical strings
+# never reach Action.__post_init__ in the first place.
+# ---------------------------------------------------------------------------
+ACTION_ALIASES: dict[str, str] = {
+    "ENTER_DATA":        "ENTER_RECORD",
+    "DATA_ENTRY":        "ENTER_RECORD",
+    "LOG_INVOICE":       "ENTER_RECORD",
+    "CLOSE":             "UPDATE_STATUS",
+    "RERUN_PROCESS":     "UPDATE_STATUS",
+    "UPDATE":            "UPDATE_RECORD",
+}
+
+# ---------------------------------------------------------------------------
+# Schema alias map — LLM decision synonym → canonical DecisionType
+# Applied before every Decision object is constructed so non-canonical strings
+# never reach Decision.__post_init__ in the first place.
+# ---------------------------------------------------------------------------
+DECISION_ALIASES: dict[str, str] = {
+    "REQUEST_CLARIFICATION": "IF_CONDITION",
+    "CLARIFY":               "IF_CONDITION",
+    "REVIEW_REQUIRED":       "IF_CONDITION",
+    "true":                  "IF_CONDITION",
+}
+
 _BRANCH_GW_TYPES: Dict[str, str] = {
     "approve": "APPROVE_OR_REJECT",
     "reject": "APPROVE_OR_REJECT",
@@ -245,17 +271,18 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
 
         if intent.get("kind") == "decision":
             gid = f"n{next_num}"; next_num += 1
+            dec_type = DECISION_ALIASES.get(intent["intent"], intent["intent"])
             gw_node = Node(
                 id=gid,
                 kind="gateway",
                 name="Decision",
                 decision=Decision(
-                    type=intent["intent"],
+                    type=dec_type,
                     expression=intent.get("expression"),
                     inputs=intent.get("inputs", []),
                 ),
                 evidence=ev(ev_span),
-                meta={"canonical_key": f"gw:{intent['intent']}"},
+                meta={"canonical_key": f"gw:{dec_type}"},
             )
             nodes.append(gw_node)
             edges.append(Edge(frm=current_parent_node, to=gid))
@@ -269,7 +296,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
             })
 
         elif intent.get("kind") == "action":
-            act = intent["intent"]
+            act = ACTION_ALIASES.get(intent["intent"], intent["intent"])
 
             # Guard: LLM sometimes returns a decision type under kind="action".
             # Re-route to gateway handling to avoid ValueError in Action.__post_init__.
