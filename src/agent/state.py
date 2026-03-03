@@ -54,3 +54,62 @@ class APState(TypedDict):
     raw_text:         str
     extraction:       dict
     provenance:       dict
+
+
+# ---------------------------------------------------------------------------
+# Canonical default template — single source of truth for field names + safe
+# defaults.  REQUIRED_KEYS is derived from this dict, not from TypedDict
+# annotations.
+# ---------------------------------------------------------------------------
+
+DEFAULT_STATE_TEMPLATE: dict = {
+    "invoice_id":   "",
+    "vendor":       "",
+    "amount":       0.0,
+    "has_po":       False,
+    "po_match":     False,
+    "match_3_way":  False,
+    "match_result": "UNKNOWN",
+    "status":       "NEW",
+    "current_node": "",
+    "last_gateway": "",
+    "audit_log":    [],
+    "raw_text":     "",
+    "extraction":   {},
+    "provenance":   {},
+}
+
+REQUIRED_KEYS: frozenset[str] = frozenset(DEFAULT_STATE_TEMPLATE.keys())
+
+
+def make_initial_state(
+    *,
+    invoice_id: str,
+    raw_text: str,
+    po_match: bool = False,
+    match_3_way: bool | None = None,
+) -> APState:
+    """
+    Create a fresh APState with safe defaults from ``DEFAULT_STATE_TEMPLATE``.
+
+    Parameters
+    ----------
+    invoice_id : unique identifier for this invoice run
+    raw_text   : original invoice text for extraction
+    po_match   : whether the PO matches (default False)
+    match_3_way : mirrors po_match if None (default)
+    """
+    if match_3_way is None:
+        match_3_way = po_match
+
+    state: APState = {**DEFAULT_STATE_TEMPLATE}   # shallow copy
+    # Refresh mutable defaults so callers don't share state
+    state["audit_log"] = []
+    state["extraction"] = {}
+    state["provenance"] = {}
+    # Apply overrides
+    state["invoice_id"] = invoice_id
+    state["raw_text"] = raw_text
+    state["po_match"] = po_match
+    state["match_3_way"] = match_3_way
+    return state

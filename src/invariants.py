@@ -18,6 +18,13 @@ E_MATCH_RESULT_FOREIGN_WRITER    — node other than MATCH_3_WAY declares match_
 E_MATCH_RESULT_WRONG_ROUTER      — a non-MATCH_DECISION node routes on match_result;
                                    match_result conditions must only appear on edges
                                    outgoing from a MATCH_DECISION gateway
+E_MATCH_DECISION_TRUTH_TABLE     — a MATCH_DECISION gateway does not have exactly 3
+                                   outgoing edges covering MATCH/NO_MATCH/UNKNOWN;
+                                   also fires when an edge has a null/dangling target
+                                   or carries a priority field
+E_SYNTHETIC_INCOMPLETE           — a node with meta.synthetic=True is missing
+                                   semantic_assumption or origin_pass; or a
+                                   synthetic_edges entry is missing required fields
 """
 from __future__ import annotations
 
@@ -330,5 +337,248 @@ def check_match_result_routing(data: dict) -> list[LintError]:
                 "source_action": src_action,
             },
         ))
+
+    return errors
+
+
+# ===========================================================================
+# E5 — MATCH_DECISION truth table: exactly 3 exhaustive, exclusive branches
+# ===========================================================================
+
+def check_match_decision_truth_table(data: dict) -> list[LintError]:
+    """Verify every ``MATCH_DECISION`` gateway has the canonical 3-branch
+    truth table.
+
+    Found by scanning ``decision.type == "MATCH_DECISION"`` directly
+    (independent of meta tags or naming conventions).  Each must have
+    exactly 3 outgoing edges whose conditions are:
+
+        match_result == "MATCH"
+        match_result == "NO_MATCH"
+        match_result == "UNKNOWN"
+
+    Additional checks:
+
+    * Exactly one edge per canonical condition (no duplicates, no extras).
+    * Every outgoing edge has a non-null ``to`` that references a node
+      present in the graph.
+    * No ``priority`` field on MATCH_DECISION outgoing edges (branches
+      are condition-exclusive, so priority would introduce ambiguity).
+
+    This is the explicit "decision truth table" check.  It overlaps with
+    ``E_MATCH_SPLIT_NON_EXHAUSTIVE`` (which finds gateways via the
+    ``gw:MATCH_3_WAY`` meta scan) but catches standalone MATCH_DECISION
+    gateways that don't follow the split naming convention.
+    """
+    errors: list[LintError] = []
+    edges = data.get("edges", [])
+    nodes_map: dict[str, dict] = {n["id"]: n for n in data.get("nodes", [])}
+
+    for node in data.get("nodes", []):
+        if node.get("kind") != "gateway":
+            continue
+        dt = ((node.get("decision") or {}).get("type") or "")
+        if dt != "MATCH_DECISION":
+            continue
+
+        nid = node["id"]
+        out_edges = [e for e in edges if e.get("frm") == nid]
+        out_conds = {e.get("condition") for e in out_edges}
+
+        # --- Exhaustive condition check ---
+        if out_conds != _MATCH_DECISION_CONDITIONS:
+            missing = _MATCH_DECISION_CONDITIONS - out_conds
+            extra = out_conds - _MATCH_DECISION_CONDITIONS
+            parts = []
+            if missing:
+                parts.append(f"missing={sorted(missing)!r}")
+            if extra:
+                parts.append(f"extra={sorted(str(c) for c in extra)!r}")
+            errors.append(LintError(
+                code="E_MATCH_DECISION_TRUTH_TABLE",
+                severity="error",
+                message=(
+                    f"MATCH_DECISION gateway {nid!r} must have exactly 3 "
+                    f"outgoing edges (MATCH/NO_MATCH/UNKNOWN); "
+                    f"{'; '.join(parts) or 'edge count mismatch'}"
+                ),
+                context={
+                    "node_id": nid,
+                    "expected": sorted(_MATCH_DECISION_CONDITIONS),
+                    "actual": sorted(str(c) for c in out_conds),
+                },
+            ))
+
+        # --- Exactly one edge per condition (mutual exclusivity) ---
+        cond_list = [e.get("condition") for e in out_edges]
+        seen: set[str | None] = set()
+        for c in cond_list:
+            if c in seen:
+                errors.append(LintError(
+                    code="E_MATCH_DECISION_TRUTH_TABLE",
+                    severity="error",
+                    message=(
+                        f"MATCH_DECISION gateway {nid!r} has duplicate "
+                        f"outgoing condition {c!r} — branches must be "
+                        f"mutually exclusive"
+                    ),
+                    context={"node_id": nid, "duplicate_condition": c},
+                ))
+                break
+            seen.add(c)
+
+        # --- Edge count must be exactly 3 ---
+        if len(out_edges) != 3:
+            errors.append(LintError(
+                code="E_MATCH_DECISION_TRUTH_TABLE",
+                severity="error",
+                message=(
+                    f"MATCH_DECISION gateway {nid!r} must have exactly 3 "
+                    f"outgoing edges, found {len(out_edges)}"
+                ),
+                context={
+                    "node_id": nid,
+                    "edge_count": len(out_edges),
+                },
+            ))
+
+        # --- Each edge's `to` must be non-null and reference an existing node ---
+        for e in out_edges:
+            target = e.get("to")
+            cond = e.get("condition", "?")
+            if target is None:
+                errors.append(LintError(
+                    code="E_MATCH_DECISION_TRUTH_TABLE",
+                    severity="error",
+                    message=(
+                        f"MATCH_DECISION gateway {nid!r}: outgoing edge "
+                        f"with condition {cond!r} has null 'to' target"
+                    ),
+                    context={"node_id": nid, "condition": cond, "to": None},
+                ))
+            elif target not in nodes_map:
+                errors.append(LintError(
+                    code="E_MATCH_DECISION_TRUTH_TABLE",
+                    severity="error",
+                    message=(
+                        f"MATCH_DECISION gateway {nid!r}: outgoing edge "
+                        f"with condition {cond!r} targets {target!r} which "
+                        f"does not exist in the graph"
+                    ),
+                    context={"node_id": nid, "condition": cond, "to": target},
+                ))
+
+        # --- No priority field on MATCH_DECISION edges (semantic purity) ---
+        for e in out_edges:
+            if "priority" in e:
+                cond = e.get("condition", "?")
+                errors.append(LintError(
+                    code="E_MATCH_DECISION_TRUTH_TABLE",
+                    severity="error",
+                    message=(
+                        f"MATCH_DECISION gateway {nid!r}: outgoing edge "
+                        f"with condition {cond!r} has a 'priority' field "
+                        f"(priority={e['priority']!r}) — MATCH_DECISION "
+                        f"branches are condition-exclusive and must not use "
+                        f"priority-based disambiguation"
+                    ),
+                    context={
+                        "node_id": nid,
+                        "condition": cond,
+                        "priority": e["priority"],
+                    },
+                ))
+
+        # --- Conditions must be exact canonical strings (no whitespace variants) ---
+        for e in out_edges:
+            raw_cond = e.get("condition")
+            if raw_cond is None:
+                continue
+            normalized = normalize_condition(raw_cond)
+            if normalized != raw_cond:
+                errors.append(LintError(
+                    code="E_MATCH_DECISION_TRUTH_TABLE",
+                    severity="error",
+                    message=(
+                        f"MATCH_DECISION gateway {nid!r}: outgoing edge "
+                        f"condition {raw_cond!r} is not in canonical form "
+                        f"(expected {normalized!r}) — non-canonical conditions "
+                        f"can bypass set-equality checks"
+                    ),
+                    context={
+                        "node_id": nid,
+                        "raw_condition": raw_cond,
+                        "canonical_condition": normalized,
+                    },
+                ))
+
+    return errors
+
+
+# ===========================================================================
+# E6 — Synthetic metadata completeness
+# ===========================================================================
+
+def check_synthetic_completeness(data: dict) -> list[LintError]:
+    """Verify synthetic metadata completeness on nodes.
+
+    Sub-check 1: Every node with ``meta.synthetic == True`` must have
+    non-empty ``meta.semantic_assumption`` and ``meta.origin_pass``.
+
+    Sub-check 2: Every node with ``meta.synthetic_edges`` (a list) must
+    have each entry contain non-empty ``semantic_assumption`` and
+    ``origin_pass``.
+    """
+    errors: list[LintError] = []
+
+    for node in data.get("nodes", []):
+        meta = node.get("meta") or {}
+        nid = node.get("id", "?")
+
+        # Sub-check 1: synthetic == True → require fields
+        if meta.get("synthetic") is True:
+            if not meta.get("semantic_assumption"):
+                errors.append(LintError(
+                    code="E_SYNTHETIC_INCOMPLETE",
+                    severity="error",
+                    message=(
+                        f"Node {nid!r}: meta.synthetic is True but "
+                        f"meta.semantic_assumption is missing or empty"
+                    ),
+                    context={"node_id": nid},
+                ))
+            if not meta.get("origin_pass"):
+                errors.append(LintError(
+                    code="E_SYNTHETIC_INCOMPLETE",
+                    severity="error",
+                    message=(
+                        f"Node {nid!r}: meta.synthetic is True but "
+                        f"meta.origin_pass is missing or empty"
+                    ),
+                    context={"node_id": nid},
+                ))
+
+        # Sub-check 2: synthetic_edges entries must be complete
+        for idx, entry in enumerate(meta.get("synthetic_edges") or []):
+            if not entry.get("semantic_assumption"):
+                errors.append(LintError(
+                    code="E_SYNTHETIC_INCOMPLETE",
+                    severity="error",
+                    message=(
+                        f"Node {nid!r}: synthetic_edges[{idx}] is missing "
+                        f"semantic_assumption"
+                    ),
+                    context={"node_id": nid, "entry_index": idx},
+                ))
+            if not entry.get("origin_pass"):
+                errors.append(LintError(
+                    code="E_SYNTHETIC_INCOMPLETE",
+                    severity="error",
+                    message=(
+                        f"Node {nid!r}: synthetic_edges[{idx}] is missing "
+                        f"origin_pass"
+                    ),
+                    context={"node_id": nid, "entry_index": idx},
+                ))
 
     return errors

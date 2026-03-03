@@ -729,3 +729,222 @@ class TestMatchResultRouting:
             {"frm": "n5", "to": "n_approve", "condition": "amount > 10000"}
         )
         assert "E_MATCH_RESULT_WRONG_ROUTER" not in error_codes(graph)
+
+
+class TestMatchDecisionTruthTable:
+    """Tests for E_MATCH_DECISION_TRUTH_TABLE lint code."""
+
+    def test_valid_truth_table(self):
+        """MATCH_DECISION gateway with exactly 3 canonical conditions → no error."""
+        graph = _graph_with_valid_match_split()
+        assert "E_MATCH_DECISION_TRUTH_TABLE" not in error_codes(graph)
+
+    def test_missing_unknown_branch(self):
+        """MATCH_DECISION gateway missing UNKNOWN edge → error."""
+        graph = _graph_with_valid_match_split()
+        # Remove the UNKNOWN edge
+        graph["edges"] = [
+            e for e in graph["edges"]
+            if not (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "UNKNOWN"')
+        ]
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_extra_edge(self):
+        """MATCH_DECISION gateway with 4 edges (extra condition) → error."""
+        graph = _graph_with_valid_match_split()
+        graph["edges"].append({
+            "frm": "n5_decision", "to": "n_approve",
+            "condition": 'match_result == "VARIANCE"',
+        })
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_duplicate_condition(self):
+        """MATCH_DECISION gateway with duplicate MATCH edge → error."""
+        graph = _graph_with_valid_match_split()
+        # Replace UNKNOWN edge with a duplicate MATCH edge
+        for e in graph["edges"]:
+            if (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "UNKNOWN"'):
+                e["condition"] = 'match_result == "MATCH"'
+                break
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_non_match_decision_gateway_not_checked(self):
+        """THRESHOLD gateway is not subject to truth table check."""
+        graph = _graph_with_valid_match_split()
+        graph["nodes"].append({
+            "id": "gw_thresh", "kind": "gateway", "name": "Threshold",
+            "action": None,
+            "decision": {"type": "THRESHOLD_AMOUNT_10K", "inputs": [], "expression": None},
+            "evidence": [],
+            "meta": {"canonical_key": "gw:THRESHOLD@gw_thresh"},
+        })
+        graph["edges"].append({"frm": "gw_thresh", "to": "n_approve", "condition": "amount > 10000"})
+        graph["edges"].append({"frm": "gw_thresh", "to": "n_end", "condition": "amount <= 10000"})
+        assert "E_MATCH_DECISION_TRUTH_TABLE" not in error_codes(graph)
+
+    def test_null_to_target(self):
+        """Edge with null 'to' on MATCH_DECISION → error."""
+        graph = _graph_with_valid_match_split()
+        # Set the MATCH edge's target to None
+        for e in graph["edges"]:
+            if (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "MATCH"'):
+                e["to"] = None
+                break
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_dangling_to_target(self):
+        """Edge pointing to a non-existent node on MATCH_DECISION → error."""
+        graph = _graph_with_valid_match_split()
+        # Point the MATCH edge at a node that doesn't exist
+        for e in graph["edges"]:
+            if (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "MATCH"'):
+                e["to"] = "n_nonexistent"
+                break
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_edge_count_mismatch(self):
+        """4 edges with correct conditions + extra unconditional → error."""
+        graph = _graph_with_valid_match_split()
+        # Add a 4th unconditional edge from the decision gateway
+        graph["edges"].append({
+            "frm": "n5_decision", "to": "n_end", "condition": None,
+        })
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_priority_field_on_edge(self):
+        """Priority field on MATCH_DECISION edge → error."""
+        graph = _graph_with_valid_match_split()
+        for e in graph["edges"]:
+            if (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "MATCH"'):
+                e["priority"] = 1
+                break
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_non_canonical_whitespace_variant(self):
+        """Whitespace variant like 'match_result=="MATCH"' → error."""
+        graph = _graph_with_valid_match_split()
+        for e in graph["edges"]:
+            if (e.get("frm") == "n5_decision"
+                    and e.get("condition") == 'match_result == "MATCH"'):
+                e["condition"] = 'match_result=="MATCH"'
+                break
+        codes = error_codes(graph)
+        assert "E_MATCH_DECISION_TRUTH_TABLE" in codes
+
+    def test_valid_edges_have_existing_targets(self):
+        """Valid graph: all MATCH_DECISION edge targets exist → no truth table error."""
+        graph = _graph_with_valid_match_split()
+        assert "E_MATCH_DECISION_TRUTH_TABLE" not in error_codes(graph)
+
+
+# ===========================================================================
+# Synthetic metadata completeness (check_synthetic_completeness)
+# ===========================================================================
+
+class TestSyntheticCompleteness:
+    """Tests for E_SYNTHETIC_INCOMPLETE invariant."""
+
+    def _base_graph(self, extra_nodes=None) -> dict:
+        """Minimal valid graph, optionally with extra nodes appended."""
+        g = _minimal_valid()
+        if extra_nodes:
+            for n in extra_nodes:
+                g["nodes"].append(n)
+        return g
+
+    def test_no_synthetic_nodes_no_error(self):
+        """Graph with no synthetic nodes → no E_SYNTHETIC_INCOMPLETE."""
+        assert "E_SYNTHETIC_INCOMPLETE" not in error_codes(self._base_graph())
+
+    def test_synthetic_missing_semantic_assumption(self):
+        """meta.synthetic=True but no semantic_assumption → error."""
+        node = {
+            "id": "n_synth", "kind": "task", "name": "Synth",
+            "action": {"type": "ENTER_RECORD", "actor_id": "role_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {
+                "canonical_key": "task:SYNTH",
+                "synthetic": True,
+                "origin_pass": "some_pass",
+            },
+        }
+        assert "E_SYNTHETIC_INCOMPLETE" in error_codes(self._base_graph([node]))
+
+    def test_synthetic_missing_origin_pass(self):
+        """meta.synthetic=True but no origin_pass → error."""
+        node = {
+            "id": "n_synth", "kind": "task", "name": "Synth",
+            "action": {"type": "ENTER_RECORD", "actor_id": "role_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {
+                "canonical_key": "task:SYNTH",
+                "synthetic": True,
+                "semantic_assumption": "some_assumption",
+            },
+        }
+        assert "E_SYNTHETIC_INCOMPLETE" in error_codes(self._base_graph([node]))
+
+    def test_synthetic_with_both_fields_no_error(self):
+        """meta.synthetic=True with both fields → no E_SYNTHETIC_INCOMPLETE."""
+        node = {
+            "id": "n_synth", "kind": "task", "name": "Synth",
+            "action": {"type": "ENTER_RECORD", "actor_id": "role_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {
+                "canonical_key": "task:SYNTH",
+                "synthetic": True,
+                "semantic_assumption": "some_assumption",
+                "origin_pass": "some_pass",
+            },
+        }
+        assert "E_SYNTHETIC_INCOMPLETE" not in error_codes(self._base_graph([node]))
+
+    def test_synthetic_edges_entry_missing_origin_pass(self):
+        """synthetic_edges entry without origin_pass → error."""
+        node = {
+            "id": "n_synth", "kind": "task", "name": "Synth",
+            "action": {"type": "ENTER_RECORD", "actor_id": "role_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {
+                "canonical_key": "task:SYNTH",
+                "synthetic_edges": [
+                    {"to": "n2", "condition": "x == 1",
+                     "semantic_assumption": "some_assumption"},
+                ],
+            },
+        }
+        assert "E_SYNTHETIC_INCOMPLETE" in error_codes(self._base_graph([node]))
+
+    def test_synthetic_edges_entry_complete_no_error(self):
+        """Complete synthetic_edges entry → no E_SYNTHETIC_INCOMPLETE."""
+        node = {
+            "id": "n_synth", "kind": "task", "name": "Synth",
+            "action": {"type": "ENTER_RECORD", "actor_id": "role_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {
+                "canonical_key": "task:SYNTH",
+                "synthetic_edges": [
+                    {"to": "n2", "condition": "x == 1",
+                     "semantic_assumption": "some_assumption",
+                     "origin_pass": "some_pass"},
+                ],
+            },
+        }
+        assert "E_SYNTHETIC_INCOMPLETE" not in error_codes(self._base_graph([node]))

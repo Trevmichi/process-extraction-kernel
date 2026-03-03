@@ -100,7 +100,8 @@ def _call_llm_json(prompt: str) -> dict:
 # ---------------------------------------------------------------------------
 # Core executor
 # ---------------------------------------------------------------------------
-def execute_node(state: APState, node_data: dict) -> dict:
+def execute_node(state: APState, node_data: dict,
+                 outgoing_edges: list[dict] | None = None) -> dict:
     """
     Simulate an agent performing work at *node_data*.
 
@@ -119,6 +120,17 @@ def execute_node(state: APState, node_data: dict) -> dict:
     # Track gateway routing context for exception stations
     if node_data.get("kind") == "gateway":
         updates["last_gateway"] = node_id
+        # Emit structured route_decision audit event
+        if outgoing_edges:
+            from .router import analyze_routing
+            result = analyze_routing(state, outgoing_edges)
+            updates.setdefault("audit_log", []).append(json.dumps({
+                "event": "route_decision",
+                "from_node": node_id,
+                "candidates": result.candidates,
+                "selected": result.selected,
+                "reason": result.reason,
+            }))
 
     # ---- Smart node: evidence-backed data extraction -------------------------
     if intent == "ENTER_RECORD":
@@ -213,7 +225,9 @@ Text:
 
     # ---- Standard nodes: deterministic pass-through -------------------------
     else:
-        updates["audit_log"] = [f"Executed {intent}{actor_tag} at {node_id}"]
+        updates.setdefault("audit_log", []).append(
+            f"Executed {intent}{actor_tag} at {node_id}"
+        )
         if intent == "APPROVE":
             updates["status"] = "APPROVED"
         elif intent in ("REJECT", "REJECT_INVOICE"):
@@ -311,15 +325,24 @@ Text:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
-def create_node_handler(node_id: str, node_data: dict) -> Callable[[APState], dict]:
+def create_node_handler(
+    node_id: str,
+    node_data: dict,
+    outgoing_edges: list[dict] | None = None,
+) -> Callable[[APState], dict]:
     """
     Return a LangGraph-compatible callable for *node_id*.
 
     The returned function is named ``node_<id>`` so it appears legibly
     in LangGraph's debug output and Mermaid diagram exports.
+
+    Parameters
+    ----------
+    outgoing_edges : passed to ``execute_node`` so gateway nodes can emit
+                     structured ``route_decision`` audit events.
     """
     def handler(state: APState) -> dict:
-        return execute_node(state, node_data)
+        return execute_node(state, node_data, outgoing_edges)
 
     handler.__name__ = f"node_{node_id}"
     return handler

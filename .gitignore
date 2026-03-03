@@ -9,3 +9,10 @@ dist/
 
 # Local Environment
 .env
+
+# Generated eval outputs
+eval_report.json
+eval_report.md
+
+# Generated runtime logs
+outputs/unmodeled_logic.jsonl

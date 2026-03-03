@@ -101,7 +101,8 @@ def _disambiguate_amount(
 # ---------------------------------------------------------------------------
 
 _PO_RE = re.compile(
-    r"(?i)\b(PO|P\.O\.|Purchase\s+Order)\b|PO-?\d+",
+    r"\b(PO|Purchase\s+Order)\b|\bP\.O\.(?:\s|$|#)|PO-?\d+",
+    re.IGNORECASE,
 )
 
 

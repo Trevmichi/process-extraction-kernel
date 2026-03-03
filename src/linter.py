@@ -410,16 +410,20 @@ def lint_process_graph(graph: dict) -> list[LintError]:  # noqa: C901
     # =========================================================================
 
     from .invariants import (
+        check_match_decision_truth_table,
         check_match_result_ownership,
         check_match_result_routing,
         check_match_split_invariants,
         check_no_placeholder_conditions,
+        check_synthetic_completeness,
     )
 
     errors.extend(check_match_split_invariants(graph))
     errors.extend(check_no_placeholder_conditions(graph))
     errors.extend(check_match_result_ownership(graph))
     errors.extend(check_match_result_routing(graph))
+    errors.extend(check_match_decision_truth_table(graph))
+    errors.extend(check_synthetic_completeness(graph))
 
     return errors
 
