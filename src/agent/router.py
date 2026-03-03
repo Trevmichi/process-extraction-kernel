@@ -2,69 +2,47 @@
 router.py
 Deterministic edge router for the AP process agent.
 
-`route_edge` is called by LangGraph's conditional-edge mechanism.
+``route_edge`` is called by LangGraph's conditional-edge mechanism.
 It evaluates each outgoing edge's condition string against the current
 APState and returns the target node ID to follow next.
 
-Evaluation order
-----------------
-1. Single outgoing edge  → always take it (no evaluation needed).
-2. All edges share one unique target after dedup → take it.
-3. Each edge's condition string is looked up in _CONDITION_PREDICATES.
-   First truthy predicate wins.
-4. Fall back to gateway-type–aware routing using the source node's
-   ``decision.type`` field and APState booleans.
-5. Last resort: first non-loop edge, then first edge overall.
+Strict 2-phase evaluation
+-------------------------
+Phase 1 — Conditional edges (edges with a non-None ``condition``):
+  - Evaluate all conditions via the Condition DSL.
+  - 1 match  → route to it.
+  - >1 match → AMBIGUOUS_ROUTE (fail closed to exception station).
+  - 0 matches → proceed to Phase 2.
+
+Phase 2 — Unconditional edges (edges where ``condition`` is None):
+  - 1 match  → route to it.
+  - >1 match → AMBIGUOUS_ROUTE.
+  - 0 matches → NO_ROUTE.
+
+On AMBIGUOUS_ROUTE or NO_ROUTE the router returns the node ID of the
+corresponding exception station (looked up dynamically via
+``meta.intent_key``).  If the station is missing a ``ValueError`` is
+raised.  The unmodeled-logic JSONL logger is called for every such
+event.
+
+Trivial short-circuits (single edge, all-same-target) still apply
+before the 2-phase logic kicks in.
+
+All condition compilation is done via ``src.conditions.get_predicate``
+which normalises, parses, and caches predicates safely (no eval).
 
 Raises
 ------
-RouterError — when a gateway has multiple targets but none of the
-              predicates evaluate to True (strict-compliance mode).
+RouterError
+    When no outgoing edges exist at all.
+ValueError
+    When an exception station is required but not found in the graph.
 """
 from __future__ import annotations
 
-from typing import Any
-
 from .state import APState
-
-
-# ---------------------------------------------------------------------------
-# Condition-string → predicate
-# ---------------------------------------------------------------------------
-# Keys are lower-cased condition strings as they appear in the process JSON.
-# Values are callables (APState) -> bool.
-_CONDITION_PREDICATES: dict[str, Any] = {
-    # Canonical outcome labels
-    "match":              lambda s: s["po_match"],
-    "no_match":           lambda s: not s["po_match"],
-    "has_po":             lambda s: s["has_po"],
-    "no_po":              lambda s: not s["has_po"],
-    "approve":            lambda s: s["amount"] <= 5000.0,
-    "reject":             lambda s: s["amount"] > 5000.0,
-    "no_po_approve":      lambda s: not s["has_po"] and s["amount"] <= 5000.0,
-    "no_po_reject":       lambda s: not s["has_po"] and s["amount"] > 5000.0,
-    "above_tolerance":    lambda s: not s["po_match"],
-    "within_tolerance":   lambda s: s["po_match"],
-    "amount<=thresh":     lambda s: s["amount"] <= 5000.0,
-    "amount>thresh":      lambda s: s["amount"] > 5000.0,
-    "duplicate_detected": lambda s: s.get("status") == "DUPLICATE",
-    "not_duplicate":      lambda s: s.get("status") != "DUPLICATE",
-    "successful_match":   lambda s: s["po_match"],
-    "condition_true":     lambda s: True,
-    # Gateway-type names used as edge conditions by the extractor
-    "match_3_way":        lambda s: s["po_match"],
-    "approve_or_reject":  lambda s: s["amount"] <= 5000.0,
-    "if_condition":       lambda s: True,   # generic passthrough
-    "schedule_payment":   lambda s: True,
-    "threshold_amount":   lambda s: s["amount"] <= 5000.0,
-    # Patched guardrail conditions (injected by patch_logic.py)
-    "amount>10000":             lambda s: s["amount"] > 10000.0,
-    "amount<=10000":            lambda s: s["amount"] <= 10000.0,
-    "status==missing_data":     lambda s: s.get("status") == "MISSING_DATA",
-    "status!=missing_data":     lambda s: s.get("status") != "MISSING_DATA",
-    "has_po==false":            lambda s: not s["has_po"],
-    "has_po==true":             lambda s: s["has_po"],
-}
+from ..conditions import get_predicate
+from ..unmodeled import record_event
 
 
 class RouterError(Exception):
@@ -72,12 +50,63 @@ class RouterError(Exception):
 
 
 # ---------------------------------------------------------------------------
+# Intent keys for exception stations
+# ---------------------------------------------------------------------------
+_AMBIGUOUS_INTENT = "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE"
+_NO_ROUTE_INTENT = "task:MANUAL_REVIEW_NO_ROUTE"
+
+
+# ---------------------------------------------------------------------------
+# Station lookup helper
+# ---------------------------------------------------------------------------
+
+def _resolve_station(station_map: dict[str, str], intent_key: str) -> str:
+    """
+    Return the node ID for the exception station matching *intent_key*.
+
+    Raises ``ValueError`` if the station is not in *station_map*.
+    """
+    node_id = station_map.get(intent_key)
+    if node_id is None:
+        raise ValueError(
+            f"Exception station with intent_key={intent_key!r} not found "
+            f"in station_map. Available: {list(station_map.keys())}"
+        )
+    return node_id
+
+
+# ---------------------------------------------------------------------------
+# Unmodeled-event logger
+# ---------------------------------------------------------------------------
+
+def _log_unmodeled(
+    reason: str,
+    node_data: dict,
+    state: APState,
+    matched_targets: list[str] | None = None,
+) -> None:
+    """Log a NO_ROUTE or AMBIGUOUS_ROUTE event (no raw text — privacy)."""
+    event = {
+        "reason": reason,
+        "from_node": node_data.get("id", ""),
+        "process_id": state.get("invoice_id", ""),
+        "version": (node_data.get("meta") or {}).get("patch_id", ""),
+        "state_keys_present": sorted(k for k, v in state.items() if v),
+    }
+    if matched_targets is not None:
+        event["matched_targets"] = matched_targets
+    record_event(event)
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 def route_edge(
     state: APState,
     outgoing_edges: list[dict],
     node_data: dict,
+    station_map: dict[str, str] | None = None,
 ) -> str:
     """
     Return the ``node_id`` of the next node to execute.
@@ -87,6 +116,10 @@ def route_edge(
     state          : current APState snapshot
     outgoing_edges : all edges whose ``frm`` == current node (already deduped)
     node_data      : the full node dict from the process JSON
+    station_map    : mapping of ``meta.intent_key`` → node ID for all
+                     exception stations.  When ``None``, ambiguous / no-route
+                     situations raise ``RouterError`` instead of routing to
+                     a station (backward-compat for tests without stations).
     """
     if not outgoing_edges:
         raise RouterError(
@@ -94,59 +127,65 @@ def route_edge(
             "cannot determine next step."
         )
 
-    # --- 1. Trivial: single outgoing edge ---
+    # --- Trivial: single outgoing edge ---
     if len(outgoing_edges) == 1:
         return outgoing_edges[0]["to"]
 
-    # --- 2. All edges lead to the same target (dedup check) ---
+    # --- All edges lead to the same target (dedup check) ---
     unique_targets = list(dict.fromkeys(e["to"] for e in outgoing_edges))
     if len(unique_targets) == 1:
         return unique_targets[0]
 
-    # --- 3. Condition-string evaluation ---
-    for edge in outgoing_edges:
-        raw = edge.get("condition")
-        if raw is None:
-            # Unconditional edge — but only take it if it's the ONLY such edge
-            # (handled by checking all conditions first; fall through if not sole)
-            continue
-        pred = _CONDITION_PREDICATES.get(raw.lower())
-        if pred is not None and pred(state):
-            return edge["to"]
+    # =================================================================
+    # Phase 1 — Conditional edges
+    # =================================================================
+    conditional = [e for e in outgoing_edges if e.get("condition") is not None]
+    cond_matches: list[str] = []
 
-    # --- 3b. If unconditional edges remain, take the first non-loop one ---
+    for edge in conditional:
+        predicate = get_predicate(edge["condition"])
+        if predicate is not None and predicate(state):
+            cond_matches.append(edge["to"])
+
+    if len(cond_matches) == 1:
+        return cond_matches[0]
+
+    if len(cond_matches) > 1:
+        # AMBIGUOUS_ROUTE — multiple conditional edges matched
+        _log_unmodeled("AMBIGUOUS_ROUTE", node_data, state, cond_matches)
+        if station_map is not None:
+            return _resolve_station(station_map, _AMBIGUOUS_INTENT)
+        raise RouterError(
+            f"Node {node_data['id']!r}: {len(cond_matches)} conditional edges "
+            f"matched — ambiguous route: {cond_matches}"
+        )
+
+    # =================================================================
+    # Phase 2 — Unconditional edges (only when Phase 1 had 0 matches)
+    # =================================================================
     unconditional = [e for e in outgoing_edges if e.get("condition") is None]
-    if unconditional:
-        non_loop = [e for e in unconditional if e["to"] != state.get("current_node")]
-        if non_loop:
-            return non_loop[0]["to"]
+
+    if len(unconditional) == 1:
         return unconditional[0]["to"]
 
-    # --- 4. Decision-type–aware routing (extractor used type name as condition) ---
-    decision_type = (node_data.get("decision") or {}).get("type", "")
-    targets = [e["to"] for e in outgoing_edges]
+    if len(unconditional) > 1:
+        # AMBIGUOUS_ROUTE — multiple unconditional edges
+        targets = [e["to"] for e in unconditional]
+        _log_unmodeled("AMBIGUOUS_ROUTE", node_data, state, targets)
+        if station_map is not None:
+            return _resolve_station(station_map, _AMBIGUOUS_INTENT)
+        raise RouterError(
+            f"Node {node_data['id']!r}: {len(unconditional)} unconditional edges "
+            f"— ambiguous route: {targets}"
+        )
 
-    if decision_type == "MATCH_3_WAY":
-        return targets[0] if state["po_match"] else targets[-1]
-
-    if decision_type == "HAS_PO":
-        return targets[0] if state["has_po"] else targets[-1]
-
-    if decision_type == "THRESHOLD_AMOUNT":
-        return targets[0] if state["amount"] <= 5000.0 else targets[-1]
-
-    if decision_type == "VARIANCE_ABOVE_TOLERANCE":
-        # po_match=True means within tolerance → skip hold path
-        return targets[-1] if state["po_match"] else targets[0]
-
-    if decision_type == "APPROVE_OR_REJECT":
-        return targets[0] if state["amount"] <= 5000.0 else targets[-1]
-
-    if decision_type == "IF_CONDITION":
-        # Prefer a non-loop edge (avoids re-entering the same gateway)
-        non_loop = [e for e in outgoing_edges if e["to"] != state.get("current_node")]
-        if non_loop:
-            return non_loop[0]["to"]
-
-    # --- 5. Last resort: first edge ---
-    return outgoing_edges[0]["to"]
+    # =================================================================
+    # No matches in either phase → NO_ROUTE
+    # =================================================================
+    _log_unmodeled("NO_ROUTE", node_data, state)
+    if station_map is not None:
+        return _resolve_station(station_map, _NO_ROUTE_INTENT)
+    raise RouterError(
+        f"Node {node_data['id']!r}: no conditional or unconditional edge "
+        "matched — no route available."
+    )

@@ -27,15 +27,19 @@ MOCK_INVOICE: APState = {
     "amount":           0.0,      # to be extracted by LLM at ENTER_RECORD
     "has_po":           False,    # to be extracted by LLM at ENTER_RECORD
     "po_match":         True,     # within tolerance → APPROVE path after 3-way match
+    "match_3_way":      True,     # mirrors po_match
+    "match_result":     "UNKNOWN",  # set by MATCH_3_WAY node
     "status":           "NEW",
     "current_node":     "",
     "audit_log":        [],
-    "raw_invoice_text": (
+    "raw_text": (
         "INVOICE #9921\n"
         "From: Acme Corp\n"
         "Total Due: $15,000.00\n"
         "Includes PO Number: PO-55421"
     ),
+    "extraction":       {},
+    "provenance":       {},
 }
 
 
@@ -69,7 +73,7 @@ def main() -> None:
     print(f"  po_match     : {final_state['po_match']}")
     print(f"  status       : {final_state['status']}")
     print(f"  current_node : {final_state['current_node']}")
-    print(f"  raw_text     : {final_state.get('raw_invoice_text', '')[:50]}...")
+    print(f"  raw_text     : {final_state.get('raw_text', '')[:50]}...")
 
     print(f"\n{'=' * 60}")
     print("  AUDIT LOG  (execution path)")

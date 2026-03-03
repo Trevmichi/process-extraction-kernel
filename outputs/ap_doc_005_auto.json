@@ -133,7 +133,7 @@
     {
       "id": "n5",
       "kind": "task",
-      "name": "and notifies the vendor",
+      "name": "the system notifies the vendor",
       "action": {
         "type": "NOTIFY",
         "actor_id": "sys_erp",
@@ -144,7 +144,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "and notifies the vendor"
+          "span": "the system notifies the vendor"
         }
       ],
       "meta": {
@@ -175,7 +175,7 @@
     {
       "id": "n7",
       "kind": "task",
-      "name": "After a successful match, payment is executed",
+      "name": "payment is executed",
       "action": {
         "type": "EXECUTE_PAYMENT",
         "actor_id": "sys_erp",
@@ -186,7 +186,7 @@
       "evidence": [
         {
           "source_id": "doc_005",
-          "span": "After a successful match, payment is executed"
+          "span": "payment is executed"
         }
       ],
       "meta": {

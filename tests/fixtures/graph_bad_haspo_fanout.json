@@ -1,0 +1,130 @@
+{
+  "_comment": "BAD fixture: gw:HAS_PO has 4 outgoing edges ALL with condition 'HAS_PO'. After normalization they all become 'has_po == true', triggering E_GATEWAY_FANOUT_SAME_CONDITION.",
+  "meta": {
+    "process_id": "test_bad_haspo_fanout",
+    "domain": "accounts_payable",
+    "version": "0.1"
+  },
+  "actors": [
+    { "id": "role_clerk",   "type": "human_role", "name": "AP Clerk"  },
+    { "id": "role_manager", "type": "human_role", "name": "Manager"   }
+  ],
+  "artifacts": [
+    { "id": "art_invoice", "type": "document", "name": "Invoice" },
+    { "id": "art_payment", "type": "record",   "name": "Payment" }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "event:start" }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "Enter Record",
+      "action": {
+        "type": "ENTER_RECORD",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:ENTER_RECORD" }
+    },
+    {
+      "id": "gw_haspo",
+      "kind": "gateway",
+      "name": "Decision",
+      "action": null,
+      "decision": { "type": "HAS_PO", "inputs": [], "expression": null },
+      "evidence": [],
+      "meta": { "canonical_key": "gw:HAS_PO" }
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "Route for Review",
+      "action": {
+        "type": "ROUTE_FOR_REVIEW",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:ROUTE_FOR_REVIEW" }
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "Request Clarification",
+      "action": {
+        "type": "REQUEST_CLARIFICATION",
+        "actor_id": "role_manager",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:REQUEST_CLARIFICATION" }
+    },
+    {
+      "id": "n5",
+      "kind": "task",
+      "name": "Schedule Payment",
+      "action": {
+        "type": "SCHEDULE_PAYMENT",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_payment",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:SCHEDULE_PAYMENT" }
+    },
+    {
+      "id": "n6",
+      "kind": "task",
+      "name": "Notify Vendor",
+      "action": {
+        "type": "NOTIFY",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:NOTIFY" }
+    },
+    {
+      "id": "n7",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "end:end" }
+    }
+  ],
+  "edges": [
+    { "frm": "n1",      "to": "n2",      "condition": null    },
+    { "frm": "n2",      "to": "gw_haspo","condition": null    },
+    { "frm": "gw_haspo","to": "n3",      "condition": "HAS_PO" },
+    { "frm": "gw_haspo","to": "n4",      "condition": "HAS_PO" },
+    { "frm": "gw_haspo","to": "n5",      "condition": "HAS_PO" },
+    { "frm": "gw_haspo","to": "n6",      "condition": "HAS_PO" },
+    { "frm": "n3",      "to": "n7",      "condition": null    },
+    { "frm": "n4",      "to": "n7",      "condition": null    },
+    { "frm": "n5",      "to": "n7",      "condition": null    },
+    { "frm": "n6",      "to": "n7",      "condition": null    }
+  ],
+  "rules": [],
+  "unknowns": [],
+  "assumptions": []
+}

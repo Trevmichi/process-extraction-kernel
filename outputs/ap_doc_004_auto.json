@@ -137,7 +137,7 @@
       "action": {
         "type": "REQUEST_CLARIFICATION",
         "actor_id": "role_ap_clerk",
-        "artifact_id": "art_account_code",
+        "artifact_id": "art_invoice",
         "extra": {}
       },
       "decision": null,

@@ -3,12 +3,15 @@ compiler.py
 Compile an extracted AP process JSON into a LangGraph CompiledGraph.
 
 `build_ap_graph(json_path)` reads the JSON produced by the extraction
-pipeline, registers every process node as a LangGraph node, wires edges
-(both unconditional and conditional via the router), and returns a
-compiled, executable StateGraph.
+pipeline, validates it with the graph linter, registers every process node
+as a LangGraph node, wires edges (both unconditional and conditional via
+the router), and returns a compiled, executable StateGraph.
 
 Edge handling
 -------------
+* The graph is validated by ``assert_graph_valid`` before any compilation.
+  Graphs with errors (missing artifacts, gateway fan-out, bad conditions)
+  fail loudly with a detailed lint report.
 * Duplicate (frm, to) pairs are deduplicated — first occurrence wins.
 * Nodes with a single unique outgoing target use ``add_edge`` (fast path).
 * Nodes with multiple unique targets use ``add_conditional_edges`` backed
@@ -25,6 +28,7 @@ from pathlib import Path
 
 from langgraph.graph import END, StateGraph
 
+from ..linter import assert_graph_valid
 from .nodes import create_node_handler
 from .router import route_edge
 from .state import APState
@@ -42,15 +46,28 @@ def build_ap_graph(json_path: str):
     Returns
     -------
     A compiled LangGraph ``CompiledGraph`` ready for ``.invoke()``.
+
+    Raises
+    ------
+    ValueError
+        If the graph JSON fails linting (missing artifacts, invalid
+        conditions, gateway fan-out, etc.).  The error message contains
+        a detailed multi-line lint report.
     """
     data: dict = json.loads(Path(json_path).read_text(encoding="utf-8"))
+
+    # ---- Graph validation (fail closed) ------------------------------------
+    assert_graph_valid(data)
+
     nodes: list[dict]     = data["nodes"]
     raw_edges: list[dict] = data["edges"]
 
     # ---- index ---------------------------------------------------------------
     node_by_id: dict[str, dict] = {n["id"]: n for n in nodes}
 
-    # Deduplicate edges by (frm, to) — first occurrence wins
+    # Deduplicate edges by (frm, to) — first occurrence wins.
+    # (The linter already errors on true duplicates; dedup here is a safety
+    # net for any edge that becomes identical only after normalization.)
     seen_pairs: set[tuple[str, str]] = set()
     edges: list[dict] = []
     for e in raw_edges:
@@ -59,7 +76,7 @@ def build_ap_graph(json_path: str):
             seen_pairs.add(pair)
             edges.append(e)
 
-    # Group outgoing edges by source node id
+    # Group outgoing edges by source node id; preserve insertion order
     outgoing: dict[str, list[dict]] = defaultdict(list)
     for e in edges:
         outgoing[e["frm"]].append(e)
@@ -77,6 +94,16 @@ def build_ap_graph(json_path: str):
         if n["kind"] == "end"
         or (n.get("meta") or {}).get("canonical_key") == "end:end"
     }
+
+    # ---- Build exception station map (intent_key → node_id) -----------------
+    station_map: dict[str, str] = {}
+    station_node_ids: set[str] = set()
+    for n in nodes:
+        meta = n.get("meta") or {}
+        ik = meta.get("intent_key") or meta.get("canonical_key", "")
+        if ik.startswith("task:MANUAL_REVIEW_"):
+            station_map[ik] = n["id"]
+            station_node_ids.add(n["id"])
 
     # ---- build the StateGraph ------------------------------------------------
     graph: StateGraph = StateGraph(APState)
@@ -101,7 +128,7 @@ def build_ap_graph(json_path: str):
             graph.add_edge(nid, END)
             continue
 
-        # Unique set of target node IDs
+        # Unique set of target node IDs (stable, insertion order)
         unique_targets = list(dict.fromkeys(e["to"] for e in out_edges))
 
         if len(unique_targets) == 1:
@@ -117,16 +144,27 @@ def build_ap_graph(json_path: str):
                 for t in unique_targets
             }
 
-            # Curry router with this node's edges + data (closure over locals)
-            def _make_router(bound_edges: list[dict], bound_node: dict):
+            # Add exception station IDs so the router can fail-closed to them
+            for sid in station_node_ids:
+                if sid not in path_map:
+                    path_map[sid] = (END if sid in end_node_ids else sid)
+
+            # Curry router with this node's edges + data + station map
+            def _make_router(
+                bound_edges: list[dict],
+                bound_node: dict,
+                bound_stations: dict[str, str],
+            ):
                 def _route(state: APState) -> str:
-                    return route_edge(state, bound_edges, bound_node)
+                    return route_edge(
+                        state, bound_edges, bound_node, bound_stations
+                    )
                 _route.__name__ = f"route_{bound_node['id']}"
                 return _route
 
             graph.add_conditional_edges(
                 nid,
-                _make_router(out_edges, node),
+                _make_router(out_edges, node, station_map),
                 path_map,
             )
 

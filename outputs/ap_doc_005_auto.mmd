@@ -3,9 +3,9 @@ flowchart LR
   n2["Invoices are entered into the ERP\n[ENTER_RECORD]"]
   n3{"Decision\n<IF_CONDITION>"}
   n4["If a duplicate is detected, the system immediately rejects t...\n[REJECT]"]
-  n5["and notifies the vendor\n[NOTIFY]"]
+  n5["the system notifies the vendor\n[NOTIFY]"]
   n6["the AP clerk proceeds to match the invoice against the purch...\n[MATCH_3_WAY]"]
-  n7["After a successful match, payment is executed\n[EXECUTE_PAYMENT]"]
+  n7["payment is executed\n[EXECUTE_PAYMENT]"]
   n8(End)
   n1 --> n2
   n2 --> n3
