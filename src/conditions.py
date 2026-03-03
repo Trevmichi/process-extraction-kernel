@@ -12,7 +12,9 @@ compile_condition(expr)    -> Callable[[dict], bool]
 
 DSL grammar
 -----------
-  condition      := identifier op literal
+  condition      := comparison (AND comparison)*
+  comparison     := identifier op literal
+  AND            := "AND" (case-insensitive keyword)
   op             := == | != | > | >= | < | <=
   literal        := number | bool_literal | string_literal
   bool_literal   := true | false
@@ -40,8 +42,17 @@ class Comparison:
     right: Any   # str, int, float, or bool
 
 
-# Currently only one node type; extend here for AND/OR later
-ConditionAST = Comparison
+@dataclass(frozen=True)
+class Conjunction:
+    """Two or more comparisons joined by AND.
+
+    ``children`` is always a flat tuple of ``Comparison`` instances —
+    the parser never produces nested ``Conjunction`` nodes.
+    """
+    children: tuple[Comparison, ...]
+
+
+ConditionAST = Union[Comparison, Conjunction]
 
 _VALID_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
 
@@ -96,6 +107,9 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
         # Re-classify boolean keywords
         if kind == "IDENT" and val.lower() in _BOOL_KEYWORDS:
             kind = "BOOL"
+        # Re-classify AND keyword (case-insensitive)
+        elif kind == "IDENT" and val.upper() == "AND":
+            kind = "AND"
         tokens.append((kind, val))
     return tokens
 
@@ -104,25 +118,22 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
 # Parser
 # ---------------------------------------------------------------------------
 
-def parse_condition(expr: str) -> ConditionAST:
+def _parse_comparison(
+    tokens: list[tuple[str, str]], pos: int, expr: str,
+) -> tuple[Comparison, int]:
+    """Parse a single ``identifier op literal`` starting at *pos*.
+
+    Returns ``(Comparison, new_pos)``.
     """
-    Parse a canonical DSL expression into a ``ConditionAST``.
-
-    The expression must be exactly ``<identifier> <op> <literal>``.
-    Raises ``ConditionParseError`` for anything that doesn't conform.
-    """
-    if not expr or not expr.strip():
-        raise ConditionParseError("Empty condition expression")
-
-    tokens = _tokenize(expr)
-
-    if len(tokens) != 3:
+    if pos + 3 > len(tokens):
         raise ConditionParseError(
-            f"Expected exactly 3 tokens (identifier op literal), "
-            f"got {len(tokens)} in: {expr!r}"
+            f"Expected comparison (identifier op literal) at token {pos}, "
+            f"but only {len(tokens) - pos} token(s) remain in: {expr!r}"
         )
 
-    (k0, v0), (k1, v1), (k2, v2) = tokens
+    (k0, v0) = tokens[pos]
+    (k1, v1) = tokens[pos + 1]
+    (k2, v2) = tokens[pos + 2]
 
     if k0 != "IDENT":
         raise ConditionParseError(
@@ -155,7 +166,46 @@ def parse_condition(expr: str) -> ConditionAST:
             f"got {k2!r} ({v2!r}) in: {expr!r}"
         )
 
-    return Comparison(left=v0, op=v1, right=rhs)
+    return Comparison(left=v0, op=v1, right=rhs), pos + 3
+
+
+def parse_condition(expr: str) -> ConditionAST:
+    """
+    Parse a canonical DSL expression into a ``ConditionAST``.
+
+    Supports single comparisons and AND-chains::
+
+        has_po == false
+        status != "BAD_EXTRACTION" AND has_po == false
+
+    Returns ``Comparison`` for a single comparison, ``Conjunction`` for AND-chains.
+    Raises ``ConditionParseError`` for anything that doesn't conform.
+    """
+    if not expr or not expr.strip():
+        raise ConditionParseError("Empty condition expression")
+
+    tokens = _tokenize(expr)
+
+    if not tokens:
+        raise ConditionParseError(f"No tokens produced from: {expr!r}")
+
+    comp, pos = _parse_comparison(tokens, 0, expr)
+    comparisons: list[Comparison] = [comp]
+
+    while pos < len(tokens):
+        kind, val = tokens[pos]
+        if kind != "AND":
+            raise ConditionParseError(
+                f"Expected AND or end of expression at token {pos}, "
+                f"got {kind!r} ({val!r}) in: {expr!r}"
+            )
+        pos += 1  # consume AND
+        comp, pos = _parse_comparison(tokens, pos, expr)
+        comparisons.append(comp)
+
+    if len(comparisons) == 1:
+        return comparisons[0]
+    return Conjunction(children=tuple(comparisons))
 
 
 # ---------------------------------------------------------------------------
@@ -172,20 +222,11 @@ _OP_FNS: dict[str, Callable[[Any, Any], bool]] = {
 }
 
 
-def compile_condition(expr: str) -> Callable[[dict], bool]:
-    """
-    Compile a canonical DSL expression to a predicate ``(state: dict) -> bool``.
-
-    The predicate reads ``state[identifier]`` and applies the operator
-    against the literal.  Returns False (rather than raising) if the key
-    is absent in *state* or if the comparison raises TypeError.
-
-    Raises ``ConditionParseError`` if *expr* does not parse.
-    """
-    ast = parse_condition(expr)
-    key    = ast.left
-    op_fn  = _OP_FNS[ast.op]
-    target = ast.right
+def _make_comparison_pred(comp: Comparison) -> Callable[[dict], bool]:
+    """Build a predicate for a single ``Comparison`` AST node."""
+    key    = comp.left
+    op_fn  = _OP_FNS[comp.op]
+    target = comp.right
 
     def predicate(state: dict) -> bool:
         val = state.get(key)
@@ -196,8 +237,34 @@ def compile_condition(expr: str) -> Callable[[dict], bool]:
         except TypeError:
             return False
 
-    predicate.__name__ = f"cond_{key}_{ast.op.replace('=','eq').replace('>','gt').replace('<','lt')}"
+    predicate.__name__ = (
+        f"cond_{key}_{comp.op.replace('=','eq').replace('>','gt').replace('<','lt')}"
+    )
     return predicate
+
+
+def compile_condition(expr: str) -> Callable[[dict], bool]:
+    """
+    Compile a canonical DSL expression to a predicate ``(state: dict) -> bool``.
+
+    Supports single comparisons and AND-chains.  Returns False (rather than
+    raising) if a key is absent in *state* or if the comparison raises TypeError.
+
+    Raises ``ConditionParseError`` if *expr* does not parse.
+    """
+    ast = parse_condition(expr)
+
+    if isinstance(ast, Comparison):
+        return _make_comparison_pred(ast)
+
+    # Conjunction: AND-chain — short-circuit via all()
+    sub_preds = [_make_comparison_pred(child) for child in ast.children]
+
+    def conjunction_predicate(state: dict) -> bool:
+        return all(p(state) for p in sub_preds)
+
+    conjunction_predicate.__name__ = "cond_conjunction"
+    return conjunction_predicate
 
 
 # ---------------------------------------------------------------------------
@@ -301,23 +368,12 @@ def _normalize_rhs(field: str, raw: str) -> str:
     return stripped
 
 
-def normalize_condition(raw: str | None) -> str | None:
+def _normalize_single(expr: str) -> str | None:
+    """Normalise a single comparison expression (no AND).
+
+    Returns canonical DSL string or ``None`` if unrecognised.
     """
-    Normalise a raw edge-condition string to a canonical DSL expression.
-
-    Returns ``None`` if *raw* is ``None`` (no condition) or if the string
-    cannot be mapped to a valid DSL expression (ambiguous legacy labels).
-
-    Normalisation steps:
-    1. Strip surrounding whitespace.
-    2. Exact synonym lookup (case-sensitive, then case-folded).
-    3. Inline expression pattern (``identifier op value``).
-    4. Return ``None`` for anything unrecognised.
-    """
-    if raw is None:
-        return None
-
-    stripped = raw.strip()
+    stripped = expr.strip()
 
     # 1a. Case-sensitive exact match
     if stripped in _SYNONYM_MAP:
@@ -339,6 +395,86 @@ def normalize_condition(raw: str | None) -> str | None:
 
     # 3. Unknown
     return None
+
+
+def _split_tokens_on_and(
+    tokens: list[tuple[str, str]],
+) -> list[list[tuple[str, str]]]:
+    """Split a token list on AND tokens.
+
+    Returns a list of token-segments (each segment is the tokens for one
+    comparison).  AND tokens are consumed and not included in any segment.
+    """
+    segments: list[list[tuple[str, str]]] = []
+    current: list[tuple[str, str]] = []
+    for tok in tokens:
+        if tok[0] == "AND":
+            segments.append(current)
+            current = []
+        else:
+            current.append(tok)
+    segments.append(current)
+    return segments
+
+
+def _tokens_to_string(tokens: list[tuple[str, str]]) -> str:
+    """Reconstruct a DSL sub-expression string from tokens.
+
+    Round-trips correctly for ``_normalize_single()``:
+    identifiers/operators verbatim, string literals re-quoted with double
+    quotes, bool literals lowercase, numerics verbatim.
+    """
+    parts: list[str] = []
+    for kind, val in tokens:
+        if kind == "STRING":
+            parts.append(val)          # already double-quoted from tokenizer
+        elif kind == "BOOL":
+            parts.append(val.lower())  # canonical: true/false
+        else:
+            parts.append(val)          # IDENT, OP, INT, FLOAT
+    return " ".join(parts)
+
+
+def normalize_condition(raw: str | None) -> str | None:
+    """
+    Normalise a raw edge-condition string to a canonical DSL expression.
+
+    Returns ``None`` if *raw* is ``None`` (no condition) or if the string
+    cannot be mapped to a valid DSL expression (ambiguous legacy labels).
+
+    Supports compound AND expressions by tokenizing first, splitting on
+    AND tokens, and normalizing each sub-expression independently.
+    """
+    if raw is None:
+        return None
+
+    stripped = raw.strip()
+
+    # Try tokenizing to detect AND compounds
+    try:
+        tokens = _tokenize(stripped)
+    except ConditionParseError:
+        # Tokenizer can't handle it — fall back to single-expression path
+        # (handles legacy synonym labels that may not tokenize cleanly)
+        return _normalize_single(stripped)
+
+    # Split on AND tokens
+    segments = _split_tokens_on_and(tokens)
+
+    if len(segments) == 1:
+        # No AND found — use single-expression normalizer
+        # (pass original string to preserve synonym-map matching)
+        return _normalize_single(stripped)
+
+    # Compound: normalize each sub-expression independently
+    parts: list[str] = []
+    for seg_tokens in segments:
+        sub_expr = _tokens_to_string(seg_tokens)
+        norm = _normalize_single(sub_expr)
+        if norm is None:
+            return None  # can't normalize partial compound
+        parts.append(norm)
+    return " AND ".join(parts)
 
 
 # ---------------------------------------------------------------------------

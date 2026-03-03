@@ -162,7 +162,10 @@
         "intent_key": "gw:MATCH_3_WAY",
         "origin": "normalize",
         "patch_id": "normalize_secondary_match_gateway",
-        "rationale": "Gateway n5 split: converted to task (MATCH_3_WAY)"
+        "rationale": "Gateway n5 split: converted to task (MATCH_3_WAY)",
+        "synthetic": true,
+        "semantic_assumption": "match_3way_task_decision_split",
+        "origin_pass": "fix_secondary_match_gateways"
       }
     },
     {
@@ -261,7 +264,9 @@
         "origin": "normalize",
         "patch_id": "normalize_sequential_dispatch",
         "rationale": "Gateway n9 (gw:HAS_PO) had 3 fan-out edges (condition='has_po == true') targeting tasks ['n10', 'n11', 'n12']. Converted to sequential dispatch chain n10 -> n11 -> n12 (ordered by action.type priority, then node id). Removed edges: n9->n10 [has_po == true], n9->n11 [has_po == true], n9->n12 [has_po == true]",
-        "synthetic": true
+        "synthetic": true,
+        "semantic_assumption": "do_all_sequential",
+        "origin_pass": "convert_whitelisted_fanout_to_sequential"
       }
     },
     {
@@ -360,7 +365,9 @@
         "origin": "normalize",
         "patch_id": "normalize_sequential_dispatch",
         "rationale": "Gateway n13 (gw:APPROVE_OR_REJECT) had 3 fan-out edges (condition='amount <= 5000') targeting tasks ['n14', 'n15', 'n16']. Converted to sequential dispatch chain n14 -> n15 -> n16 (ordered by action.type priority, then node id). Removed edges: n13->n14 [amount <= 5000], n13->n15 [amount <= 5000], n13->n16 [amount <= 5000]",
-        "synthetic": true
+        "synthetic": true,
+        "semantic_assumption": "do_all_sequential",
+        "origin_pass": "convert_whitelisted_fanout_to_sequential"
       }
     },
     {
@@ -476,7 +483,10 @@
         "intent_key": "gw:IF_CONDITION",
         "origin": "normalize",
         "patch_id": "normalize_unparseable_gateway",
-        "rationale": "Gateway n18 has unparseable condition(s); routed to manual review"
+        "rationale": "Gateway n18 has unparseable condition(s); routed to manual review",
+        "synthetic": true,
+        "semantic_assumption": "fail_closed_unmodeled",
+        "origin_pass": "convert_unparseable_gateways_to_station"
       }
     },
     {
@@ -589,7 +599,10 @@
         "intent_key": "gw:IF_CONDITION",
         "origin": "normalize",
         "patch_id": "normalize_unparseable_gateway",
-        "rationale": "Gateway n24 has unparseable condition(s); routed to manual review"
+        "rationale": "Gateway n24 has unparseable condition(s); routed to manual review",
+        "synthetic": true,
+        "semantic_assumption": "fail_closed_unmodeled",
+        "origin_pass": "convert_unparseable_gateways_to_station"
       }
     },
     {
@@ -677,7 +690,21 @@
       ],
       "meta": {
         "canonical_key": "task:APPROVE@n28",
-        "intent_key": "task:APPROVE"
+        "intent_key": "task:APPROVE",
+        "synthetic_edges": [
+          {
+            "to": "n29",
+            "condition": "status == \"DUPLICATE\"",
+            "semantic_assumption": "duplicate_check_derivable",
+            "origin_pass": "fix_placeholder_gateways"
+          },
+          {
+            "to": "n30",
+            "condition": "status != \"DUPLICATE\"",
+            "semantic_assumption": "duplicate_check_derivable",
+            "origin_pass": "fix_placeholder_gateways"
+          }
+        ]
       }
     },
     {
@@ -746,7 +773,10 @@
         "intent_key": "gw:IF_CONDITION",
         "origin": "normalize",
         "patch_id": "normalize_unparseable_gateway",
-        "rationale": "Gateway n31 has unparseable condition(s); routed to manual review"
+        "rationale": "Gateway n31 has unparseable condition(s); routed to manual review",
+        "synthetic": true,
+        "semantic_assumption": "fail_closed_unmodeled",
+        "origin_pass": "convert_unparseable_gateways_to_station"
       }
     },
     {
@@ -930,6 +960,8 @@
         "intent_key": "task:MANUAL_REVIEW_BAD_EXTRACTION",
         "origin": "patch",
         "synthetic": true,
+        "semantic_assumption": "fail_closed_bad_extraction",
+        "origin_pass": "inject_exception_stations",
         "patch_id": "P.EXCEPTION_STATIONS.V1",
         "rationale": "Fail-closed sink: extraction evidence verification failed"
       }
@@ -953,6 +985,8 @@
         "intent_key": "task:MANUAL_REVIEW_UNMODELED_GATE",
         "origin": "patch",
         "synthetic": true,
+        "semantic_assumption": "fail_closed_unmodeled",
+        "origin_pass": "inject_exception_stations",
         "patch_id": "P.EXCEPTION_STATIONS.V1",
         "rationale": "Fail-closed sink: gateway has no modeled decision logic"
       }
@@ -976,6 +1010,8 @@
         "intent_key": "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE",
         "origin": "patch",
         "synthetic": true,
+        "semantic_assumption": "fail_closed_ambiguous",
+        "origin_pass": "inject_exception_stations",
         "patch_id": "P.EXCEPTION_STATIONS.V1",
         "rationale": "Fail-closed sink: router could not disambiguate outgoing edges"
       }
@@ -999,6 +1035,8 @@
         "intent_key": "task:MANUAL_REVIEW_NO_ROUTE",
         "origin": "patch",
         "synthetic": true,
+        "semantic_assumption": "fail_closed_no_route",
+        "origin_pass": "inject_exception_stations",
         "patch_id": "P.EXCEPTION_STATIONS.V1",
         "rationale": "Fail-closed sink: no outgoing edge condition was satisfied"
       }
@@ -1059,7 +1097,10 @@
         "intent_key": "gw:MATCH_DECISION",
         "origin": "normalize",
         "patch_id": "normalize_secondary_match_gateway",
-        "rationale": "Decision gateway split from n5"
+        "rationale": "Decision gateway split from n5",
+        "synthetic": true,
+        "semantic_assumption": "match_3way_task_decision_split",
+        "origin_pass": "fix_secondary_match_gateways"
       }
     }
   ],
@@ -1173,7 +1214,7 @@
     {
       "frm": "n3",
       "to": "n_exception",
-      "condition": "has_po == false",
+      "condition": "status != \"BAD_EXTRACTION\" AND status != \"MISSING_DATA\" AND has_po == false",
       "meta": {
         "origin": "patch",
         "patch_id": "patch_2_data_loophole"

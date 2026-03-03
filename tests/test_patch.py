@@ -215,7 +215,10 @@ class TestPatchedEdgeMetadata:
         n3_edges = [e for e in patched["edges"] if e.get("frm") == "n3"]
         conditions = {e.get("condition") for e in n3_edges}
         assert 'status == "MISSING_DATA"' in conditions
-        assert "has_po == false"           in conditions
+        assert (
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+            in conditions
+        )
 
 
 # ===========================================================================

@@ -15,6 +15,7 @@ import pytest
 from src.conditions import (
     ConditionParseError,
     Comparison,
+    Conjunction,
     compile_condition,
     get_predicate,
     normalize_condition,
@@ -120,6 +121,28 @@ class TestNormalizeCondition:
     def test_whitespace_stripped(self):
         assert normalize_condition("  HAS_PO  ") == "has_po == true"
 
+    # AND compound expressions
+    def test_compound_and_canonical(self):
+        result = normalize_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert result == 'status != "BAD_EXTRACTION" AND has_po == false'
+
+    def test_compound_and_three_way(self):
+        result = normalize_condition(
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+        )
+        assert result == (
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+        )
+
+    def test_compound_and_with_unnormalized_sub(self):
+        """Sub-expressions should be normalized individually."""
+        result = normalize_condition("status!=missing_data AND has_po==false")
+        assert result == 'status != "MISSING_DATA" AND has_po == false'
+
+    def test_compound_and_with_unknown_sub_returns_none(self):
+        """If any sub-expression cannot be normalised, return None."""
+        assert normalize_condition("IF_CONDITION AND has_po == false") is None
+
 
 # ===========================================================================
 # parse_condition
@@ -216,6 +239,59 @@ class TestParseCondition:
         with pytest.raises(ConditionParseError):
             parse_condition("status == APPROVED")
 
+    # AND conjunction parsing
+    def test_parse_and_two_way(self):
+        ast = parse_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert isinstance(ast, Conjunction)
+        assert len(ast.children) == 2
+        assert ast.children[0] == Comparison(left="status", op="!=", right="BAD_EXTRACTION")
+        assert ast.children[1] == Comparison(left="has_po", op="==", right=False)
+
+    def test_parse_and_three_way(self):
+        ast = parse_condition(
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+        )
+        assert isinstance(ast, Conjunction)
+        assert len(ast.children) == 3
+
+    def test_single_comparison_not_conjunction(self):
+        """A single comparison must return Comparison, never Conjunction."""
+        ast = parse_condition("has_po == true")
+        assert isinstance(ast, Comparison)
+        assert not isinstance(ast, Conjunction)
+
+    def test_conjunction_children_are_flat(self):
+        """All children must be Comparison instances (never nested Conjunctions)."""
+        ast = parse_condition(
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+        )
+        assert isinstance(ast, Conjunction)
+        for child in ast.children:
+            assert isinstance(child, Comparison)
+
+    def test_and_case_insensitive(self):
+        """AND keyword should be case-insensitive."""
+        ast = parse_condition('has_po == true and amount > 100')
+        assert isinstance(ast, Conjunction)
+        assert len(ast.children) == 2
+
+    def test_rejects_trailing_and(self):
+        with pytest.raises(ConditionParseError):
+            parse_condition("amount > 1 AND")
+
+    def test_rejects_leading_and(self):
+        with pytest.raises(ConditionParseError):
+            parse_condition("AND amount > 1")
+
+    def test_rejects_double_and(self):
+        with pytest.raises(ConditionParseError):
+            parse_condition("has_po == true AND AND amount > 100")
+
+    def test_rejects_partial_segment_after_and(self):
+        """A single identifier after AND can't form a comparison."""
+        with pytest.raises(ConditionParseError):
+            parse_condition("amount > 1 AND extra")
+
 
 # ===========================================================================
 # compile_condition
@@ -276,6 +352,33 @@ class TestCompileCondition:
         pred = compile_condition("amount > 10000")
         assert pred({"amount": "not_a_number"}) is False
 
+    # AND conjunction compilation
+    def test_conjunction_both_true(self):
+        pred = compile_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert pred({"status": "", "has_po": False}) is True
+
+    def test_conjunction_first_false(self):
+        """BAD_EXTRACTION guard must block even when has_po matches."""
+        pred = compile_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert pred({"status": "BAD_EXTRACTION", "has_po": False}) is False
+
+    def test_conjunction_second_false(self):
+        pred = compile_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert pred({"status": "", "has_po": True}) is False
+
+    def test_conjunction_missing_key_returns_false(self):
+        pred = compile_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert pred({"status": ""}) is False  # has_po missing → False
+
+    def test_conjunction_three_way(self):
+        pred = compile_condition(
+            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+        )
+        assert pred({"status": "", "has_po": False}) is True
+        assert pred({"status": "BAD_EXTRACTION", "has_po": False}) is False
+        assert pred({"status": "MISSING_DATA", "has_po": False}) is False
+        assert pred({"status": "", "has_po": True}) is False
+
 
 # ===========================================================================
 # get_predicate (cache + None handling)
@@ -313,3 +416,9 @@ class TestGetPredicate:
         assert pred is not None
         assert pred({"amount": 20000}) is True
         assert pred({"amount": 5000})  is False
+
+    def test_compound_and_resolves(self):
+        pred = get_predicate('status != "BAD_EXTRACTION" AND has_po == false')
+        assert callable(pred)
+        assert pred({"status": "", "has_po": False}) is True
+        assert pred({"status": "BAD_EXTRACTION", "has_po": False}) is False
