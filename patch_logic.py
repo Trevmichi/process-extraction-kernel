@@ -154,6 +154,8 @@ EXCEPTION_STATIONS: list[dict] = [
             "intent_key":    "task:MANUAL_REVIEW_BAD_EXTRACTION",
             "origin":        "patch",
             "synthetic":     True,
+            "semantic_assumption": "fail_closed_bad_extraction",
+            "origin_pass":   "inject_exception_stations",
             "patch_id":      _EXCEPTION_PATCH_ID,
             "rationale":     "Fail-closed sink: extraction evidence verification failed",
         },
@@ -175,6 +177,8 @@ EXCEPTION_STATIONS: list[dict] = [
             "intent_key":    "task:MANUAL_REVIEW_UNMODELED_GATE",
             "origin":        "patch",
             "synthetic":     True,
+            "semantic_assumption": "fail_closed_unmodeled",
+            "origin_pass":   "inject_exception_stations",
             "patch_id":      _EXCEPTION_PATCH_ID,
             "rationale":     "Fail-closed sink: gateway has no modeled decision logic",
         },
@@ -196,6 +200,8 @@ EXCEPTION_STATIONS: list[dict] = [
             "intent_key":    "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE",
             "origin":        "patch",
             "synthetic":     True,
+            "semantic_assumption": "fail_closed_ambiguous",
+            "origin_pass":   "inject_exception_stations",
             "patch_id":      _EXCEPTION_PATCH_ID,
             "rationale":     "Fail-closed sink: router could not disambiguate outgoing edges",
         },
@@ -217,6 +223,8 @@ EXCEPTION_STATIONS: list[dict] = [
             "intent_key":    "task:MANUAL_REVIEW_NO_ROUTE",
             "origin":        "patch",
             "synthetic":     True,
+            "semantic_assumption": "fail_closed_no_route",
+            "origin_pass":   "inject_exception_stations",
             "patch_id":      _EXCEPTION_PATCH_ID,
             "rationale":     "Fail-closed sink: no outgoing edge condition was satisfied",
         },
@@ -329,17 +337,21 @@ def _patch(data: dict) -> tuple[dict, list[str]]:
         "condition": 'status == "MISSING_DATA"',
         "meta":      _edge_meta("patch_2_data_loophole"),
     })
+    _NO_PO_GUARD = (
+        'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" '
+        'AND has_po == false'
+    )
     data["edges"].append({
         "frm":       "n3",
         "to":        "n_exception",
-        "condition": "has_po == false",
+        "condition": _NO_PO_GUARD,
         "meta":      _edge_meta("patch_2_data_loophole"),
     })
     changelog.append(
         "  [PATCH 2] n3 -> n4 edge: remains unconditional (normal-path fallback)"
     )
-    changelog.append('  [PATCH 2] Added n3 -> n_reject    (condition: status == "MISSING_DATA", priority 1)')
-    changelog.append("  [PATCH 2] Added n3 -> n_exception (condition: has_po == false,          priority 2)")
+    changelog.append('  [PATCH 2] Added n3 -> n_reject    (condition: status == "MISSING_DATA")')
+    changelog.append(f"  [PATCH 2] Added n3 -> n_exception (condition: {_NO_PO_GUARD})")
 
     # ------------------------------------------------------------------
     # Inject new nodes (idempotent)

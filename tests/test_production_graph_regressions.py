@@ -8,6 +8,7 @@ regressions in pass ordering, node injection, and gateway wiring.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from collections import Counter
@@ -64,11 +65,8 @@ class TestLintHealth:
 
 class TestGraphShape:
 
-    def test_node_count(self, graph: dict):
-        assert len(graph["nodes"]) == 45
-
-    def test_edge_count(self, graph: dict):
-        assert len(graph["edges"]) == 39
+    def test_node_count_lower_bound(self, graph: dict):
+        assert len(graph["nodes"]) >= 34
 
     def test_gateway_count(self, graph: dict):
         gateways = [n for n in graph["nodes"] if n["kind"] == "gateway"]
@@ -166,10 +164,10 @@ class TestExceptionStations:
             if "MANUAL_REVIEW" in atype or atype == "ROUTE_FOR_REVIEW":
                 counts[atype] += 1
 
-        assert counts["MANUAL_REVIEW_MATCH_FAILED"] == 1
-        assert counts["MANUAL_REVIEW_UNMODELED_GATE"] == 5
-        assert counts["MANUAL_REVIEW_NO_PO"] == 1
-        assert counts["ROUTE_FOR_REVIEW"] == 6
+        assert counts["MANUAL_REVIEW_MATCH_FAILED"] >= 1
+        assert counts["MANUAL_REVIEW_UNMODELED_GATE"] >= 1
+        assert counts["MANUAL_REVIEW_NO_PO"] >= 1
+        assert counts["ROUTE_FOR_REVIEW"] >= 1
         assert counts.get("MANUAL_REVIEW_AMBIGUOUS_ROUTE", 0) == 0
 
 
@@ -184,7 +182,7 @@ class TestSequentialDispatch:
             n for n in graph["nodes"]
             if (n.get("action") or {}).get("type") == "SEQUENTIAL_DISPATCH"
         ]
-        assert len(seq_nodes) == 2
+        assert len(seq_nodes) >= 1
 
     def test_n9_is_sequential_dispatch(self, nodes_map: dict):
         n9 = nodes_map["n9"]
@@ -246,3 +244,162 @@ class TestNoGatewayFanout:
                     f"{e['to']!r} share normalized condition {norm!r}"
                 )
                 seen[norm] = e["to"]
+
+
+# ===========================================================================
+# Structural invariants (shape-based, not count-based)
+# ===========================================================================
+
+# Terminal node exemptions: these action types represent explicit terminal
+# sinks (manual review stations, exception routes).  They are wired to END
+# by the compiler, not by JSON edges.
+_TERMINAL_ACTION_TYPES = frozenset({
+    "MANUAL_REVIEW_MATCH_FAILED",
+    "MANUAL_REVIEW_UNMODELED_GATE",
+    "MANUAL_REVIEW_NO_PO",
+    "MANUAL_REVIEW_AMBIGUOUS_ROUTE",
+    "ROUTE_FOR_REVIEW",
+})
+
+
+class TestStructuralInvariants:
+
+    def test_every_gateway_has_distinct_conditions(self, graph: dict):
+        """Every gateway has >= 2 outgoing edges with distinct conditions."""
+        from collections import defaultdict
+        outgoing: dict[str, list[dict]] = defaultdict(list)
+        for e in graph["edges"]:
+            outgoing[e["frm"]].append(e)
+
+        for n in graph["nodes"]:
+            if n["kind"] != "gateway":
+                continue
+            nid = n["id"]
+            edges = outgoing.get(nid, [])
+            assert len(edges) >= 2, (
+                f"Gateway {nid!r} has {len(edges)} outgoing edge(s), need >= 2"
+            )
+            norms = [normalize_condition(e.get("condition")) for e in edges]
+            non_null = [c for c in norms if c is not None]
+            assert len(non_null) == len(set(non_null)), (
+                f"Gateway {nid!r} has duplicate normalized conditions"
+            )
+
+    def test_every_gateway_has_outgoing_edges(self, graph: dict):
+        """Every gateway node has at least 2 outgoing edges (already tested above
+        via distinct conditions, but this is the structural minimum)."""
+        from collections import defaultdict
+        outgoing: dict[str, list[dict]] = defaultdict(list)
+        for e in graph["edges"]:
+            outgoing[e["frm"]].append(e)
+
+        for n in graph["nodes"]:
+            if n["kind"] != "gateway":
+                continue
+            nid = n["id"]
+            assert nid in outgoing and len(outgoing[nid]) >= 2, (
+                f"Gateway {nid!r} has fewer than 2 outgoing edges"
+            )
+
+    def test_start_node_exists(self, graph: dict):
+        """Exactly 1 node with canonical_key 'event:start'."""
+        starts = [
+            n for n in graph["nodes"]
+            if (n.get("meta") or {}).get("canonical_key") == "event:start"
+        ]
+        assert len(starts) == 1
+
+    def test_end_node_exists(self, graph: dict):
+        """At least 1 end node."""
+        ends = [n for n in graph["nodes"] if n["kind"] == "end"]
+        assert len(ends) >= 1
+
+    def test_main_flow_reachable_from_start(self, graph: dict):
+        """Key process nodes are reachable from start via BFS."""
+        from collections import defaultdict, deque
+        adj: dict[str, list[str]] = defaultdict(list)
+        for e in graph["edges"]:
+            adj[e["frm"]].append(e["to"])
+
+        # Find start node
+        start_id = None
+        for n in graph["nodes"]:
+            ck = (n.get("meta") or {}).get("canonical_key", "")
+            if ck == "event:start":
+                start_id = n["id"]
+                break
+        assert start_id is not None
+
+        # BFS
+        visited: set[str] = set()
+        queue: deque[str] = deque([start_id])
+        while queue:
+            nid = queue.popleft()
+            if nid in visited:
+                continue
+            visited.add(nid)
+            queue.extend(adj.get(nid, []))
+
+        # Key structural nodes must be reachable
+        nodes_map = {n["id"]: n for n in graph["nodes"]}
+        for nid in ("n_threshold", "n5_decision"):
+            assert nid in visited, (
+                f"Gateway {nid!r} not reachable from start"
+            )
+        # At least one end node reachable
+        end_ids = {n["id"] for n in graph["nodes"] if n["kind"] == "end"}
+        assert visited & end_ids, "No end node reachable from start"
+
+    def test_no_self_loops(self, graph: dict):
+        """No edge has frm == to."""
+        for e in graph["edges"]:
+            assert e["frm"] != e["to"], (
+                f"Self-loop detected: {e['frm']!r} -> {e['to']!r}"
+            )
+
+
+# ===========================================================================
+# Graph determinism fingerprint
+# ===========================================================================
+
+# Update this hash ONLY when you intentionally change the production graph
+# topology (node set, edge set, or their structural attributes).
+# To regenerate:
+#   python -c "
+#   import hashlib, json
+#   data = json.loads(open('outputs/ap_master_manual_auto_patched.json').read())
+#   node_tuples = sorted((n['id'], n['kind'],
+#       (n.get('action') or {}).get('type','') or (n.get('decision') or {}).get('type',''),
+#       (n.get('meta') or {}).get('canonical_key','')) for n in data['nodes'])
+#   edge_tuples = sorted((e['frm'], e.get('condition') or '', e['to']) for e in data['edges'])
+#   fp = json.dumps({'nodes': node_tuples, 'edges': edge_tuples}, sort_keys=True)
+#   print(hashlib.sha256(fp.encode()).hexdigest())
+#   "
+_EXPECTED_GRAPH_FINGERPRINT = "d617bc5abedb1acd911add430d4caa2963da57a944e0c986571fb10bfb3ecacb"
+
+
+class TestGraphDeterminism:
+
+    def test_fingerprint_stable(self, graph: dict):
+        """Normalized production graph topology must not change unintentionally."""
+        node_tuples = sorted(
+            (n["id"], n["kind"],
+             (n.get("action") or {}).get("type", "")
+             or (n.get("decision") or {}).get("type", ""),
+             (n.get("meta") or {}).get("canonical_key", ""))
+            for n in graph["nodes"]
+        )
+        edge_tuples = sorted(
+            (e["frm"], e.get("condition") or "", e["to"])
+            for e in graph["edges"]
+        )
+        fingerprint_input = json.dumps(
+            {"nodes": node_tuples, "edges": edge_tuples}, sort_keys=True
+        )
+        actual = hashlib.sha256(fingerprint_input.encode()).hexdigest()
+        assert actual == _EXPECTED_GRAPH_FINGERPRINT, (
+            f"Graph topology changed!\n"
+            f"  Expected: {_EXPECTED_GRAPH_FINGERPRINT}\n"
+            f"  Actual:   {actual}\n"
+            f"If intentional, update _EXPECTED_GRAPH_FINGERPRINT."
+        )
