@@ -16,6 +16,12 @@ import streamlit as st
 
 from src.agent.compiler import build_ap_graph
 from src.agent.state import APState
+from src.ui_audit import (
+    extract_exception_event,
+    extract_match_event,
+    extract_router_events,
+    extract_verifier_event,
+)
 
 # ---------------------------------------------------------------------------
 # Page config — must be the very first Streamlit call
@@ -93,10 +99,20 @@ MOCK_INVOICES: dict[str, dict] = {
 @st.cache_resource
 def load_agent():
     """Compile and cache the LangGraph from the patched SOP JSON."""
-    return build_ap_graph("outputs/ap_master_manual_auto_patched.json")
+    try:
+        return build_ap_graph("outputs/ap_master_manual_auto_patched.json")
+    except ValueError as exc:
+        return exc
 
 
-agent = load_agent()
+_agent_or_error = load_agent()
+
+if isinstance(_agent_or_error, ValueError):
+    st.error("Graph invalid — cannot compile")
+    st.code(str(_agent_or_error), language="text")
+    st.stop()
+
+agent = _agent_or_error
 
 
 # ---------------------------------------------------------------------------
@@ -116,12 +132,17 @@ def _sync_po_match_from_example() -> None:
 
 
 _STATUS_ICONS = {
-    "APPROVED":       "✅",
-    "PAID":           "✅",
-    "ESCALATED":      "⚠️",
-    "EXCEPTION_NO_PO":"⚠️",
-    "REJECTED":       "❌",
-    "MISSING_DATA":   "❌",
+    "APPROVED":                "✅",
+    "PAID":                    "✅",
+    "ESCALATED":               "⚠️",
+    "EXCEPTION_NO_PO":         "⚠️",
+    "EXCEPTION_MATCH_FAILED":  "⚠️",
+    "EXCEPTION_UNMODELED":     "⚠️",
+    "EXCEPTION_AMBIGUOUS_ROUTE":"⚠️",
+    "EXCEPTION_NO_ROUTE":      "⚠️",
+    "BAD_EXTRACTION":          "❌",
+    "REJECTED":                "❌",
+    "MISSING_DATA":            "❌",
 }
 
 
@@ -286,10 +307,15 @@ with st.status("Agent processing invoice...", expanded=True) as status:
         "amount":           0.0,
         "has_po":           False,
         "po_match":         po_match,
+        "match_3_way":      po_match,
+        "match_result":     "UNKNOWN",
         "status":           "NEW",
         "current_node":     "",
+        "last_gateway":     "",
         "audit_log":        [],
-        "raw_invoice_text": raw_text,
+        "raw_text":         raw_text,
+        "extraction":       {},
+        "provenance":       {},
     }
 
     result: APState = agent.invoke(initial_state)
@@ -305,19 +331,35 @@ with st.status("Agent processing invoice...", expanded=True) as status:
 st.divider()
 st.subheader("Extraction & Routing Decision")
 
-vendor_val = result.get("vendor") or "N/A"
-amount_val = result.get("amount", 0.0)
-has_po_val = result.get("has_po", False)
-status_val = result.get("status", "UNKNOWN")
-amount_str = f"${amount_val:,.2f}" if amount_val else "N/A"
+vendor_val    = result.get("vendor") or "N/A"
+amount_val    = result.get("amount", 0.0)
+has_po_val    = result.get("has_po", False)
+status_val    = result.get("status", "UNKNOWN")
+match_res_val = result.get("match_result", "UNKNOWN")
+current_node  = result.get("current_node", "")
+amount_str    = f"${amount_val:,.2f}" if amount_val else "N/A"
 
-c1, c2, c3, c4 = st.columns(4)
+audit_log: list = result.get("audit_log", [])
+
+# --- Exception banner (top-priority signal) ---
+exc_event = extract_exception_event(audit_log)
+if exc_event is not None:
+    reason = exc_event.get("reason", "UNKNOWN")
+    node   = exc_event.get("node", "")
+    st.error(
+        f"**Exception Station Reached** — reason: **{reason}**"
+        + (f"  (node: `{node}`)" if node else "")
+    )
+
+# --- Metric cards ---
+c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Vendor",       vendor_val)
 c2.metric("Amount",       amount_str)
 c3.metric("Has PO",       "Yes" if has_po_val else "No")
-c4.metric("Final Status", status_val)
+c4.metric("Match Result", match_res_val)
+c5.metric("Final Status", status_val)
 
-# Colour-coded banner
+# Colour-coded status banner
 if status_val in ("APPROVED", "PAID"):
     st.success(f"**{inv_id}** — Invoice **{status_val}** ✅")
 elif status_val == "ESCALATED":
@@ -330,6 +372,13 @@ elif status_val == "EXCEPTION_NO_PO":
         f"**{inv_id}** — Flagged for manual review ⚠️  "
         "(No Purchase Order found on file)"
     )
+elif status_val.startswith("EXCEPTION_"):
+    st.warning(f"**{inv_id}** — Exception: **{status_val}** ⚠️")
+elif status_val == "BAD_EXTRACTION":
+    st.error(
+        f"**{inv_id}** — **Bad Extraction** ❌  "
+        "(Evidence verification failed — invoice rejected)"
+    )
 elif status_val in ("REJECTED", "MISSING_DATA"):
     st.error(
         f"**{inv_id}** — **{status_val}** ❌  "
@@ -337,6 +386,26 @@ elif status_val in ("REJECTED", "MISSING_DATA"):
     )
 else:
     st.info(f"**{inv_id}** — Status: **{status_val}**")
+
+# --- Verifier summary ---
+ver_event = extract_verifier_event(audit_log)
+if ver_event is not None:
+    valid   = ver_event.get("valid")
+    reasons = ver_event.get("reasons", [])
+    if valid is True:
+        st.success("Extraction verified — all evidence grounded ✅")
+    elif valid is False:
+        st.warning(
+            f"Extraction verification failed ⚠️ — "
+            f"reasons: {', '.join(str(r) for r in reasons) if reasons else 'unknown'}"
+        )
+
+# --- Match result detail ---
+match_event = extract_match_event(audit_log)
+if match_event is not None:
+    src_flag = match_event.get("source_flag", "")
+    mr       = match_event.get("match_result", "")
+    st.caption(f"Match result: **{mr}** (source: `{src_flag}`)" if src_flag else f"Match result: **{mr}**")
 
 # Persist to session history
 st.session_state.history.append({
@@ -347,28 +416,52 @@ st.session_state.history.append({
 })
 
 # ---------------------------------------------------------------------------
+# MAIN — Determinism & Routing Flags
+# ---------------------------------------------------------------------------
+st.divider()
+with st.expander("Determinism & Routing Flags"):
+    route_events = extract_router_events(audit_log)
+    if not route_events:
+        st.caption("No routing events recorded.")
+    else:
+        route_rows = []
+        for ev in route_events:
+            if "raw" in ev:
+                route_rows.append({"Step": ev["raw"], "Type": "Executed"})
+            else:
+                target = ev.get("target", ev.get("node", ""))
+                event  = ev.get("event", "")
+                route_rows.append({"Step": f"{event} → {target}" if target else event, "Type": "Route"})
+        st.table(pd.DataFrame(route_rows))
+
+    st.caption(f"Final node reached: `{current_node}`" if current_node else "Final node: unknown")
+
+# ---------------------------------------------------------------------------
 # MAIN — Audit trail expander
 # ---------------------------------------------------------------------------
 st.divider()
 with st.expander("View AI Audit Trail", expanded=True):
-    audit_log: list[str] = result.get("audit_log", [])
-
     if not audit_log:
         st.caption("No audit entries recorded.")
     else:
         for i, entry in enumerate(audit_log, 1):
-            lower = entry.lower()
+            entry_str = str(entry)
+            lower = entry_str.lower()
 
-            if "extracted" in lower:
+            if "extracted" in lower or '"event": "extraction"' in lower:
                 icon, tag = "🔍", "`LLM EXTRACT`"
-            elif "validation" in lower:
+            elif "validation" in lower or '"event": "verifier"' in lower:
                 icon = "✅" if "true" in lower else "❌"
                 tag  = "`LLM VALIDATE`"
             elif any(k in lower for k in ("escalat", "reject", "exception", "flagged", "manual review")):
                 icon, tag = "⚠️", "`GUARDRAIL`"
             elif "approve" in lower:
                 icon, tag = "✅", "`DECISION`"
+            elif "match_result" in lower:
+                icon, tag = "🔗", "`MATCH`"
+            elif "route" in lower or lower.startswith("executed "):
+                icon, tag = "▶", "`ROUTE`"
             else:
                 icon, tag = "▶", "`ROUTE`"
 
-            st.markdown(f"{icon} &nbsp; **Step {i}** &nbsp; {tag} &nbsp; — &nbsp; {entry}")
+            st.markdown(f"{icon} &nbsp; **Step {i}** &nbsp; {tag} &nbsp; — &nbsp; {entry_str}")

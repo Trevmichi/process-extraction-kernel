@@ -1,12 +1,12 @@
 flowchart LR
   n1((Start))
   n2["Invoices are received by email\n[RECEIVE_MESSAGE]"]
-  n3["entered into the ERP\n[ENTER_RECORD]"]
-  n4["The clerk validates required fields\n[VALIDATE_FIELDS]"]
+  n3["entered into the ERP by the AP clerk\n[ENTER_RECORD]"]
+  n4["The clerk validates required fields (vendor, invoice number,...\n[VALIDATE_FIELDS]"]
   n5{"Decision\n<MATCH_3_WAY>"}
   n6["it can be approved\n[APPROVE]"]
   n7{"Decision\n<THRESHOLD_AMOUNT>"}
-  n8["payment is scheduled\n[SCHEDULE_PAYMENT]"]
+  n8["payment is scheduled for Net 30\n[SCHEDULE_PAYMENT]"]
   n9["then paid\n[EXECUTE_PAYMENT]"]
   n10(End)
   n1 --> n2

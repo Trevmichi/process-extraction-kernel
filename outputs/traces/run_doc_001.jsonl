@@ -2,3 +2,10 @@
 {"ts": "2026-02-28T20:05:22.443926Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
 {"ts": "2026-02-28T20:06:48.545380Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
 {"ts": "2026-03-02T00:41:58.214230Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T08:03:11.540563Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T08:05:23.707766Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T08:08:58.712386Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T08:10:55.300669Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T08:24:20.287894Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T09:08:10.786538Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}
+{"ts": "2026-03-03T09:08:28.311263Z", "action_type": "RECEIVE_INPUT", "payload": {"source_id": "doc_001", "path": "data/examples/doc_001.txt", "mode": "manual"}, "cost": {}}

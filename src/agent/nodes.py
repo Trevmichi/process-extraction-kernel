@@ -10,16 +10,41 @@ dict that LangGraph merges into the shared state.
 Smart nodes (ENTER_RECORD, VALIDATE_FIELDS) call the local Ollama LLM to
 perform data extraction / validation on raw invoice text.  All other nodes
 use fast deterministic logic.
+
+Evidence-backed verifier
+------------------------
+ENTER_RECORD always runs the deterministic evidence verifier after LLM
+extraction.  The LLM must return ``{field: {value, evidence}, ...}``
+where evidence is a verbatim substring of the raw text.  The verifier
+cross-checks grounding, amount math, and PO patterns.
+
+On failure, ``status`` is set to ``"BAD_EXTRACTION"`` and the graph
+routes to the rejection node.
+
+Set ``ALLOW_UNVERIFIED_EXTRACTION=true`` to still write extracted values
+to state even when verification fails (for debugging).  Status still
+becomes ``"BAD_EXTRACTION"`` and routing still goes to reject.
 """
 from __future__ import annotations
 
 import json
+import os
 from typing import Callable
 
 from langchain_core.messages import HumanMessage
 from langchain_ollama import ChatOllama
 
 from .state import APState
+from ..verifier import verify_extraction
+
+
+# ---------------------------------------------------------------------------
+# Feature flag
+# ---------------------------------------------------------------------------
+
+def _allow_unverified() -> bool:
+    """When True, write extracted values to state even on verifier failure (debug only)."""
+    return os.environ.get("ALLOW_UNVERIFIED_EXTRACTION", "").strip().lower() == "true"
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +95,8 @@ def _call_llm_json(prompt: str) -> dict:
         return {"_error": str(exc)}
 
 
+
+
 # ---------------------------------------------------------------------------
 # Core executor
 # ---------------------------------------------------------------------------
@@ -89,23 +116,72 @@ def execute_node(state: APState, node_data: dict) -> dict:
 
     updates: dict = {"current_node": node_id}
 
-    # ---- Smart node: data extraction ----------------------------------------
+    # Track gateway routing context for exception stations
+    if node_data.get("kind") == "gateway":
+        updates["last_gateway"] = node_id
+
+    # ---- Smart node: evidence-backed data extraction -------------------------
     if intent == "ENTER_RECORD":
-        prompt = f"""
-You are a precise data extractor. Read the following invoice/PO text and output a JSON object with exactly three keys:
-1. 'vendor' (string)
-2. 'amount' (float, KEEP the decimal point, but remove currency symbols and commas. e.g., output 835.45 instead of $835.45)
-3. 'has_po' (boolean)
+        raw_text = state.get("raw_text", "")
+        prompt = f"""You are a precise data extractor. Read the following invoice/PO text and output a JSON object.
+For EACH field, return a nested object with "value" (the canonical value) and "evidence"
+(the EXACT verbatim substring from the text that supports your answer — copy it character for character).
+
+Schema:
+{{
+  "vendor":  {{"value": "<string>",  "evidence": "<exact substring>"}},
+  "amount":  {{"value": <float>,     "evidence": "<exact substring>"}},
+  "has_po":  {{"value": <boolean>,   "evidence": "<exact substring>"}}
+}}
+
+Rules:
+- "amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "evidence" MUST be copied verbatim from the text — do NOT paraphrase or summarize
+- If a field cannot be found, set value to null and evidence to ""
 
 Text:
-{state['raw_invoice_text']}
-"""
+{raw_text}"""
         parsed = _call_llm_json(prompt)
-        updates["audit_log"] = [f"Extracted data: {parsed}"]
-        if "_error" not in parsed:
-            updates["vendor"]  = str(parsed.get("vendor",  state["vendor"]))
-            updates["amount"]  = float(parsed.get("amount", state["amount"]))
-            updates["has_po"]  = bool(parsed.get("has_po",  state["has_po"]))
+
+        # Always write extraction payload (even on LLM error)
+        updates["extraction"] = parsed
+
+        if "_error" in parsed:
+            updates["provenance"] = {}
+            updates["status"] = "BAD_EXTRACTION"
+            updates["audit_log"] = [
+                json.dumps({"node": "ENTER_RECORD", "event": "extraction",
+                            "valid": False, "reasons": ["LLM_ERROR"]})
+            ]
+        else:
+            # Run deterministic evidence verifier
+            valid, codes, prov = verify_extraction(raw_text, parsed)
+            updates["provenance"] = prov
+            updates["audit_log"] = [
+                json.dumps({"node": "ENTER_RECORD", "event": "extraction",
+                            "valid": valid, "reasons": list(codes)})
+            ]
+
+            if valid:
+                # Map nested values to core state fields
+                updates["vendor"] = str(parsed["vendor"]["value"])
+                updates["amount"] = float(parsed["amount"]["value"])
+                updates["has_po"] = bool(parsed["has_po"]["value"])
+                updates["status"] = "DATA_EXTRACTED"
+            else:
+                # Verification failed — route to reject
+                updates["status"] = "BAD_EXTRACTION"
+                if _allow_unverified():
+                    # Debug mode: still write values (status stays BAD_EXTRACTION)
+                    v = parsed.get("vendor", {})
+                    a = parsed.get("amount", {})
+                    p = parsed.get("has_po", {})
+                    if isinstance(v, dict) and v.get("value"):
+                        updates["vendor"] = str(v["value"])
+                    if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
+                        updates["amount"] = float(a["value"])
+                    if isinstance(p, dict) and isinstance(p.get("value"), bool):
+                        updates["has_po"] = p["value"]
 
     # ---- Smart node: field validation ---------------------------------------
     elif intent == "VALIDATE_FIELDS":
@@ -121,6 +197,20 @@ Text:
         if "_error" not in parsed:
             updates["status"] = "VALIDATED" if parsed.get("is_valid") else "MISSING_DATA"
 
+    # ---- Exception station: ROUTE_FOR_REVIEW --------------------------------
+    elif intent == "ROUTE_FOR_REVIEW":
+        reason = ((node_data.get("action") or {}).get("extra") or {}).get("reason", "UNKNOWN")
+        canonical = (node_data.get("meta") or {}).get("canonical_key", node_id)
+        updates["audit_log"] = [
+            json.dumps({
+                "node": canonical,
+                "event": "exception_station",
+                "reason": reason,
+                "gateway": state.get("last_gateway", "?"),
+            })
+        ]
+        updates["status"] = f"EXCEPTION_{reason}"
+
     # ---- Standard nodes: deterministic pass-through -------------------------
     else:
         updates["audit_log"] = [f"Executed {intent}{actor_tag} at {node_id}"]
@@ -133,9 +223,79 @@ Text:
         elif intent == "MANUAL_REVIEW_NO_PO":
             updates["audit_log"] = [
                 f"Executed {intent}{actor_tag} at {node_id}",
-                "Flagged for manual review: Missing Purchase Order.",
+                json.dumps({
+                    "event": "exception_station",
+                    "node": node_id,
+                    "reason": "NO_PO",
+                    "gateway": state.get("last_gateway", "?"),
+                }),
             ]
             updates["status"] = "EXCEPTION_NO_PO"
+        elif intent == "MANUAL_REVIEW_MATCH_FAILED":
+            updates["audit_log"] = [
+                f"Executed {intent}{actor_tag} at {node_id}",
+                json.dumps({
+                    "event": "exception_station",
+                    "node": node_id,
+                    "reason": "MATCH_FAILED",
+                    "gateway": state.get("last_gateway", "?"),
+                }),
+            ]
+            updates["status"] = "EXCEPTION_MATCH_FAILED"
+        elif intent == "MANUAL_REVIEW_UNMODELED_GATE":
+            updates["audit_log"] = [
+                f"Executed {intent}{actor_tag} at {node_id}",
+                json.dumps({
+                    "event": "exception_station",
+                    "node": node_id,
+                    "reason": "UNMODELED_GATE",
+                    "gateway": state.get("last_gateway", "?"),
+                }),
+            ]
+            updates["status"] = "EXCEPTION_UNMODELED"
+        elif intent == "SEQUENTIAL_DISPATCH":
+            chain = ((node_data.get("action") or {}).get("extra") or {}).get("chain", [])
+            updates["audit_log"] = [
+                json.dumps({
+                    "node": node_id,
+                    "event": "sequential_dispatch",
+                    "chain": chain,
+                }),
+            ]
+        elif intent == "MATCH_3_WAY":
+            # Deterministic resolver: po_match > match_3_way > None
+            source_flag: str | None = None
+            flag_value = None
+            if "po_match" in state and state.get("po_match") is not None:
+                source_flag = "po_match"
+                flag_value = state["po_match"]
+            elif "match_3_way" in state and state.get("match_3_way") is not None:
+                source_flag = "match_3_way"
+                flag_value = state["match_3_way"]
+
+            if flag_value is True:
+                match_result = "MATCH"
+            elif flag_value is False:
+                match_result = "NO_MATCH"
+            else:
+                match_result = "UNKNOWN"
+
+            updates["match_3_way"] = bool(flag_value) if flag_value is not None else False
+            updates["match_result"] = match_result
+            updates["audit_log"] = [
+                json.dumps({
+                    "node": "MATCH_3_WAY",
+                    "event": "match_inputs",
+                    "po_match": state.get("po_match"),
+                    "match_3_way": state.get("match_3_way"),
+                }),
+                json.dumps({
+                    "node": "MATCH_3_WAY",
+                    "event": "match_result_set",
+                    "match_result": match_result,
+                    "source_flag": source_flag,
+                }),
+            ]
         elif intent == "EXECUTE_PAYMENT":
             updates["status"] = "PAID"
         elif intent == "UPDATE_STATUS":

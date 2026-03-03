@@ -92,7 +92,7 @@
     {
       "id": "n3",
       "kind": "task",
-      "name": "entered into the ERP",
+      "name": "entered into the ERP by the AP clerk",
       "action": {
         "type": "ENTER_RECORD",
         "actor_id": "role_ap_clerk",
@@ -103,7 +103,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "entered into the ERP"
+          "span": "entered into the ERP by the AP clerk"
         }
       ],
       "meta": {
@@ -113,7 +113,7 @@
     {
       "id": "n4",
       "kind": "task",
-      "name": "The clerk validates required fields",
+      "name": "The clerk validates required fields (vendor, invoice number,...",
       "action": {
         "type": "VALIDATE_FIELDS",
         "actor_id": "role_ap_clerk",
@@ -124,7 +124,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "The clerk validates required fields"
+          "span": "The clerk validates required fields (vendor, invoice number, date, amount)"
         }
       ],
       "meta": {
@@ -195,7 +195,7 @@
     {
       "id": "n8",
       "kind": "task",
-      "name": "payment is scheduled",
+      "name": "payment is scheduled for Net 30",
       "action": {
         "type": "SCHEDULE_PAYMENT",
         "actor_id": "role_ap_clerk",
@@ -206,7 +206,7 @@
       "evidence": [
         {
           "source_id": "doc_001",
-          "span": "payment is scheduled"
+          "span": "payment is scheduled for Net 30"
         }
       ],
       "meta": {

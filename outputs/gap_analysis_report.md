@@ -27,25 +27,21 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 
 ### Steps present in sub-doc but absent from Master Manual
 
-| # | Canonical Key |
-|---|---------------|
-| 1 | `gw:APPROVE_OR_REJECT` |
-| 2 | `task:REVIEW` |
+_None — all step intents are covered by the Master Manual._
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
 | # | From (canonical) | To (canonical) | Condition |
 |---|------------------|----------------|-----------|
-| 1 | `gw:APPROVE_OR_REJECT` | `task:ENTER_RECORD` | `no_po_approve` |
-| 2 | `gw:APPROVE_OR_REJECT` | `task:NOTIFY` | `no_po_reject` |
-| 3 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `no_po_approve` |
-| 4 | `gw:APPROVE_OR_REJECT` | `task:UPDATE_STATUS` | `no_po_reject` |
-| 5 | `gw:HAS_PO` | `task:ENTER_RECORD` | `no_po` |
-| 6 | `gw:HAS_PO` | `task:REVIEW` | `no_po` |
-| 7 | `task:ENTER_RECORD` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
-| 8 | `task:RECEIVE_MESSAGE` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
-| 9 | `task:ROUTE_FOR_REVIEW` | `gw:HAS_PO` | _(unconditional)_ |
-| 10 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 1 | `gw:APPROVE_OR_REJECT` | `task:NOTIFY` | `APPROVE_OR_REJECT_false` |
+| 2 | `gw:APPROVE_OR_REJECT` | `task:SCHEDULE_PAYMENT` | `APPROVE_OR_REJECT_true` |
+| 3 | `gw:APPROVE_OR_REJECT` | `task:UPDATE_STATUS` | `APPROVE_OR_REJECT_false` |
+| 4 | `gw:HAS_PO` | `task:ENTER_RECORD` | `HAS_PO_false` |
+| 5 | `gw:HAS_PO` | `task:REVIEW` | `HAS_PO_false` |
+| 6 | `task:ENTER_RECORD` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
+| 7 | `task:RECEIVE_MESSAGE` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
+| 8 | `task:ROUTE_FOR_REVIEW` | `gw:HAS_PO` | _(unconditional)_ |
+| 9 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
 
 ## doc_003
 
@@ -68,9 +64,7 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 
 ### Steps present in sub-doc but absent from Master Manual
 
-| # | Canonical Key |
-|---|---------------|
-| 1 | `gw:APPROVE_OR_REJECT` |
+_None — all step intents are covered by the Master Manual._
 
 ### Logic paths present in sub-doc but absent from Master Manual
 
@@ -80,10 +74,9 @@ Comparison of each sub-document's auto-extracted process against the Master Manu
 | 2 | `gw:IF_CONDITION` | `task:ENTER_RECORD` | `condition_true` |
 | 3 | `gw:IF_CONDITION` | `task:REQUEST_CLARIFICATION` | `condition_true` |
 | 4 | `gw:IF_CONDITION` | `task:UPDATE_RECORD` | `condition_true` |
-| 5 | `task:RECEIVE_MESSAGE` | `task:VALIDATE_FIELDS` | _(unconditional)_ |
-| 6 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
-| 7 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
-| 8 | `task:UPDATE_RECORD` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
+| 5 | `task:ROUTE_FOR_REVIEW` | `gw:APPROVE_OR_REJECT` | _(unconditional)_ |
+| 6 | `task:SCHEDULE_PAYMENT` | `end:end` | _(unconditional)_ |
+| 7 | `task:UPDATE_RECORD` | `task:ROUTE_FOR_REVIEW` | _(unconditional)_ |
 
 ## doc_005
 

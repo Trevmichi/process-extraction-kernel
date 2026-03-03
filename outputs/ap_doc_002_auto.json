@@ -102,7 +102,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If an invoice does not have a PO number"
+          "span": "If an invoice does not have a PO number, AP routes it to the department manager."
         }
       ],
       "meta": {
@@ -164,7 +164,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "If the manager rejects the expense"
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice. If approved, AP enters the account code and proceeds to schedule payment."
         }
       ],
       "meta": {
@@ -174,7 +174,7 @@
     {
       "id": "n7",
       "kind": "task",
-      "name": "AP notifies the vendor and closes the invoice.",
+      "name": "If the manager rejects the expense, AP notifies the vendor a...",
       "action": {
         "type": "NOTIFY",
         "actor_id": "role_ap_clerk",
@@ -185,7 +185,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "AP notifies the vendor and closes the invoice."
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
         }
       ],
       "meta": {
@@ -195,7 +195,7 @@
     {
       "id": "n8",
       "kind": "task",
-      "name": "AP notifies the vendor and closes the invoice.",
+      "name": "If the manager rejects the expense, AP notifies the vendor a...",
       "action": {
         "type": "UPDATE_STATUS",
         "actor_id": "role_ap_clerk",
@@ -206,7 +206,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "AP notifies the vendor and closes the invoice."
+          "span": "If the manager rejects the expense, AP notifies the vendor and closes the invoice."
         }
       ],
       "meta": {
@@ -216,28 +216,7 @@
     {
       "id": "n9",
       "kind": "task",
-      "name": "AP enters the account code",
-      "action": {
-        "type": "ENTER_RECORD",
-        "actor_id": "role_ap_clerk",
-        "artifact_id": "art_account_code",
-        "extra": {}
-      },
-      "decision": null,
-      "evidence": [
-        {
-          "source_id": "doc_002",
-          "span": "AP enters the account code"
-        }
-      ],
-      "meta": {
-        "canonical_key": "task:ENTER_RECORD"
-      }
-    },
-    {
-      "id": "n10",
-      "kind": "task",
-      "name": "and proceeds to schedule payment.",
+      "name": "If approved, AP enters the account code and proceeds to sche...",
       "action": {
         "type": "SCHEDULE_PAYMENT",
         "actor_id": "role_ap_clerk",
@@ -248,7 +227,7 @@
       "evidence": [
         {
           "source_id": "doc_002",
-          "span": "and proceeds to schedule payment."
+          "span": "If approved, AP enters the account code and proceeds to schedule payment."
         }
       ],
       "meta": {
@@ -256,7 +235,7 @@
       }
     },
     {
-      "id": "n11",
+      "id": "n10",
       "kind": "end",
       "name": "End",
       "action": null,
@@ -272,7 +251,7 @@
       }
     },
     {
-      "id": "n12",
+      "id": "n11",
       "kind": "task",
       "name": "Receive invoice",
       "action": {
@@ -292,7 +271,7 @@
   ],
   "edges": [
     {
-      "frm": "n12",
+      "frm": "n11",
       "to": "n2",
       "condition": null
     },
@@ -304,12 +283,12 @@
     {
       "frm": "n3",
       "to": "n4",
-      "condition": "no_po"
+      "condition": "HAS_PO_false"
     },
     {
       "frm": "n3",
       "to": "n5",
-      "condition": "no_po"
+      "condition": "HAS_PO_false"
     },
     {
       "frm": "n5",
@@ -319,31 +298,26 @@
     {
       "frm": "n6",
       "to": "n7",
-      "condition": "no_po_reject"
+      "condition": "APPROVE_OR_REJECT_false"
     },
     {
       "frm": "n6",
       "to": "n8",
-      "condition": "no_po_reject"
+      "condition": "APPROVE_OR_REJECT_false"
     },
     {
       "frm": "n6",
       "to": "n9",
-      "condition": "no_po_approve"
+      "condition": "APPROVE_OR_REJECT_true"
     },
     {
-      "frm": "n6",
+      "frm": "n9",
       "to": "n10",
-      "condition": "no_po_approve"
-    },
-    {
-      "frm": "n10",
-      "to": "n11",
       "condition": null
     },
     {
       "frm": "n1",
-      "to": "n12",
+      "to": "n11",
       "condition": null
     }
   ],

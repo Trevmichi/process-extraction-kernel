@@ -91,7 +91,12 @@ def main() -> None:
     print(f"{'=' * 70}")
     print("[batch] Compiling graph ...")
 
-    graph = build_ap_graph(json_path)
+    try:
+        graph = build_ap_graph(json_path)
+    except ValueError as exc:
+        # Linter raised — print the full lint report and exit with error
+        print(f"\n[batch] LINT ERROR — graph is invalid:\n{exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"[batch] Graph ready. Processing {len(RAW_INVOICES)} invoices ...\n")
 
@@ -108,10 +113,15 @@ def main() -> None:
             "amount":           0.0,      # extracted by ENTER_RECORD smart node
             "has_po":           False,    # extracted by ENTER_RECORD smart node
             "po_match":         _PO_MATCH_FLAGS[idx],
+            "match_3_way":      _PO_MATCH_FLAGS[idx],  # mirrors po_match until ERP integration
+            "match_result":     "UNKNOWN",  # set by MATCH_3_WAY node
             "status":           "NEW",
             "current_node":     "",
+            "last_gateway":     "",
             "audit_log":        [],
-            "raw_invoice_text": raw_text,
+            "raw_text":         raw_text,
+            "extraction":       {},
+            "provenance":       {},
         }
 
         result: APState = graph.invoke(initial_state)

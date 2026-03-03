@@ -1,0 +1,96 @@
+{
+  "meta": {
+    "process_id": "test_minimal_ok",
+    "domain": "accounts_payable",
+    "version": "0.1"
+  },
+  "actors": [
+    { "id": "role_clerk",   "type": "human_role", "name": "AP Clerk" },
+    { "id": "role_manager", "type": "human_role", "name": "Manager"  }
+  ],
+  "artifacts": [
+    { "id": "art_invoice", "type": "document", "name": "Invoice" }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "event",
+      "name": "Start",
+      "action": null,
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "event:start" }
+    },
+    {
+      "id": "n2",
+      "kind": "task",
+      "name": "Enter Invoice Record",
+      "action": {
+        "type": "ENTER_RECORD",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:ENTER_RECORD" }
+    },
+    {
+      "id": "gw1",
+      "kind": "gateway",
+      "name": "Has Purchase Order?",
+      "action": null,
+      "decision": { "type": "HAS_PO", "inputs": [], "expression": null },
+      "evidence": [],
+      "meta": { "canonical_key": "gw:HAS_PO" }
+    },
+    {
+      "id": "n3",
+      "kind": "task",
+      "name": "Approve Invoice",
+      "action": {
+        "type": "APPROVE",
+        "actor_id": "role_manager",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:APPROVE" }
+    },
+    {
+      "id": "n4",
+      "kind": "task",
+      "name": "Reject Invoice",
+      "action": {
+        "type": "REJECT",
+        "actor_id": "role_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "task:REJECT" }
+    },
+    {
+      "id": "n5",
+      "kind": "end",
+      "name": "End",
+      "action": null,
+      "decision": null,
+      "evidence": [],
+      "meta": { "canonical_key": "end:end" }
+    }
+  ],
+  "edges": [
+    { "frm": "n1",  "to": "n2",  "condition": null },
+    { "frm": "n2",  "to": "gw1", "condition": null },
+    { "frm": "gw1", "to": "n3",  "condition": "has_po == true"  },
+    { "frm": "gw1", "to": "n4",  "condition": "has_po == false" },
+    { "frm": "n3",  "to": "n5",  "condition": null },
+    { "frm": "n4",  "to": "n5",  "condition": null }
+  ],
+  "rules": [],
+  "unknowns": [],
+  "assumptions": []
+}

@@ -8,14 +8,14 @@
   "summary": {
     "nodes": {
       "a": 12,
-      "b": 12,
+      "b": 11,
       "added_in_b": 1,
       "removed_in_b": 2
     },
     "edges": {
       "a": 11,
-      "b": 11,
-      "added_in_b": 10,
+      "b": 10,
+      "added_in_b": 9,
       "removed_in_b": 10
     },
     "unknowns": {
@@ -26,7 +26,7 @@
     },
     "evidence_rate": {
       "a": 1.0,
-      "b": 0.9166666666666666
+      "b": 0.9090909090909091
     },
     "action_counts": {
       "a": {
@@ -42,7 +42,7 @@
       "b": {
         "ROUTE_FOR_REVIEW": 1,
         "REVIEW": 1,
-        "ENTER_RECORD": 2,
+        "ENTER_RECORD": 1,
         "NOTIFY": 1,
         "UPDATE_STATUS": 1,
         "SCHEDULE_PAYMENT": 1,
@@ -59,12 +59,11 @@
       "task:UPDATE_RECORD"
     ],
     "edges_added_in_b": [
-      "gw:APPROVE_OR_REJECT ->|no_po_approve| task:ENTER_RECORD",
-      "gw:APPROVE_OR_REJECT ->|no_po_approve| task:SCHEDULE_PAYMENT",
-      "gw:APPROVE_OR_REJECT ->|no_po_reject| task:NOTIFY",
-      "gw:APPROVE_OR_REJECT ->|no_po_reject| task:UPDATE_STATUS",
-      "gw:HAS_PO ->|no_po| task:ENTER_RECORD",
-      "gw:HAS_PO ->|no_po| task:REVIEW",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:NOTIFY",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_false| task:UPDATE_STATUS",
+      "gw:APPROVE_OR_REJECT ->|approve_or_reject_true| task:SCHEDULE_PAYMENT",
+      "gw:HAS_PO ->|has_po_false| task:ENTER_RECORD",
+      "gw:HAS_PO ->|has_po_false| task:REVIEW",
       "task:ENTER_RECORD -> gw:APPROVE_OR_REJECT",
       "task:RECEIVE_MESSAGE -> task:ROUTE_FOR_REVIEW",
       "task:ROUTE_FOR_REVIEW -> gw:HAS_PO",
