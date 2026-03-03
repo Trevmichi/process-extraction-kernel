@@ -1,0 +1,8 @@
+TechGear IT Services
+Invoice No: TG-3005
+Date: 06/15/2026
+PO Number: IT-9005
+
+Hardware replacement parts: $450.75
+Labor: $200.00
+Total: $650.75

@@ -1,0 +1,11 @@
+TechGear IT Services
+Date: 2026-06-12
+Invoice: TG-3004
+PO: IT-9004
+
+Software Licenses (Annual)
+
+Subtotal: 2000.00
+Processing Fee: 20.00
+Taxes: 160.00
+Final Total: 2180.00

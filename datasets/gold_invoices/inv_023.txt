@@ -1,0 +1,7 @@
+Global Logistics Corp
+Inv# GLC-4005
+Date: 2026-07-15
+PO: SHIP-555
+
+International Shipping: €2,500.00
+Total Due: €2,500.00

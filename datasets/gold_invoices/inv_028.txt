@@ -1,0 +1,10 @@
+Apex Maintenance Co.
+Invoice Number: APX-5004
+Date: August 10, 2026
+Purchase Order: MNT-115
+
+Electrical Wiring Repair
+
+Subtotal: 900.00
+Materials: 150.00
+Total Amount: 1050.00

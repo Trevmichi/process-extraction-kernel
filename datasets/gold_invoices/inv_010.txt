@@ -1,0 +1,12 @@
+NorthRiver Office & Facility Solutions
+Date: 05/10/2026
+Invoice: NR-2004
+Purchase Order: PRQ-8815
+
+Items:
+Standing Desks (2)
+
+Subtotal: 800.00
+Delivery Fee: 50.00
+State Tax: 68.00
+Total Amount: 918.00

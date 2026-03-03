@@ -1,0 +1,12 @@
+Acme Industrial Supply
+Date: 2026-04-18
+Invoice: INV-1006
+PO: PO-77326
+
+Please pay the Total Amount of 450.00 by the due date to avoid late fees.
+
+Line Items:
+Safety Goggles x10 - 150.00
+Hard Hats x10 - 300.00
+
+Total Amount: 450.00

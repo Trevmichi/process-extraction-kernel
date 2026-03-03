@@ -1,0 +1,12 @@
+Acme Industrial Supply
+123 Factory Lane, Industrial City, TX 75001
+
+Date: 2026-04-01
+Invoice Number: INV-1001
+PO Number: PO-77321
+
+Bill To: NorthRiver Corp
+
+Item Description      Qty   Price   Total
+Heavy Duty Bearings   10    80.00   800.00 Lubricant             1     35.45   35.45
+TOTAL AMOUNT: 835.45
