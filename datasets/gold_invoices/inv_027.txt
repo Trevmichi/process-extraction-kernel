@@ -1,0 +1,8 @@
+--- APEX MAINTENANCE CO. ---
+Date: 2026-08-08
+Invoice ID: APX-5003
+PO: MNT-114
+
+Routine Plumbing Inspection
+
+Amount Due: 350.00

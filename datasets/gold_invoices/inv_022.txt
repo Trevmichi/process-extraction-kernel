@@ -1,0 +1,10 @@
+Global Logistics Corp
+Date: 2026-07-10
+Invoice Number: GLC-4004
+
+Courier Services - Urgent Document
+
+Subtotal: 45.00
+Fuel Surcharge: 5.50
+Total: 50.50
+PO: None

@@ -1,0 +1,11 @@
++--------------------------------+
+| TechGear IT Services           |
++--------------------------------+
+Invoice Number: TG-3003
+Date: June 10, 2026
+
+Emergency network troubleshooting.
+
+Total: 550.00
+PO: None
++--------------------------------+

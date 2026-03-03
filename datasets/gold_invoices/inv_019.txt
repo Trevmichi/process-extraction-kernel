@@ -1,0 +1,10 @@
+Global Logistics Corp
+Port Authority Bldg 4
+
+Invoice Number: GLC-4001
+Date: 2026-07-02
+PO#: SHIP-551
+
+Description             Cost
+Freight Forwarding      3400.00 Customs Clearance       250.00
+Total Due               3650.00

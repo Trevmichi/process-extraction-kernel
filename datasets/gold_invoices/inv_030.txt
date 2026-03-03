@@ -1,0 +1,13 @@
+Apex Maintenance Co.
+Date: 2026-08-20
+Invoice: APX-5006
+PO Number: MNT-117
+
+Line Items:
+Window Cleaning (Exterior): 200.00
+Window Cleaning (Interior): 150.00
+
+Subtotal: 350.00
+Hazard Pay Surcharge: 50.00
+Environmental Tax: 15.00
+Total Due: 415.00

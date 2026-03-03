@@ -1,0 +1,8 @@
+Global Logistics Corp
+Invoice: GLC-4006
+Date: July 20, 2026
+PO Number: SHIP-556
+
+Service           Fee
+Warehouse Storage 800.00 Handling          150.00
+Total             950.00

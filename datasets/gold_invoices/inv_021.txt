@@ -1,0 +1,8 @@
+Global Logistics Corp
+Invoice: GLC-4003
+Date: 07/08/2026
+Purchase Order: SHIP-553
+
+Overnight Pallet Delivery
+
+Total: 480.00

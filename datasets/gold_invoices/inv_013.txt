@@ -1,0 +1,10 @@
+TechGear IT Services
+99 Silicon Blvd, San Jose, CA
+
+Invoice: TG-3001
+Date: 2026-06-01
+PO Number: IT-9001
+
+Service                Amount
+Server Maintenance     1500.00 Cloud Backup Storage   300.00
+Total:                 1800.00

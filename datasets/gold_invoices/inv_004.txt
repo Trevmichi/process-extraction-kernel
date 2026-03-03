@@ -1,0 +1,12 @@
+Acme Industrial Supply
+Invoice No: INV-1004
+Date: 2026-04-12
+PO Ref: PO-77324
+
+Services Rendered:
+Equipment calibration
+
+Subtotal: 400.00
+Tax (8%): 32.00
+Shipping: 15.00
+Total Amount Due: 447.00
