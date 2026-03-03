@@ -22,6 +22,7 @@ from src.normalize_graph import (
     convert_unparseable_gateways_to_station,
     convert_whitelisted_fanout_to_sequential,
     deduplicate_edges,
+    deduplicate_edges_strict,
     fix_artifact_references,
     fix_canonical_key_duplicates,
     fix_haspo_gateway,
@@ -30,6 +31,7 @@ from src.normalize_graph import (
     fix_placeholder_gateways,
     fix_secondary_match_gateways,
     inject_exception_nodes,
+    inject_match_result_unknown_guardrail,
     normalize_all,
     normalize_edge_conditions,
     wire_bad_extraction_route,
@@ -1780,3 +1782,497 @@ class TestBadExtractionRouterIntegration:
 
         next_node = route_edge(state, n2_edges, n2_node)
         assert next_node == "n3"
+
+
+# ===========================================================================
+# Contract postcondition tests — one per pass, tested in isolation
+# ===========================================================================
+
+class TestContractPass1:
+    """Pass 1 postcondition: art_account_code in artifacts."""
+
+    def test_contract_art_account_code_present(self):
+        g = _minimal()
+        g, _ = fix_artifact_references(g)
+        art_ids = {a["id"] for a in g["artifacts"]}
+        assert "art_account_code" in art_ids
+
+
+class TestContractPass2:
+    """Pass 2 postcondition: all canonical_key values unique."""
+
+    def test_contract_canonical_keys_unique(self):
+        g = _minimal()
+        # Add duplicate canonical_key to trigger the pass
+        g["nodes"].append({
+            "id": "n22", "kind": "task", "name": "Approve copy",
+            "action": {"type": "APPROVE", "actor_id": "role_ap_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {"canonical_key": "task:APPROVE"},
+        })
+        g, _ = fix_canonical_key_duplicates(g)
+        ckeys = [
+            n["meta"]["canonical_key"] for n in g["nodes"]
+            if (n.get("meta") or {}).get("canonical_key")
+        ]
+        assert len(ckeys) == len(set(ckeys))
+
+
+class TestContractPass3:
+    """Pass 3 postcondition: no known synonym string in edge conditions."""
+
+    def test_contract_no_synonym_conditions(self):
+        g = _minimal()
+        g, _ = normalize_edge_conditions(g)
+        for e in g["edges"]:
+            cond = e.get("condition")
+            if cond is None:
+                continue
+            # Known synonyms that should have been replaced
+            assert cond != "MATCH_3_WAY"
+            assert cond != "HAS_PO"
+
+
+class TestContractPass4:
+    """Pass 4 postcondition: n_no_match and n_manual_review_gate in nodes."""
+
+    def test_contract_exception_nodes_exist(self):
+        g = _minimal()
+        g, _ = inject_exception_nodes(g)
+        ids = {n["id"] for n in g["nodes"]}
+        assert "n_no_match" in ids
+        assert "n_manual_review_gate" in ids
+
+
+class TestContractPass5:
+    """Pass 5 postcondition: n4 outgoing edges correct (or no-op if not MATCH_3_WAY)."""
+
+    def test_contract_n4_two_exclusive_branches(self):
+        g = _minimal()
+        # Inject prereqs: exception stations + n_threshold
+        g, _ = inject_exception_nodes(g)
+        g["nodes"].append({
+            "id": "n_threshold", "kind": "gateway", "name": "Threshold",
+            "action": None,
+            "decision": {"type": "THRESHOLD_AMOUNT_10K", "inputs": [], "expression": None},
+            "evidence": [], "meta": {"canonical_key": "gw:THRESHOLD_AMOUNT_10K"},
+        })
+        # Add fan-out to trigger the pass
+        g["edges"].extend([
+            {"frm": "n4", "to": "n_threshold", "condition": "MATCH_3_WAY"},
+            {"frm": "n4", "to": "n5",          "condition": "MATCH_3_WAY"},
+        ])
+        g, _ = fix_match3way_gateway(g)
+        out = [e for e in g["edges"] if e.get("frm") == "n4"]
+        assert len(out) == 2
+        conds = {e["condition"] for e in out}
+        assert conds == {'match_result == "MATCH"', 'match_result == "NO_MATCH"'}
+
+
+class TestContractPass5b:
+    """Pass 5b postcondition: {gw_id}_decision has 3 canonical branches."""
+
+    def _stations(self) -> list[dict]:
+        return [
+            {
+                "id": "n_no_match", "kind": "task",
+                "name": "Manual Review — Match Failed",
+                "action": {"type": "MANUAL_REVIEW_MATCH_FAILED",
+                           "actor_id": "role_ap_clerk",
+                           "artifact_id": "art_invoice", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": "task:MANUAL_REVIEW_MATCH_FAILED@n_no_match",
+                         "intent_key": "task:MANUAL_REVIEW_MATCH_FAILED"},
+            },
+            {
+                "id": "n_manual_review_gate", "kind": "task",
+                "name": "Manual Review — Unmodeled Gate",
+                "action": {"type": "MANUAL_REVIEW_UNMODELED_GATE",
+                           "actor_id": "role_ap_clerk",
+                           "artifact_id": "art_invoice", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": "task:MANUAL_REVIEW_UNMODELED_GATE@n_manual_review_gate",
+                         "intent_key": "task:MANUAL_REVIEW_UNMODELED_GATE"},
+            },
+        ]
+
+    def test_contract_decision_gateway_has_three_branches(self):
+        g = _minimal()
+        # Replace n5 with a secondary MATCH_3_WAY gateway
+        g["nodes"] = [n for n in g["nodes"] if n["id"] != "n5"]
+        g["nodes"].extend([
+            {
+                "id": "n5", "kind": "gateway", "name": "Decision",
+                "action": None,
+                "decision": {"type": "MATCH_3_WAY", "inputs": [], "expression": None},
+                "evidence": [],
+                "meta": {"canonical_key": "gw:MATCH_3_WAY@n5",
+                         "intent_key": "gw:MATCH_3_WAY"},
+            },
+            {
+                "id": "n6", "kind": "task", "name": "Approve",
+                "action": {"type": "APPROVE", "actor_id": "role_director",
+                           "artifact_id": "art_invoice", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": "task:APPROVE@n6"},
+            },
+            {
+                "id": "n7", "kind": "task", "name": "Schedule Payment",
+                "action": {"type": "SCHEDULE_PAYMENT", "actor_id": "role_ap_clerk",
+                           "artifact_id": "art_payment", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": "task:SCHEDULE_PAYMENT@n7"},
+            },
+            {
+                "id": "n8", "kind": "task", "name": "Execute Payment",
+                "action": {"type": "EXECUTE_PAYMENT", "actor_id": "sys_erp",
+                           "artifact_id": "art_payment", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": "task:EXECUTE_PAYMENT@n8"},
+            },
+            *self._stations(),
+        ])
+        g["edges"] = [e for e in g["edges"] if e.get("frm") != "n5"]
+        g["edges"].extend([
+            {"frm": "n5", "to": "n6", "condition": "MATCH_3_WAY"},
+            {"frm": "n5", "to": "n7", "condition": "MATCH_3_WAY"},
+        ])
+        g, _ = fix_secondary_match_gateways(g)
+        out_dec = [e for e in g["edges"] if e.get("frm") == "n5_decision"]
+        assert len(out_dec) == 3
+        conds = {e["condition"] for e in out_dec}
+        assert conds == {
+            'match_result == "MATCH"',
+            'match_result == "NO_MATCH"',
+            'match_result == "UNKNOWN"',
+        }
+
+
+class TestContractPass6:
+    """Pass 6 postcondition: no edge n7→n8."""
+
+    def test_contract_no_n7_to_n8_edge(self):
+        g = _graph_with_n7_to_n8()
+        g, _ = fix_main_execution_path(g)
+        bad = [e for e in g["edges"]
+               if e.get("frm") == "n7" and e.get("to") == "n8"]
+        assert bad == []
+
+
+class TestContractPass7:
+    """Pass 7 postcondition: n8 has 2 exclusive branches."""
+
+    def test_contract_n8_two_exclusive_branches(self):
+        g = _graph_with_n8_fanout()
+        g, _ = fix_haspo_gateway(g)
+        out = [e for e in g["edges"] if e.get("frm") == "n8"]
+        assert len(out) == 2
+        conds = {e["condition"] for e in out}
+        assert conds == {"has_po == true", "has_po == false"}
+
+
+class TestContractPass8:
+    """Pass 8 postcondition: n28 has status=="DUPLICATE" / status!="DUPLICATE"."""
+
+    def test_contract_n28_explicit_duplicate_conditions(self):
+        g = _minimal()
+        # Add station for n16 exception conversion
+        g["nodes"].append({
+            "id": "n_manual_review_gate", "kind": "task",
+            "name": "Manual Review Gate",
+            "action": {"type": "MANUAL_REVIEW_UNMODELED_GATE",
+                       "actor_id": "role_ap_clerk",
+                       "artifact_id": "art_invoice", "extra": {}},
+            "decision": None, "evidence": [],
+            "meta": {"canonical_key": "task:MANUAL_REVIEW_UNMODELED_GATE@n_manual_review_gate",
+                     "origin": "normalize"},
+        })
+        # Add n28 gateway with placeholder conditions
+        for nid in ("n28", "n29", "n30", "n31"):
+            g["nodes"].append({
+                "id": nid,
+                "kind": "gateway" if nid == "n28" else "task",
+                "name": f"Node {nid}",
+                "action": None if nid == "n28" else {
+                    "type": "TASK_X", "actor_id": "role_ap_clerk",
+                    "artifact_id": "art_invoice", "extra": {},
+                },
+                "decision": ({"type": "IF_CONDITION", "inputs": [], "expression": None}
+                             if nid == "n28" else None),
+                "evidence": [],
+                "meta": {"canonical_key": f"gw:duplicate@{nid}"},
+            })
+        g["edges"].extend([
+            {"frm": "n28", "to": "n29", "condition": "IF_CONDITION"},
+            {"frm": "n28", "to": "n30", "condition": "IF_CONDITION"},
+        ])
+        g, _ = fix_placeholder_gateways(g)
+        out = [e for e in g["edges"] if e.get("frm") == "n28"]
+        conds = {e.get("condition") for e in out}
+        assert 'status == "DUPLICATE"' in conds
+        assert 'status != "DUPLICATE"' in conds
+
+
+class TestContractPass9:
+    """Pass 9 postcondition: no all-unparseable gateways remain."""
+
+    def test_contract_no_unparseable_gateways(self):
+        g = _minimal()
+        # Add station (prerequisite)
+        g["nodes"].append({
+            "id": "n_exc_unmodeled_gate", "kind": "task",
+            "name": "Exception — Unmodeled Gate",
+            "action": {"type": "ROUTE_FOR_REVIEW", "actor_id": "role_ap_clerk",
+                       "artifact_id": "art_invoice",
+                       "extra": {"reason": "UNMODELED_GATE"}},
+            "decision": None, "evidence": [],
+            "meta": {"canonical_key": "task:MANUAL_REVIEW_UNMODELED_GATE@n_exc_unmodeled_gate",
+                     "intent_key": "task:MANUAL_REVIEW_UNMODELED_GATE"},
+        })
+        # Add unparseable gateway
+        g["nodes"].append({
+            "id": "n_gw", "kind": "gateway", "name": "Unknown Decision",
+            "action": None,
+            "decision": {"type": "IF_CONDITION", "inputs": [], "expression": None},
+            "evidence": [],
+            "meta": {"canonical_key": "gw:IF_CONDITION@n_gw"},
+        })
+        g["edges"].extend([
+            {"frm": "n_gw", "to": "n5", "condition": "IF_CONDITION"},
+            {"frm": "n_gw", "to": "n32", "condition": "IF_CONDITION"},
+        ])
+        g, _ = convert_unparseable_gateways_to_station(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        assert nmap["n_gw"]["kind"] == "task"
+
+
+class TestContractPass10:
+    """Pass 10 postcondition: converted node is SEQUENTIAL_DISPATCH with chain."""
+
+    def test_contract_sequential_dispatch_with_chain(self):
+        g = _minimal()
+        g["nodes"].append({
+            "id": "n_gw", "kind": "gateway", "name": "HAS_PO Fan-out",
+            "action": None,
+            "decision": {"type": "HAS_PO", "inputs": [], "expression": None},
+            "evidence": [],
+            "meta": {"canonical_key": "gw:HAS_PO", "intent_key": "gw:HAS_PO"},
+        })
+        for nid, atype in [("n_t1", "ROUTE_FOR_REVIEW"),
+                           ("n_t2", "REVIEW"),
+                           ("n_t3", "UPDATE_RECORD")]:
+            g["nodes"].append({
+                "id": nid, "kind": "task", "name": f"Task {atype}",
+                "action": {"type": atype, "actor_id": "role_ap_clerk",
+                           "artifact_id": "art_invoice", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": f"task:{atype}@{nid}"},
+            })
+        g["edges"].extend([
+            {"frm": "n_gw", "to": "n_t1", "condition": "has_po == true"},
+            {"frm": "n_gw", "to": "n_t2", "condition": "has_po == true"},
+            {"frm": "n_gw", "to": "n_t3", "condition": "has_po == true"},
+        ])
+        g, _ = convert_whitelisted_fanout_to_sequential(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        assert nmap["n_gw"]["action"]["type"] == "SEQUENTIAL_DISPATCH"
+        assert "chain" in nmap["n_gw"]["action"]["extra"]
+
+
+class TestContractPass11:
+    """Pass 11 postcondition: no gateway has fan-out edges."""
+
+    def test_contract_no_fanout_gateways(self):
+        g = _minimal()
+        # Add ambiguous-route station
+        g["nodes"].append({
+            "id": "n_exc_ambiguous_route", "kind": "task",
+            "name": "Exception — Ambiguous Route",
+            "action": {"type": "ROUTE_FOR_REVIEW", "actor_id": "role_ap_clerk",
+                       "artifact_id": "art_invoice",
+                       "extra": {"reason": "AMBIGUOUS_ROUTE"}},
+            "decision": None, "evidence": [],
+            "meta": {"canonical_key": "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE@n_exc_ambiguous_route",
+                     "intent_key": "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE"},
+        })
+        # Add fan-out gateway
+        g["nodes"].append({
+            "id": "n_gw", "kind": "gateway", "name": "Fan-out",
+            "action": None,
+            "decision": {"type": "HAS_PO", "inputs": [], "expression": None},
+            "evidence": [],
+            "meta": {"canonical_key": "gw:HAS_PO@n_gw"},
+        })
+        for nid in ("n_t1", "n_t2"):
+            g["nodes"].append({
+                "id": nid, "kind": "task", "name": f"Task {nid}",
+                "action": {"type": "TASK_X", "actor_id": "role_ap_clerk",
+                           "artifact_id": "art_invoice", "extra": {}},
+                "decision": None, "evidence": [],
+                "meta": {"canonical_key": f"task:X@{nid}"},
+            })
+        g["edges"].extend([
+            {"frm": "n_gw", "to": "n_t1", "condition": "has_po == true"},
+            {"frm": "n_gw", "to": "n_t2", "condition": "has_po == true"},
+        ])
+        g, _ = convert_fanout_gateways_to_ambiguous_station(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        assert nmap["n_gw"]["kind"] == "task"
+
+
+class TestContractPass12:
+    """Pass 12 postcondition: ENTER_RECORD→rejection edge with status=="BAD_EXTRACTION"."""
+
+    def test_contract_bad_extraction_edge_exists(self):
+        g = _graph_with_enter_record()
+        g, _ = wire_bad_extraction_route(g)
+        cond_edges = [
+            e for e in g["edges"]
+            if e.get("frm") == "n2"
+            and e.get("condition") == 'status == "BAD_EXTRACTION"'
+        ]
+        assert len(cond_edges) == 1
+        assert cond_edges[0]["to"] == "n_reject"
+
+
+class TestContractPass13:
+    """Pass 13 postcondition: every match_result gateway has UNKNOWN edge."""
+
+    def test_contract_unknown_guardrail_injected(self):
+        g = _minimal()
+        # Run pass 4 to get exception stations
+        g, _ = inject_exception_nodes(g)
+        # Create a gateway with match_result edges but no UNKNOWN
+        g["nodes"].append({
+            "id": "n_gw", "kind": "gateway", "name": "Match Decision",
+            "action": None,
+            "decision": {"type": "MATCH_DECISION", "inputs": [], "expression": None},
+            "evidence": [],
+            "meta": {"canonical_key": "gw:MATCH_DECISION@n_gw",
+                     "intent_key": "gw:MATCH_DECISION"},
+        })
+        g["edges"].extend([
+            {"frm": "n_gw", "to": "n5", "condition": 'match_result == "MATCH"'},
+            {"frm": "n_gw", "to": "n_no_match",
+             "condition": 'match_result == "NO_MATCH"'},
+        ])
+        g, _ = inject_match_result_unknown_guardrail(g)
+        unknown_edges = [
+            e for e in g["edges"]
+            if e.get("frm") == "n_gw"
+            and e.get("condition") == 'match_result == "UNKNOWN"'
+        ]
+        assert len(unknown_edges) == 1
+
+
+class TestContractPass14:
+    """Pass 14 postcondition: no duplicate (frm, to, condition) triples."""
+
+    def test_contract_no_duplicate_edges(self):
+        g = _minimal()
+        # Add duplicate edge
+        g["edges"].append({"frm": "n1", "to": "n3", "condition": None})
+        g, _ = deduplicate_edges(g)
+        triples = [
+            (e.get("frm"), e.get("to"), e.get("condition"))
+            for e in g["edges"]
+        ]
+        assert len(triples) == len(set(triples))
+
+
+class TestContractPass15:
+    """Pass 15 postcondition: no duplicate (frm, to, condition) triples (strict)."""
+
+    def test_contract_no_duplicate_edges_strict(self):
+        g = _minimal()
+        # Add duplicate edge
+        g["edges"].append({"frm": "n1", "to": "n3", "condition": None})
+        g, _ = deduplicate_edges_strict(g)
+        triples = [
+            (e.get("frm"), e.get("to"), e.get("condition"))
+            for e in g["edges"]
+        ]
+        assert len(triples) == len(set(triples))
+
+
+# ===========================================================================
+# Synthetic metadata tests — verify passes write correct synthetic fields
+# ===========================================================================
+
+class TestSyntheticMetadataPass5b(TestFixSecondaryMatchGateways):
+    """Pass 5b: decision node has synthetic + assumption + origin_pass."""
+
+    def test_decision_node_synthetic_metadata(self):
+        g = self._graph_with_n5_noise()
+        g, _ = fix_secondary_match_gateways(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        meta = nmap["n5_decision"]["meta"]
+        assert meta.get("synthetic") is True
+        assert meta["semantic_assumption"] == "match_3way_task_decision_split"
+        assert meta["origin_pass"] == "fix_secondary_match_gateways"
+
+    def test_task_node_synthetic_metadata(self):
+        g = self._graph_with_n5_noise()
+        g, _ = fix_secondary_match_gateways(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        meta = nmap["n5"]["meta"]
+        assert meta.get("synthetic") is True
+        assert meta["semantic_assumption"] == "match_3way_task_decision_split"
+        assert meta["origin_pass"] == "fix_secondary_match_gateways"
+
+
+class TestSyntheticMetadataPass8(TestFixPlaceholderGateways):
+    """Pass 8 (n28): node has synthetic_edges list with correct entries."""
+
+    def test_n28_synthetic_edges(self):
+        g = self._graph_with_n16_n28()
+        g, _ = fix_placeholder_gateways(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        se = nmap["n28"]["meta"].get("synthetic_edges", [])
+        assert len(se) == 2
+        assumptions = {e["semantic_assumption"] for e in se}
+        assert assumptions == {"duplicate_check_derivable"}
+        for entry in se:
+            assert entry["origin_pass"] == "fix_placeholder_gateways"
+            assert "to" in entry
+            assert "condition" in entry
+
+
+class TestSyntheticMetadataPass9(TestConvertUnparseableGatewaysToStation):
+    """Pass 9: converted node has synthetic + assumption + origin_pass."""
+
+    def test_converted_node_synthetic_metadata(self):
+        g = self._graph_with_unparseable_gateway()
+        g, _ = convert_unparseable_gateways_to_station(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        meta = nmap["n_gw"]["meta"]
+        assert meta.get("synthetic") is True
+        assert meta["semantic_assumption"] == "fail_closed_unmodeled"
+        assert meta["origin_pass"] == "convert_unparseable_gateways_to_station"
+
+
+class TestSyntheticMetadataPass10(TestConvertWhitelistedFanoutToSequential):
+    """Pass 10: converted node has synthetic + assumption + origin_pass."""
+
+    def test_converted_node_synthetic_metadata(self):
+        g = self._graph_with_haspo_fanout()
+        g, _ = convert_whitelisted_fanout_to_sequential(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        meta = nmap["n_gw"]["meta"]
+        assert meta.get("synthetic") is True
+        assert meta["semantic_assumption"] == "do_all_sequential"
+        assert meta["origin_pass"] == "convert_whitelisted_fanout_to_sequential"
+
+
+class TestSyntheticMetadataPass11(TestConvertFanoutGatewaysToAmbiguousStation):
+    """Pass 11: converted node has synthetic + assumption + origin_pass."""
+
+    def test_converted_node_synthetic_metadata(self):
+        g = self._graph_with_fanout_gateway()
+        g, _ = convert_fanout_gateways_to_ambiguous_station(g)
+        nmap = {n["id"]: n for n in g["nodes"]}
+        meta = nmap["n_gw"]["meta"]
+        assert meta.get("synthetic") is True
+        assert meta["semantic_assumption"] == "fail_closed_ambiguous"
+        assert meta["origin_pass"] == "convert_fanout_gateways_to_ambiguous_station"

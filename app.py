@@ -15,7 +15,7 @@ import pandas as pd
 import streamlit as st
 
 from src.agent.compiler import build_ap_graph
-from src.agent.state import APState
+from src.agent.state import APState, make_initial_state
 from src.ui_audit import (
     extract_exception_event,
     extract_match_event,
@@ -301,22 +301,11 @@ with st.status("Agent processing invoice...", expanded=True) as status:
     inv_id = _parse_invoice_id(raw_text)
     st.write(f"Extracting structured variables from invoice text — {inv_id} ...")
 
-    initial_state: APState = {
-        "invoice_id":       inv_id,
-        "vendor":           "",
-        "amount":           0.0,
-        "has_po":           False,
-        "po_match":         po_match,
-        "match_3_way":      po_match,
-        "match_result":     "UNKNOWN",
-        "status":           "NEW",
-        "current_node":     "",
-        "last_gateway":     "",
-        "audit_log":        [],
-        "raw_text":         raw_text,
-        "extraction":       {},
-        "provenance":       {},
-    }
+    initial_state: APState = make_initial_state(
+        invoice_id=inv_id,
+        raw_text=raw_text,
+        po_match=po_match,
+    )
 
     result: APState = agent.invoke(initial_state)
 

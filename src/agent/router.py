@@ -6,6 +6,11 @@ Deterministic edge router for the AP process agent.
 It evaluates each outgoing edge's condition string against the current
 APState and returns the target node ID to follow next.
 
+The core evaluation logic lives in ``analyze_routing()`` — a **pure**
+function that returns a structured ``RouteResult`` without side effects.
+``route_edge`` is a thin wrapper that delegates to ``analyze_routing``,
+then handles station resolution and JSONL logging for exception cases.
+
 Strict 2-phase evaluation
 -------------------------
 Phase 1 — Conditional edges (edges with a non-None ``condition``):
@@ -31,6 +36,14 @@ before the 2-phase logic kicks in.
 All condition compilation is done via ``src.conditions.get_predicate``
 which normalises, parses, and caches predicates safely (no eval).
 
+RouteResult.candidates[].matched semantics (frozen)
+----------------------------------------------------
+- Conditional edges: ``True`` (evaluated true) / ``False`` (evaluated false)
+- Unconditional edges: always ``None`` — never True/False
+- Short-circuited paths (single_edge, all_same_target): all ``None``
+- Selection of unconditional fallback communicated via
+  ``reason="unconditional_fallback"`` + ``selected``, not matched=True
+
 Raises
 ------
 RouterError
@@ -40,6 +53,8 @@ ValueError
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from .state import APState
 from ..conditions import get_predicate
 from ..unmodeled import record_event
@@ -47,6 +62,131 @@ from ..unmodeled import record_event
 
 class RouterError(Exception):
     """Raised when no valid outgoing edge can be selected."""
+
+
+# ---------------------------------------------------------------------------
+# RouteResult — structured output from analyze_routing()
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RouteResult:
+    """Structured result from ``analyze_routing()``."""
+    selected: str | None
+    """Target node ID, or None when ambiguous_route / no_route."""
+    reason: str
+    """One of: single_edge, all_same_target, condition_match,
+    unconditional_fallback, ambiguous_route, no_route."""
+    candidates: list[dict] = field(default_factory=list)
+    """[{"to": str, "condition": str|None, "matched": bool|None}]"""
+
+
+# ---------------------------------------------------------------------------
+# Pure routing analysis
+# ---------------------------------------------------------------------------
+
+def analyze_routing(
+    state: APState,
+    outgoing_edges: list[dict],
+) -> RouteResult:
+    """
+    Pure routing analysis — no side effects, no station resolution.
+
+    Evaluates outgoing edges against *state* and returns a structured
+    ``RouteResult``.  ``selected`` is ``None`` for ambiguous_route / no_route;
+    the caller handles station resolution and logging.
+
+    Raises ``RouterError`` if *outgoing_edges* is empty.
+    """
+    if not outgoing_edges:
+        raise RouterError("No outgoing edges — cannot determine next step.")
+
+    # --- Trivial: single outgoing edge ---
+    if len(outgoing_edges) == 1:
+        e = outgoing_edges[0]
+        return RouteResult(
+            selected=e["to"],
+            reason="single_edge",
+            candidates=[{"to": e["to"], "condition": e.get("condition"),
+                         "matched": None}],
+        )
+
+    # --- All edges lead to the same target ---
+    unique_targets = list(dict.fromkeys(e["to"] for e in outgoing_edges))
+    if len(unique_targets) == 1:
+        return RouteResult(
+            selected=unique_targets[0],
+            reason="all_same_target",
+            candidates=[{"to": e["to"], "condition": e.get("condition"),
+                         "matched": None} for e in outgoing_edges],
+        )
+
+    # =================================================================
+    # Phase 1 — Conditional edges
+    # =================================================================
+    candidates: list[dict] = []
+    cond_matches: list[str] = []
+
+    conditional = [e for e in outgoing_edges if e.get("condition") is not None]
+    unconditional = [e for e in outgoing_edges if e.get("condition") is None]
+
+    for edge in conditional:
+        predicate = get_predicate(edge["condition"])
+        matched = predicate is not None and predicate(state)
+        candidates.append({
+            "to": edge["to"],
+            "condition": edge["condition"],
+            "matched": matched,
+        })
+        if matched:
+            cond_matches.append(edge["to"])
+
+    # Unconditional edges always have matched=None
+    for edge in unconditional:
+        candidates.append({
+            "to": edge["to"],
+            "condition": None,
+            "matched": None,
+        })
+
+    if len(cond_matches) == 1:
+        return RouteResult(
+            selected=cond_matches[0],
+            reason="condition_match",
+            candidates=candidates,
+        )
+
+    if len(cond_matches) > 1:
+        return RouteResult(
+            selected=None,
+            reason="ambiguous_route",
+            candidates=candidates,
+        )
+
+    # =================================================================
+    # Phase 2 — Unconditional edges (Phase 1 had 0 matches)
+    # =================================================================
+    if len(unconditional) == 1:
+        return RouteResult(
+            selected=unconditional[0]["to"],
+            reason="unconditional_fallback",
+            candidates=candidates,
+        )
+
+    if len(unconditional) > 1:
+        return RouteResult(
+            selected=None,
+            reason="ambiguous_route",
+            candidates=candidates,
+        )
+
+    # =================================================================
+    # No matches in either phase → NO_ROUTE
+    # =================================================================
+    return RouteResult(
+        selected=None,
+        reason="no_route",
+        candidates=candidates,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +251,9 @@ def route_edge(
     """
     Return the ``node_id`` of the next node to execute.
 
+    Delegates to ``analyze_routing()`` for the pure evaluation, then
+    handles station resolution and JSONL logging for exception cases.
+
     Parameters
     ----------
     state          : current APState snapshot
@@ -121,71 +264,28 @@ def route_edge(
                      situations raise ``RouterError`` instead of routing to
                      a station (backward-compat for tests without stations).
     """
-    if not outgoing_edges:
-        raise RouterError(
-            f"Node {node_data['id']!r} has no outgoing edges — "
-            "cannot determine next step."
-        )
+    result = analyze_routing(state, outgoing_edges)
 
-    # --- Trivial: single outgoing edge ---
-    if len(outgoing_edges) == 1:
-        return outgoing_edges[0]["to"]
+    if result.selected is not None:
+        return result.selected
 
-    # --- All edges lead to the same target (dedup check) ---
-    unique_targets = list(dict.fromkeys(e["to"] for e in outgoing_edges))
-    if len(unique_targets) == 1:
-        return unique_targets[0]
+    # --- Exception: ambiguous_route or no_route ---
+    matched_targets = [
+        c["to"] for c in result.candidates if c.get("matched") is True
+    ]
+    _log_unmodeled(
+        result.reason.upper(), node_data, state,
+        matched_targets or None,
+    )
 
-    # =================================================================
-    # Phase 1 — Conditional edges
-    # =================================================================
-    conditional = [e for e in outgoing_edges if e.get("condition") is not None]
-    cond_matches: list[str] = []
-
-    for edge in conditional:
-        predicate = get_predicate(edge["condition"])
-        if predicate is not None and predicate(state):
-            cond_matches.append(edge["to"])
-
-    if len(cond_matches) == 1:
-        return cond_matches[0]
-
-    if len(cond_matches) > 1:
-        # AMBIGUOUS_ROUTE — multiple conditional edges matched
-        _log_unmodeled("AMBIGUOUS_ROUTE", node_data, state, cond_matches)
-        if station_map is not None:
-            return _resolve_station(station_map, _AMBIGUOUS_INTENT)
-        raise RouterError(
-            f"Node {node_data['id']!r}: {len(cond_matches)} conditional edges "
-            f"matched — ambiguous route: {cond_matches}"
-        )
-
-    # =================================================================
-    # Phase 2 — Unconditional edges (only when Phase 1 had 0 matches)
-    # =================================================================
-    unconditional = [e for e in outgoing_edges if e.get("condition") is None]
-
-    if len(unconditional) == 1:
-        return unconditional[0]["to"]
-
-    if len(unconditional) > 1:
-        # AMBIGUOUS_ROUTE — multiple unconditional edges
-        targets = [e["to"] for e in unconditional]
-        _log_unmodeled("AMBIGUOUS_ROUTE", node_data, state, targets)
-        if station_map is not None:
-            return _resolve_station(station_map, _AMBIGUOUS_INTENT)
-        raise RouterError(
-            f"Node {node_data['id']!r}: {len(unconditional)} unconditional edges "
-            f"— ambiguous route: {targets}"
-        )
-
-    # =================================================================
-    # No matches in either phase → NO_ROUTE
-    # =================================================================
-    _log_unmodeled("NO_ROUTE", node_data, state)
     if station_map is not None:
-        return _resolve_station(station_map, _NO_ROUTE_INTENT)
+        intent = (
+            _AMBIGUOUS_INTENT if result.reason == "ambiguous_route"
+            else _NO_ROUTE_INTENT
+        )
+        return _resolve_station(station_map, intent)
+
     raise RouterError(
-        f"Node {node_data['id']!r}: no conditional or unconditional edge "
-        "matched — no route available."
+        f"Node {node_data['id']!r}: {result.reason} — "
+        f"candidates: {result.candidates}"
     )

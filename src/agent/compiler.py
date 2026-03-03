@@ -111,7 +111,7 @@ def build_ap_graph(json_path: str):
     # Register every node from the JSON
     for node in nodes:
         nid     = node["id"]
-        handler = create_node_handler(nid, node)
+        handler = create_node_handler(nid, node, outgoing.get(nid, []))
         graph.add_node(nid, handler)
 
     # Wire edges

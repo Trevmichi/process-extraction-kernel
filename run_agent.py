@@ -14,33 +14,23 @@ import sys
 from pprint import pprint
 
 from src.agent.compiler import build_ap_graph
-from src.agent.state import APState
+from src.agent.state import APState, make_initial_state
 
 
 # ---------------------------------------------------------------------------
 # Mock invoice — raw text; ENTER_RECORD and VALIDATE_FIELDS nodes will
 # call the local LLM to extract and validate the structured fields.
 # ---------------------------------------------------------------------------
-MOCK_INVOICE: APState = {
-    "invoice_id":       "INV-1001",
-    "vendor":           "",       # to be extracted by LLM at ENTER_RECORD
-    "amount":           0.0,      # to be extracted by LLM at ENTER_RECORD
-    "has_po":           False,    # to be extracted by LLM at ENTER_RECORD
-    "po_match":         True,     # within tolerance → APPROVE path after 3-way match
-    "match_3_way":      True,     # mirrors po_match
-    "match_result":     "UNKNOWN",  # set by MATCH_3_WAY node
-    "status":           "NEW",
-    "current_node":     "",
-    "audit_log":        [],
-    "raw_text": (
+MOCK_INVOICE: APState = make_initial_state(
+    invoice_id="INV-1001",
+    raw_text=(
         "INVOICE #9921\n"
         "From: Acme Corp\n"
         "Total Due: $15,000.00\n"
         "Includes PO Number: PO-55421"
     ),
-    "extraction":       {},
-    "provenance":       {},
-}
+    po_match=True,
+)
 
 
 def main() -> None:

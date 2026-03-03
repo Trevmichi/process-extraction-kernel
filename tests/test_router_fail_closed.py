@@ -173,7 +173,7 @@ class TestNoRoute:
             {"frm": "n1", "to": "n2", "condition": "has_po == false"},
             {"frm": "n1", "to": "n3", "condition": "amount > 9999"},
         ]
-        with pytest.raises(RouterError, match="no route"):
+        with pytest.raises(RouterError, match="no_route"):
             route_edge(_state(has_po=True, amount=500.0), edges, _node())
 
 

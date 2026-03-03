@@ -17,7 +17,7 @@ import sys
 from collections import defaultdict
 
 from src.agent.compiler import build_ap_graph
-from src.agent.state import APState
+from src.agent.state import APState, make_initial_state
 
 
 # ---------------------------------------------------------------------------
@@ -107,22 +107,11 @@ def main() -> None:
         inv_id = _parse_invoice_id(raw_text, fallback=f"INV-{idx + 1:03d}")
         print(f"  [{idx + 1}/{len(RAW_INVOICES)}] {inv_id} ... ", end="", flush=True)
 
-        initial_state: APState = {
-            "invoice_id":       inv_id,
-            "vendor":           "",       # extracted by ENTER_RECORD smart node
-            "amount":           0.0,      # extracted by ENTER_RECORD smart node
-            "has_po":           False,    # extracted by ENTER_RECORD smart node
-            "po_match":         _PO_MATCH_FLAGS[idx],
-            "match_3_way":      _PO_MATCH_FLAGS[idx],  # mirrors po_match until ERP integration
-            "match_result":     "UNKNOWN",  # set by MATCH_3_WAY node
-            "status":           "NEW",
-            "current_node":     "",
-            "last_gateway":     "",
-            "audit_log":        [],
-            "raw_text":         raw_text,
-            "extraction":       {},
-            "provenance":       {},
-        }
+        initial_state: APState = make_initial_state(
+            invoice_id=inv_id,
+            raw_text=raw_text,
+            po_match=_PO_MATCH_FLAGS[idx],
+        )
 
         result: APState = graph.invoke(initial_state)
 
