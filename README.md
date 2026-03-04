@@ -81,7 +81,7 @@ streamlit run app.py
 
 ## Current Metrics
 
-- **648** tests passing
+- **651** tests passing
 - **50/50** terminal accuracy (eval harness, mock mode)
 - **150/150** field accuracy (3 fields x 50 invoices)
 - **0** linter errors on production graph
