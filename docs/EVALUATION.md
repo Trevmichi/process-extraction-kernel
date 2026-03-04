@@ -15,6 +15,8 @@ invoices with known expected outputs. It supports two modes:
 | File | Role |
 |------|------|
 | `eval_runner.py` | Evaluation runner (mock + live modes) |
+| `scripts/qa_eval.sh` | QA script — pytest + eval (Bash) |
+| `scripts/qa_eval.ps1` | QA script — pytest + eval (PowerShell) |
 | `tests/test_eval_harness.py` | CI validation of dataset integrity |
 | `datasets/expected.jsonl` | 50 gold records (1 JSON line per invoice) |
 | `datasets/gold_invoices/` | 50 invoice text files |
