@@ -1,0 +1,14 @@
+ACME Industrial Supply
+123 Industrial Way, Sector 4
+
+Invoice Number: INV-1031
+Date: 2023-10-01
+PO-45992
+
+Items:
+
+Heavy Machinery Part A: $400.00
+
+Heavy Machinery Part B: $435.45
+
+Total Amount Due: $835.45

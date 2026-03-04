@@ -1,0 +1,12 @@
+Atlas Electrical Supply
+400 Power Lane
+
+Invoice: INV-1039
+Date: 11/02/2023
+
+Item: Copper Wire Spools
+Quantity: 10
+Price: $60.00
+
+Total: $600.00
+PO: None

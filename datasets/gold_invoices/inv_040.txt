@@ -1,0 +1,10 @@
+MetroTech Services
+Date: 2023-11-05
+Invoice Number: INV-1040
+
+Consulting hours: 10
+Rate: $110/hr
+
+Amount Due: $1100.00
+Please pay within 15 days.
+PO: None

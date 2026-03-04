@@ -1,0 +1,12 @@
+Silverline Packaging
+Silverline Packaging HQ
+Invoice: INV-1048
+PO-44332
+
+Cartons: $500.00
+Tax: $100.00
+
+Subtotal: $500.00
+Total: $600.00
+Previous Balance: $0.00
+Balance Due $600.00

@@ -14,6 +14,41 @@ Each line is a JSON object with these required keys:
 | `mock_extraction` | object | Per-invoice mock LLM return: `vendor`, `amount`, `has_po` |
 | `tags` | list[string] | Scenario labels for filtering (e.g. `"happy_path"`, `"no_po"`) |
 
+### Optional keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `expected_trace` | object | Lightweight path-correctness assertions (see below) |
+| `expected_failures` | list[string] | Expected status values for negative-case cohorts |
+| `notes` | string | Free text for dataset maintainers |
+
+### `expected_trace` sub-keys
+
+```json
+{
+  "must_include": ["route_decision", "n3"],
+  "must_exclude": ["n_reject"]
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `must_include` | list[string] | Event types or node IDs that must appear in the audit log |
+| `must_exclude` | list[string] | Event types or node IDs that must NOT appear in the audit log |
+
+Labels are matched against parsed audit_log entries:
+- Event types (e.g. `"route_decision"`, `"extraction"`, `"exception_station"`) match the `event` field
+- Node IDs (e.g. `"n3"`, `"n_reject"`) match `from_node`, `selected`, or `node` fields
+
+Node IDs come from `outputs/ap_master_manual_auto_patched.json` and may change only
+when graph topology changes (guarded by the production graph regression test).
+
+### `expected_failures`
+
+Static annotation for cohort reporting. Values must match actual `state["status"]`
+values (e.g. `"BAD_EXTRACTION"`, `"MISSING_DATA"`, `"EXCEPTION_NO_PO"`). This is
+metadata for analysis, not an additional evaluation check.
+
 ### `expected_fields` sub-keys
 
 | Field | Type | Description |
@@ -42,7 +77,9 @@ The runtime verifier (`src/verifier.py`) normalizes both evidence and raw text v
   `"Total: $1,500.00"`, `"Total Due: 470.00"`)
 - **Vendor evidence**: Use the vendor name as it appears in the text
 - **has_po evidence (true)**: Use the explicit PO line (e.g. `"PO Number: PO-77321"`)
-- **has_po evidence (false)**: Use `"PO: None"` (added to no-PO invoices)
+- **has_po evidence (false)**: Use `"PO: None"` (added to no-PO invoices).
+  `has_po.evidence` must always be a non-null grounded string, even when
+  `value=false`. Null is not allowed.
 
 ### PO Evidence Rule
 
@@ -82,10 +119,44 @@ When comparing extracted fields against expected values:
 | `amount` | None | `abs(expected - actual) <= 0.01` |
 | `has_po` | None | Strict equality |
 
+## Tag Taxonomy
+
+Tags should be lowercase `snake_case`. Recommended categories:
+
+**Core scenario tags** (at least one required):
+
+| Tag | Meaning |
+|-----|---------|
+| `happy_path` | Normal invoice with PO, amount under threshold |
+| `no_po` | No purchase order reference |
+| `match_fail` | PO exists but 3-way match fails |
+| `bad_extraction` | Expected extraction failure |
+| `missing_data` | Expected missing-data rejection |
+
+**Format tags** (optional, describe invoice structure):
+
+`single_line`, `multi_line`, `table_like`, `email_style`, `footer_total`,
+`multi_section`, `simple`, `weird_spacing`, `multiple_totals`, `noisy_header`,
+`prose_po_reference`
+
+**Vendor tags** (optional, prefix with `vendor_`):
+
+`vendor_acme`, `vendor_north_river`, `vendor_global_logistics`, `vendor_trigate`,
+`vendor_apex`, `vendor_horizon`, `vendor_delta`, `vendor_silverline`,
+`vendor_atlas`, `vendor_metrotech`
+
+---
+
 ## Adding New Gold Invoices
 
 1. Add a `.txt` file to `datasets/gold_invoices/`
 2. Append a JSON line to `datasets/expected.jsonl` following the schema above
 3. Ensure all evidence strings are verbatim substrings of the invoice text
 4. If the invoice has no PO, add an explicit `PO: None` line to the text file
+   (`has_po.evidence` must be a non-null grounded string)
 5. Update `datasets/gold_invoices/README.md` with the new entry
+6. Validate:
+   ```bash
+   python -m pytest tests/test_eval_harness.py::TestEvidenceGrounding -v
+   python eval_runner.py --filter <invoice_ids> --show-failures
+   ```
