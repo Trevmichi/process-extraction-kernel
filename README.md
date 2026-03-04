@@ -41,6 +41,9 @@ python patch_logic.py
 # 5. Run eval harness in mock mode (no LLM needed)
 python eval_runner.py
 
+# 5b. Run full QA check (tests + eval, no LLM needed)
+bash scripts/qa_eval.sh          # or: pwsh scripts/qa_eval.ps1
+
 # 6. Run eval harness with live LLM
 python eval_runner.py --live
 
@@ -59,7 +62,7 @@ streamlit run app.py
 |----------|----------|
 | [Architecture](docs/ARCHITECTURE.md) | Pipeline diagram, subsystem reference (normalizer, DSL, router, verifier, linter) |
 | [Project History](docs/PROJECT_HISTORY.md) | Era-based timeline grounded in git log |
-| [Evaluation Harness](docs/EVALUATION.md) | 30 gold invoices, evidence grounding rules, mock dispatch, metrics |
+| [Evaluation Harness](docs/EVALUATION.md) | 50 gold invoices, evidence grounding rules, mock dispatch, metrics |
 | [Changelog](CHANGELOG.md) | Milestone list with commit citations |
 
 ---
@@ -78,7 +81,7 @@ streamlit run app.py
 
 ## Current Metrics
 
-- **637** tests passing
-- **30/30** terminal accuracy (eval harness, mock mode)
-- **90/90** field accuracy (3 fields x 30 invoices)
+- **648** tests passing
+- **50/50** terminal accuracy (eval harness, mock mode)
+- **150/150** field accuracy (3 fields x 50 invoices)
 - **0** linter errors on production graph

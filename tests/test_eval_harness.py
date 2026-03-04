@@ -24,6 +24,7 @@ from eval_runner import (
     compute_metrics,
     load_expected,
     load_invoice_text,
+    should_exit_zero,
 )
 from src.verifier import _normalize_text
 
@@ -311,3 +312,28 @@ class TestTraceChecks:
         audit_log = ["Executed APPROVE at n6", "Validation result: ok"]
         result = check_trace(audit_log, {"must_include": ["route_decision"]})
         assert result["must_include_passed"] is False
+
+
+# ===========================================================================
+# TestExitCodeLogic
+# ===========================================================================
+
+class TestExitCodeLogic:
+
+    def test_all_pass(self):
+        """Both 100% terminal and field accuracy → exit zero."""
+        m = {"terminal_accuracy": {"accuracy": 1.0},
+             "field_accuracy": {"overall": {"accuracy": 1.0}}}
+        assert should_exit_zero(m) is True
+
+    def test_field_only_failure(self):
+        """terminal=100%, field<100% → exit non-zero."""
+        m = {"terminal_accuracy": {"accuracy": 1.0},
+             "field_accuracy": {"overall": {"accuracy": 0.99}}}
+        assert should_exit_zero(m) is False
+
+    def test_terminal_only_failure(self):
+        """terminal<100%, field=100% → exit non-zero."""
+        m = {"terminal_accuracy": {"accuracy": 0.98},
+             "field_accuracy": {"overall": {"accuracy": 1.0}}}
+        assert should_exit_zero(m) is False
