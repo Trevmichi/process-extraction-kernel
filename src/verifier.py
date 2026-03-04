@@ -369,6 +369,14 @@ def _verify_has_po(
     # PO pattern check (only when has_po is True)
     if value is True:
         pattern_found = bool(_PO_RE.search(evidence))
+        
+        # If the direct evidence lacks a PO keyword, check the surrounding text context
+        if not pattern_found:
+            norm_ev = _normalize_text(evidence)
+            window_start = max(0, idx - 50)
+            window_end = min(len(norm_raw), idx + len(norm_ev) + 50)
+            pattern_found = bool(_PO_RE.search(norm_raw[window_start:window_end]))
+            
         prov["has_po"]["po_pattern_found"] = pattern_found
         if not pattern_found:
             codes.append("PO_PATTERN_MISSING")
