@@ -221,6 +221,16 @@ def check_trace(audit_log: list, expected_trace: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Exit-code decision
+# ---------------------------------------------------------------------------
+def should_exit_zero(metrics: dict) -> bool:
+    """Return True when both terminal and field accuracy are 100%."""
+    ta = metrics["terminal_accuracy"]["accuracy"]
+    fa = metrics["field_accuracy"]["overall"]["accuracy"]
+    return ta == 1.0 and fa == 1.0
+
+
+# ---------------------------------------------------------------------------
 # Evaluation loop
 # ---------------------------------------------------------------------------
 def run_eval(
@@ -569,8 +579,8 @@ def main() -> None:
     write_md_report(metrics, "eval_report.md", group_by_tag=args.group_by_tag)
     print(f"\n[eval] Reports written: eval_report.json, eval_report.md")
 
-    # Exit code: non-zero if terminal accuracy < 100%
-    sys.exit(0 if ta["accuracy"] == 1.0 else 1)
+    # Exit code: non-zero if terminal or field accuracy < 100%
+    sys.exit(0 if should_exit_zero(metrics) else 1)
 
 
 if __name__ == "__main__":

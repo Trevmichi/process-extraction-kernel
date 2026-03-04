@@ -264,6 +264,36 @@ python eval_runner.py --expected datasets/expected.jsonl --graph outputs/ap_mast
 
 ---
 
+## Contributor Workflow: Adding Invoices
+
+After adding or modifying gold invoices, run the QA script to validate everything:
+
+```bash
+# Bash / Git Bash
+bash scripts/qa_eval.sh
+
+# PowerShell
+pwsh scripts/qa_eval.ps1
+```
+
+The script runs two checks in sequence:
+1. **pytest** -- all unit tests including evidence grounding
+2. **eval harness** -- mock-mode with `--group-by-tag --show-failures`
+
+**Reading the output**:
+
+- **Tag breakdown table**: Per-tag terminal and field accuracy. Look for any tag
+  with accuracy < 100%.
+- **Failure summary**: Invoices grouped by failure bucket
+  (`terminal_mismatch`, `field_mismatch`, `both_terminal_and_field_mismatch`).
+  Each entry shows expected vs actual status and which fields mismatched.
+- **Exit code**: non-zero if pytest fails OR any invoice has terminal or field
+  accuracy < 100%.
+
+If the script prints `QA: OK` and exits 0, the dataset is clean.
+
+---
+
 ## Tag Taxonomy
 
 Tags should be lowercase `snake_case`. Recommended categories:
