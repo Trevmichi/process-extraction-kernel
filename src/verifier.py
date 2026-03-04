@@ -64,7 +64,8 @@ def _extract_numbers(evidence: str) -> list[tuple[float, int]]:
 
     Currency symbols and commas are stripped before parsing.
     """
-    cleaned = _CURRENCY_RE.sub("", evidence)
+    # Replace with space instead of empty string to preserve match indices
+    cleaned = _CURRENCY_RE.sub(" ", evidence)
     results: list[tuple[float, int]] = []
     for m in _NUM_RE.finditer(cleaned):
         raw = m.group().replace(",", "")
@@ -101,7 +102,7 @@ def _disambiguate_amount(
 # ---------------------------------------------------------------------------
 
 _PO_RE = re.compile(
-    r"\b(PO|Purchase\s+Order)\b|\bP\.O\.(?:\s|$|#)|PO-?\d+",
+    r"\b(PO|Purchase\s+Order|REF|Reference)\b|\bP\.O\.(?:\s|$|#)|(?:PO|REF)-?\d+",
     re.IGNORECASE,
 )
 
