@@ -20,5 +20,8 @@ eval_audit_report.md
 # Test caches
 .pytest_cache/
 
+# Local binaries
+bin/
+
 # Generated runtime logs & build outputs
 outputs/

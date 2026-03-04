@@ -11,13 +11,16 @@ Usage
     # Dry run (review proposed patch, no git changes)
     python scripts/auto_optimizer.py --dry-run
 
-    # Full run (branch, test, PR)
+    # Full run — fix first failure (branch, test, PR)
     python scripts/auto_optimizer.py
+
+    # Sweep mode — fix ALL failures, cap at 5
+    python scripts/auto_optimizer.py --sweep --limit 5
 
 Prerequisites
 -------------
-    pip install google-genai
-    export GEMINI_API_KEY="your-key-here"
+    pip install requests
+    export GOOGLE_API_KEY="your-key-here"
     gh auth login
 """
 from __future__ import annotations
@@ -42,6 +45,19 @@ _DEFAULT_REPORT = _PROJECT_ROOT / "eval_report.json"
 # Stage 1: Triage — find the first failure
 # ---------------------------------------------------------------------------
 
+def _parse_failure(inv: dict) -> dict:
+    """Extract failure details from a per_invoice record."""
+    return {
+        "invoice_id": inv["invoice_id"],
+        "failure_bucket": inv["failure_bucket"],
+        "field_mismatches": inv.get("field_mismatches", []),
+        "failure_codes": inv.get("failure_codes", []),
+        "raw_text": inv.get("raw_text", ""),
+        "action_plan": inv.get("action_plan", {}),
+        "extraction": inv.get("extraction", {}),
+    }
+
+
 def stage_triage(report_path: Path) -> dict | None:
     """Read eval_report.json and return details of the first failing invoice.
 
@@ -52,17 +68,25 @@ def stage_triage(report_path: Path) -> dict | None:
 
     for inv in report.get("per_invoice", []):
         if inv.get("failure_bucket", "pass") != "pass":
-            return {
-                "invoice_id": inv["invoice_id"],
-                "failure_bucket": inv["failure_bucket"],
-                "field_mismatches": inv.get("field_mismatches", []),
-                "failure_codes": inv.get("failure_codes", []),
-                "raw_text": inv.get("raw_text", ""),
-                "action_plan": inv.get("action_plan", {}),
-                "extraction": inv.get("extraction", {}),
-            }
+            return _parse_failure(inv)
 
     return None
+
+
+def stage_triage_all(report_path: Path) -> list[dict]:
+    """Read eval_report.json and return ALL unique failures."""
+    with open(report_path, encoding="utf-8") as f:
+        report = json.load(f)
+
+    seen: set[str] = set()
+    failures: list[dict] = []
+    for inv in report.get("per_invoice", []):
+        if inv.get("failure_bucket", "pass") != "pass":
+            inv_id = inv["invoice_id"]
+            if inv_id not in seen:
+                seen.add(inv_id)
+                failures.append(_parse_failure(inv))
+    return failures
 
 
 # ---------------------------------------------------------------------------
@@ -105,13 +129,13 @@ def stage_gemini(failure: dict, verifier_code: str) -> str:
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-    print("[Stage 2] Calling Gemini API (direct REST) ...")
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    t0 = datetime.now()
+    print(f"[Stage 2] Calling Gemini API (direct REST) ... [{t0:%H:%M:%S}]")
+    response = requests.post(url, json=payload, headers=headers, timeout=120)
+    response.raise_for_status()
+    t1 = datetime.now()
+    print(f"[Stage 2] Response received [{t1:%H:%M:%S}] ({(t1-t0).seconds}s)")
     result = response.json()
-
-    if response.status_code != 200:
-        print(f"ERROR: Gemini API returned {response.status_code}: {result}")
-        sys.exit(1)
 
     raw_code = result["candidates"][0]["content"]["parts"][0]["text"]
     return _strip_markdown_fences(raw_code)
@@ -154,12 +178,21 @@ def stage_crucible(
     print(f"[Stage 3] Writing patched src/verifier.py ...")
     _VERIFIER_PATH.write_text(patched_code, encoding="utf-8")
 
-    print(f"[Stage 3] Running test suite ...")
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/", "-q"],
-        capture_output=True, text=True, cwd=str(_PROJECT_ROOT),
-    )
+    t0 = datetime.now()
+    print(f"[Stage 3] Running test suite (60s timeout) ... [{t0:%H:%M:%S}]")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/", "-q"],
+            capture_output=True, text=True, cwd=str(_PROJECT_ROOT),
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        t1 = datetime.now()
+        print(f"  TIMEOUT: Tests exceeded 60 seconds [{t1:%H:%M:%S}] — marking as failed.")
+        return False, branch, "TIMEOUT"
 
+    t1 = datetime.now()
+    print(f"[Stage 3] Tests finished [{t1:%H:%M:%S}] ({(t1-t0).seconds}s)")
     print(result.stdout[-500:] if len(result.stdout) > 500 else result.stdout)
     if result.stderr:
         print(result.stderr[-300:] if len(result.stderr) > 300 else result.stderr)
@@ -195,11 +228,9 @@ def stage_delivery(
              f"Auto-Optimization: Patch verifier logic for {invoice_id}"])
         run(["git", "push", "-u", "origin", branch])
         run(["gh", "pr", "create",
-             "--title", f"Auto-Patch: Fix {invoice_id}",
-             "--body",
-             "The evaluation harness identified a failure. "
-             "The Gemini Meta-Agent successfully patched `verifier.py`. "
-             "All tests pass."])
+             "--head", branch,
+             "--base", original_branch,
+             "--fill"])
         run(["git", "checkout", original_branch])
         print(f"  PR created for {invoice_id} on branch {branch}.")
 
@@ -216,6 +247,10 @@ def main() -> None:
                         help="Path to eval_report.json")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run triage + Gemini only; skip git/PR operations")
+    parser.add_argument("--sweep", action="store_true",
+                        help="Process ALL failures instead of just the first")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Max number of failures to process in sweep mode (0 = no limit)")
     args = parser.parse_args()
 
     report_path = Path(args.report)
@@ -232,39 +267,69 @@ def main() -> None:
 
     # ---- Stage 1: Triage ----
     print(f"[Stage 1] Reading {report_path} ...")
-    failure = stage_triage(report_path)
-    if failure is None:
-        print("All tests passed. Nothing to optimize.")
-        sys.exit(0)
 
-    inv_id = failure["invoice_id"]
-    print(f"  Found failure: {inv_id}")
-    print(f"  Bucket:        {failure['failure_bucket']}")
-    print(f"  Fields:        {failure['field_mismatches']}")
-    print(f"  Codes:         {failure['failure_codes']}")
-    print(f"  Triage owner:  {failure['action_plan'].get('owner', 'unknown')}")
+    if args.sweep:
+        failures = stage_triage_all(report_path)
+        if not failures:
+            print("All tests passed. Nothing to optimize.")
+            sys.exit(0)
+        if args.limit > 0:
+            failures = failures[:args.limit]
+        print(f"  Sweep mode: {len(failures)} failure(s) to process")
+    else:
+        failure = stage_triage(report_path)
+        if failure is None:
+            print("All tests passed. Nothing to optimize.")
+            sys.exit(0)
+        failures = [failure]
 
-    verifier_code = _VERIFIER_PATH.read_text(encoding="utf-8")
-
-    # ---- Stage 2: Gemini Brain ----
-    patched_code = stage_gemini(failure, verifier_code)
-    print(f"  Received {len(patched_code)} chars of patched code.")
-
-    if args.dry_run:
+    # ---- Process each failure ----
+    results: list[dict] = []
+    for i, failure in enumerate(failures, 1):
+        inv_id = failure["invoice_id"]
         print(f"\n{'=' * 60}")
-        print("  DRY RUN — proposed patch (not applied)")
-        print(f"{'=' * 60}\n")
-        print(patched_code)
-        print(f"\n{'=' * 60}")
-        print("  To apply, run without --dry-run")
+        print(f"  [{i}/{len(failures)}] Processing {inv_id}")
         print(f"{'=' * 60}")
-        return
+        print(f"  Bucket:        {failure['failure_bucket']}")
+        print(f"  Fields:        {failure['field_mismatches']}")
+        print(f"  Codes:         {failure['failure_codes']}")
+        print(f"  Triage owner:  {failure['action_plan'].get('owner', 'unknown')}")
 
-    # ---- Stage 3: Git Crucible ----
-    success, branch, _ = stage_crucible(inv_id, patched_code, original_branch)
+        # Always read fresh verifier code (previous patch may have changed it)
+        verifier_code = _VERIFIER_PATH.read_text(encoding="utf-8")
 
-    # ---- Stage 4: Delivery ----
-    stage_delivery(success, branch, inv_id, original_branch)
+        # ---- Stage 2: Gemini Brain ----
+        patched_code = stage_gemini(failure, verifier_code)
+        print(f"  Received {len(patched_code)} chars of patched code.")
+
+        if args.dry_run:
+            print(f"\n  DRY RUN — proposed patch for {inv_id} (not applied)")
+            print(patched_code[:500])
+            if len(patched_code) > 500:
+                print(f"  ... ({len(patched_code) - 500} more chars)")
+            results.append({"invoice_id": inv_id, "status": "dry_run"})
+            continue
+
+        # ---- Stage 3: Git Crucible ----
+        success, branch, _ = stage_crucible(inv_id, patched_code, original_branch)
+
+        # ---- Stage 4: Delivery ----
+        stage_delivery(success, branch, inv_id, original_branch)
+        results.append({
+            "invoice_id": inv_id,
+            "status": "pr_created" if success else "failed",
+            "branch": branch if success else None,
+        })
+
+    # ---- Summary ----
+    if len(results) > 1:
+        print(f"\n{'=' * 60}")
+        print("  SWEEP SUMMARY")
+        print(f"{'=' * 60}")
+        for r in results:
+            print(f"  {r['invoice_id']}: {r['status']}")
+        passed = sum(1 for r in results if r["status"] == "pr_created")
+        print(f"\n  {passed}/{len(results)} patches succeeded.")
 
 
 if __name__ == "__main__":
