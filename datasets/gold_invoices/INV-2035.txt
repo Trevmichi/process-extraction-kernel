@@ -1,0 +1,14 @@
+Bob's Industrial Plumbing
+One I nfinite Loop, Cupertino
+
+Invoice: INV-2035
+Date: 2026-02-22
+PO Number: PRQ-13517
+
+Description              Qty    Price
+------------- ---------------------- -----
+USB-C Adapters             20     15.00
+Toner Cartridge           6      42.99
+Whiteboard Markers (box) 10     12.50
+----------------------------------------
+Total: 530.52

@@ -1,0 +1,13 @@
+CloudNine Infra LLC
+742 Evergre en  Terrace, Suite 200
+
+Invoice: INV-2038
+Dat e: 2026-10- 27
+
+Desc riptio n             Qty    Price
+-------------- ----- ---------------------
+Networ k Cables (100ft)    12     8.50
+USB-C Adapters           20     15.00
+Ergonomic Keyboard       S     89.95
+------------------------- ---- -----------
+Total: 3652.47

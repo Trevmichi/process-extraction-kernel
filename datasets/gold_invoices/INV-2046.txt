@@ -1,0 +1,14 @@
+From: Pinnacle Office Solutions
+To: accounts@buyer.com
+Subject: Invoice INV-2046
+
+Hi,
+
+Please find attached invoice INV-2046 dated 2026-03-10.
+This references Purchase Order PO-40366.
+The total amount due is 4427.89.
+
+Please remit payment within 30 days.
+
+Best regards,
+Pinnacle Office Solutions Billing

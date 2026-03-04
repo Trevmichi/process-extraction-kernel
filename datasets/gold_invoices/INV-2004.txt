@@ -1,0 +1,11 @@
+Pinnacle Office Solutions
+INVOICE INV-2004 | 2026-12-01
+PO# REF-91381
+
+Item A              1411.15
+Item B              627.17
+  Subtotal          2038.32
+Tax (8%)             163.07
+Shipping            11.16
+---
+Final Balance Due:  3039.25

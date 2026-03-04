@@ -277,30 +277,45 @@ class TestEnterRecordDominance:
 
     # n3 outgoing edges (mirrors patched graph topology)
     N3_EDGES = [
-        {"to": "n_reject",    "condition": 'status == "BAD_EXTRACTION"'},
-        {"to": "n_reject",    "condition": 'status == "MISSING_DATA"'},
-        {"to": "n_exception", "condition": (
-            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" '
-            'AND has_po == false'
+        {"to": "n_critic_retry",       "condition": 'status == "NEEDS_RETRY"'},
+        {"to": "n_exc_bad_extraction", "condition": 'status == "BAD_EXTRACTION"'},
+        {"to": "n_reject",             "condition": 'status == "MISSING_DATA"'},
+        {"to": "n_exception",          "condition": (
+            'status != "BAD_EXTRACTION" AND status != "NEEDS_RETRY" '
+            'AND status != "MISSING_DATA" AND has_po == false'
         )},
-        {"to": "n4",          "condition": None},  # unconditional fallback
+        {"to": "n4",                   "condition": None},  # unconditional fallback
     ]
 
-    def test_bad_extraction_dominates_has_po(self):
-        """BAD_EXTRACTION routes to n_reject even when has_po is false."""
+    def test_needs_retry_routes_to_critic(self):
+        """NEEDS_RETRY routes to n_critic_retry (first extraction failure)."""
         state: APState = make_initial_state(
             invoice_id="TEST-0001", raw_text="test", po_match=False,
+        )
+        state["status"] = "NEEDS_RETRY"
+        state["has_po"] = False
+
+        result = analyze_routing(state, self.N3_EDGES)
+
+        assert result.selected == "n_critic_retry"
+        assert result.reason == "condition_match"
+        assert sum(c["matched"] is True for c in result.candidates) == 1
+        matched = [c for c in result.candidates if c["matched"] is True]
+        assert matched[0]["condition"] == 'status == "NEEDS_RETRY"'
+
+    def test_bad_extraction_routes_to_exception(self):
+        """BAD_EXTRACTION routes to exception station (already retried)."""
+        state: APState = make_initial_state(
+            invoice_id="TEST-0001b", raw_text="test", po_match=False,
         )
         state["status"] = "BAD_EXTRACTION"
         state["has_po"] = False
 
         result = analyze_routing(state, self.N3_EDGES)
 
-        assert result.selected == "n_reject"
+        assert result.selected == "n_exc_bad_extraction"
         assert result.reason == "condition_match"
-        # Exactly one conditional edge matched
         assert sum(c["matched"] is True for c in result.candidates) == 1
-        # The matched edge is the BAD_EXTRACTION one
         matched = [c for c in result.candidates if c["matched"] is True]
         assert matched[0]["condition"] == 'status == "BAD_EXTRACTION"'
 

@@ -1,0 +1,10 @@
+Atlas Electrical Supply
+123 Business Rd, Suite 100
+
+Date: 2026-06-01
+Invoice Number: INV-1055
+N/A
+
+Description: [TODO: Add line items]
+
+Total Amount Due: 800.00

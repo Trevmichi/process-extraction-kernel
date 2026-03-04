@@ -131,6 +131,32 @@ class TestMissingEvidence:
         assert valid is False
         assert "MISSING_EVIDENCE" in codes
 
+    def test_has_po_false_null_evidence_valid(self):
+        """has_po=False with None evidence should pass (null-tolerance)."""
+        ext = _valid_extraction()
+        ext["has_po"] = {"value": False, "evidence": None}
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert valid is True
+        assert "MISSING_EVIDENCE" not in codes
+        assert "WRONG_TYPE" not in codes
+        assert prov["has_po"]["grounded"] is True
+        assert prov["has_po"]["po_pattern_found"] is False
+
+    def test_has_po_false_empty_evidence_valid(self):
+        """has_po=False with empty string evidence should pass."""
+        ext = _valid_extraction()
+        ext["has_po"] = {"value": False, "evidence": ""}
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert valid is True
+        assert "MISSING_EVIDENCE" not in codes
+
+    def test_has_po_true_null_evidence_still_fails(self):
+        """has_po=True with None evidence must still fail."""
+        ext = _valid_extraction()
+        ext["has_po"] = {"value": True, "evidence": None}
+        valid, codes, _ = verify_extraction(RAW_TEXT, ext)
+        assert valid is False
+
     def test_whitespace_only_evidence(self):
         ext = _valid_extraction()
         ext["vendor"]["evidence"] = "   "

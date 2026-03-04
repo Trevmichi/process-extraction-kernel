@@ -1,0 +1,11 @@
+Emerald Bay Consulting
+INVOICE INV-2028 | 2026-07-14
+PO# PO-33704
+
+Item  A              917.78
+Item B              548.70
+  Subtotal           1466.48
+Tax (8%)            117.32
+Shipping            23.34
+---
+Final Balance Due:  3493.68

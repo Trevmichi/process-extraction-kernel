@@ -1,0 +1,10 @@
+Quantum Data Systems Inc
+INVOICE INV-2009 | 2026-01-15
+
+Item A               580.7l
+Item B              571.25
+  Subtotal          1151.96
+Tax (8%)           92.16
+Shipping            38.56
+---
+Final Balance Due:  2317.27

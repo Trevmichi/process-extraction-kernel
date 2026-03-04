@@ -1,0 +1,14 @@
+From: Bob's Industrial Plumbing
+To: accounts@buyer.com
+Subject: Invoice INV-2018
+
+H i,
+
+Please find attached invoice INV-2O18 dated 2026-03-10.
+This refe rences Purchase Order PO-40122.
+The total amount due is 3623.69.
+
+Please remit payment within 30 days.
+
+Bestregards,
+Bob's Industrial Plumbing Billing

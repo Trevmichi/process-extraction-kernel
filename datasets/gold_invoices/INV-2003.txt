@@ -1,0 +1,14 @@
+Harbor Point Logistics
+221B Baker Street, L ondon
+
+Invoice: INV-2003
+Date: 2026-12-01
+PO Number: PO-35242
+
+Description              Qty    Price
+----------------------------------------
+Server Rack Unit          1      2450.00
+Tone r Cartridge          6      42.99 
+Whiteboard Markers (box) 10     12.50
+----------------------------------------
+Total: 2274.19

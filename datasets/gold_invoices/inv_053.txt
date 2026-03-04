@@ -1,0 +1,10 @@
+TechGear IT Services
+123 Business Rd, Suite 100
+
+Date: 2026-06-01
+Invoice Number: INV-1053
+PO Number: PO-1053
+
+Description: [TODO: Add line items]
+
+Total Amount Due: 3000.00

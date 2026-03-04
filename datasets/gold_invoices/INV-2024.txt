@@ -1,0 +1,14 @@
+TrueNorth Mechanical Corp
+1600 Pennsylvania Ave NW
+
+Invoice: INV-2024
+Date: 2026-06-30
+PO Number: REF-73225
+
+Des cription               Qty    Price
+------ ------------------------------- ---
+Projector Lamp           1      175.00
+LED Monitor 27in         3      299.99
+Whiteboard Mark ers (box) 10     12.50
+-------------------------------------- -- 
+Total: 2956.77

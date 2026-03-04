@@ -29,6 +29,16 @@ last_gateway : str
     Node ID of the most recent gateway that made a routing decision.
     Set by gateway node execution; read by exception stations to log
     which decision point triggered the exception.
+
+retry_count : int
+    Number of critic retry attempts executed.  Starts at 0; incremented by
+    CRITIC_RETRY node.  ENTER_RECORD reads this to decide between
+    ``NEEDS_RETRY`` (first failure) and ``BAD_EXTRACTION`` (already retried).
+
+failure_codes : list[str]
+    Verifier failure codes from the most recent extraction attempt.
+    Written by ENTER_RECORD and CRITIC_RETRY; read by CRITIC_RETRY to
+    build the forensic correction prompt.
 """
 from __future__ import annotations
 
@@ -54,6 +64,8 @@ class APState(TypedDict):
     raw_text:         str
     extraction:       dict
     provenance:       dict
+    retry_count:      int
+    failure_codes:    list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +89,8 @@ DEFAULT_STATE_TEMPLATE: dict = {
     "raw_text":     "",
     "extraction":   {},
     "provenance":   {},
+    "retry_count":  0,
+    "failure_codes": [],
 }
 
 REQUIRED_KEYS: frozenset[str] = frozenset(DEFAULT_STATE_TEMPLATE.keys())
@@ -107,6 +121,7 @@ def make_initial_state(
     state["audit_log"] = []
     state["extraction"] = {}
     state["provenance"] = {}
+    state["failure_codes"] = []
     # Apply overrides
     state["invoice_id"] = invoice_id
     state["raw_text"] = raw_text

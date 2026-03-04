@@ -1,0 +1,10 @@
+Ironclad Safety Equipment
+INVOICE INV-2030 |  2026-11-12
+
+Item A              434.41
+Item B               92.97
+  Subtotal          527.38
+Tax (8%)            42. 19
+Shipping            9.00
+---
+Final Balance Due:  1130.19

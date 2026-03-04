@@ -47,6 +47,9 @@ bash scripts/qa_eval.sh          # or: pwsh scripts/qa_eval.ps1
 # 6. Run eval harness with live LLM
 python eval_runner.py --live
 
+# 6b. Run optional audit layer (requires Ollama or OpenAI key)
+python eval_runner.py --audit --audit-sample 5
+
 # 7. Process a single invoice (requires Ollama)
 python run_agent.py
 
@@ -81,7 +84,7 @@ streamlit run app.py
 
 ## Current Metrics
 
-- **651** tests passing
+- **680** tests passing
 - **50/50** terminal accuracy (eval harness, mock mode)
 - **150/150** field accuracy (3 fields x 50 invoices)
 - **0** linter errors on production graph

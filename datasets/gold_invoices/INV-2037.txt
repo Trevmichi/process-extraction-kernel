@@ -1,0 +1,14 @@
+From: Harbor Point Logistics
+To: accounts@buyer.com
+Sub ject: Invoice INV-2037
+
+Hi,
+
+Please find attached  invoice INV-2037 dated 2026-03-10.
+This references Purchase Order PO-98908.
+The total amount due is 986.32.
+
+Please remit payment within 30 days.
+
+Best regards,
+Harbor Point Logistics Billing

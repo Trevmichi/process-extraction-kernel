@@ -1,0 +1,11 @@
+Apex Maritime Logistics
+INVOICE INV-2040 | 2026-11-12
+PO# PO-71398
+
+Item  A              442.45
+Item B              277.03
+  Subtotal          719.48
+Tax (8%)           57.56
+Shipping            12.42
+---
+Final Balance Due:  1102.34

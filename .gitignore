@@ -13,6 +13,11 @@ dist/
 # Generated eval outputs
 eval_report.json
 eval_report.md
+eval_audit_report.json
+eval_audit_report.md
 
-# Generated runtime logs
-outputs/unmodeled_logic.jsonl
+# Test caches
+.pytest_cache/
+
+# Generated runtime logs & build outputs
+outputs/

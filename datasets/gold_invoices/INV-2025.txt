@@ -1,0 +1,14 @@
+From: TrueNorth Mechanical Corp
+To: accounts@buyer.com
+Subject: Invoice INV-2025
+
+Hi ,
+
+Please find attach ed invoice INV-2025 dated 2026-08-21.
+This references Purchase Order PO-77552.
+The total amount due is 1339.52.
+
+Please remit payment within 30 days.
+
+Best regards,
+TrueNorth Mechanical Corp Billing

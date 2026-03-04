@@ -1,0 +1,14 @@
+From: Brightwave Telecom Ltd
+To: accounts@buyer.com
+Subject: Invoice INV-2011
+
+Hi,
+
+Please find attached invo ice INV-2011 dated 2026-08-21.
+This references Purchase Order PO-68860.
+The total amount due is 779.17.
+
+Please remit payment within 30 days.
+
+Best regards,
+Brightwave Telecom Ltd Billing

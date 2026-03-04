@@ -1,0 +1,14 @@
+From: Quantum Data Systems Inc
+To: accounts@buyer.com
+Subj ect: Invoice INV-2043
+
+Hi,
+
+Ple ase f ind attached invoice INV-2043 dated 2026-11-12.
+This referencesPurchase Order ORD-58467.
+The total amount due is 2159.93.
+
+Please remit  payment within 30 days.
+
+Best regards,
+Quantum Data Systems Inc Billing
