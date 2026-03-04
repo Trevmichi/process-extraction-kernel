@@ -7,6 +7,14 @@ on:
       - 'tests/test_eval_harness.py'
       - 'scripts/**'
       - 'docs/EVALUATION.md'
+  push:
+    branches: [ main ]
+    paths:
+      - 'datasets/**'
+      - 'eval_runner.py'
+      - 'tests/test_eval_harness.py'
+      - 'scripts/**'
+      - 'docs/EVALUATION.md'
 jobs:
   qa:
     runs-on: ubuntu-latest
