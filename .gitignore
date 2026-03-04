@@ -9,6 +9,7 @@ dist/
 
 # Local Environment
 .env
+**/secret_key.txt
 
 # Generated eval outputs
 eval_report.json

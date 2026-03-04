@@ -30,6 +30,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import requests
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _VERIFIER_PATH = _PROJECT_ROOT / "src" / "verifier.py"
 _DATASETS_DIR = _PROJECT_ROOT / "datasets"
@@ -68,23 +70,14 @@ def stage_triage(report_path: Path) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def stage_gemini(failure: dict, verifier_code: str) -> str:
-    """Call Gemini to generate a patched verifier.py.
+    """Call Gemini via direct REST API to generate a patched verifier.py.
 
-    Requires ``google-genai`` package and ``GEMINI_API_KEY`` env var.
+    Uses ``requests.post`` — no Google SDK needed. Requires GOOGLE_API_KEY
+    environment variable.
     """
-    try:
-        from google import genai
-    except ImportError:
-        print("ERROR: google-genai package not installed.")
-        print("  Install it with: pip install google-genai")
-        sys.exit(1)
-
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        print("ERROR: GEMINI_API_KEY environment variable not set.")
-        sys.exit(1)
-
-    client = genai.Client(api_key=api_key)
+        raise ValueError("GOOGLE_API_KEY environment variable is not set")
 
     field_list = ", ".join(failure["field_mismatches"]) or "(terminal mismatch)"
     code_list = ", ".join(failure["failure_codes"]) or "(none)"
@@ -105,12 +98,35 @@ def stage_gemini(failure: dict, verifier_code: str) -> str:
         "It must be valid Python."
     )
 
-    print("[Stage 2] Calling Gemini API ...")
-    response = client.models.generate_content(
-        model="gemini-3.1-pro",
-        contents=prompt,
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/"
+        f"models/gemini-3.1-pro-preview:generateContent?key={api_key}"
     )
-    return response.text
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
+    print("[Stage 2] Calling Gemini API (direct REST) ...")
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    result = response.json()
+
+    if response.status_code != 200:
+        print(f"ERROR: Gemini API returned {response.status_code}: {result}")
+        sys.exit(1)
+
+    raw_code = result["candidates"][0]["content"]["parts"][0]["text"]
+    return _strip_markdown_fences(raw_code)
+
+
+def _strip_markdown_fences(code: str) -> str:
+    """Strip markdown code fences (```python ... ```) from LLM output."""
+    code = code.strip()
+    if code.startswith("```python"):
+        code = code[len("```python"):]
+    elif code.startswith("```"):
+        code = code[3:]
+    if code.endswith("```"):
+        code = code[:-3]
+    return code.strip()
 
 
 # ---------------------------------------------------------------------------
