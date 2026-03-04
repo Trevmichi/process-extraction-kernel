@@ -1,0 +1,9 @@
+From: acme.billing@acmeindustrial.com
+To: payables@company.com
+
+ACME Industrial Supply
+INV-1041
+
+Miscellaneous hardware.
+Balance Due $75.25
+PO: None

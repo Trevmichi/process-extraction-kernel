@@ -1,0 +1,5 @@
+TriGate Manufacturing Headquarters: 888 Silicon Ave
+BILL TO: Acme Corp HQ
+INVOICE DETAILS: Inv #: INV-1034 PO #88392
+CHARGES: Custom Fabrication QTY 1 Cost: $9,450.00
+Total: $9450.00

@@ -1,0 +1,6 @@
+TriGate Manufacturing
+Invoice: INV-1044
+PO-34882
+
+Fabrication batch 99.
+Total: $9000.00

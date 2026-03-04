@@ -1,0 +1,16 @@
+From: billing@globallogistics.com
+To: accounts.payable@company.com
+Subject: Invoice INV-1033 - Global Logistics Corp
+
+Please find your electronic invoice below.
+
+Global Logistics Corp
+Invoice: INV-1033
+Purchase Order: 11024
+
+Services:
+Freight shipping (Standard) - $400.00
+
+Balance Due $400.00
+
+Thank you for your business!

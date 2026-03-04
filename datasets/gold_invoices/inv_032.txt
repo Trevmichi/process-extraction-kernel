@@ -1,0 +1,8 @@
+North River Components
+Invoice: INV-1032          Date: 10/05/23
+P.O. 99210
+
+QTY   DESCRIPTION          PRICE    TOTAL
+10    Capacitors           100.00   1000.00 2     Transformers         100.00   200.00
+               Grand Total: $1200.00
+========================================

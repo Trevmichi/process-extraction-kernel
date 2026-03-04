@@ -1,6 +1,6 @@
 # Gold Invoice Text Files
 
-30 invoice text files across 5 vendors for evaluation of the AP extraction pipeline.
+50 invoice text files across 13 vendors for evaluation of the AP extraction pipeline.
 
 | File | Invoice ID | Vendor | Scenario |
 |------|-----------|--------|----------|
@@ -34,3 +34,51 @@
 | inv_028.txt | APX-5004 | Apex Maintenance Co. | match_fail |
 | inv_029.txt | APX-5005 | Apex Maintenance Co. | no_po |
 | inv_030.txt | APX-5006 | Apex Maintenance Co. | happy_path |
+| inv_031.txt | INV-1031 | ACME Industrial Supply | happy_path |
+| inv_032.txt | INV-1032 | North River Components | happy_path, table_like |
+| inv_033.txt | INV-1033 | Global Logistics Corp | happy_path, email_style |
+| inv_034.txt | INV-1034 | TriGate Manufacturing | happy_path, multi_section |
+| inv_035.txt | INV-1035 | Apex Office Solutions | happy_path, footer_total |
+| inv_036.txt | INV-1036 | Horizon Freight Systems | happy_path |
+| inv_037.txt | INV-1037 | Delta Mechanical Services | happy_path, table_like |
+| inv_038.txt | INV-1038 | Silverline Packaging | happy_path |
+| inv_039.txt | INV-1039 | Atlas Electrical Supply | no_po |
+| inv_040.txt | INV-1040 | MetroTech Services | no_po, footer_total |
+| inv_041.txt | INV-1041 | ACME Industrial Supply | no_po, email_style |
+| inv_042.txt | INV-1042 | North River Components | no_po, simple |
+| inv_043.txt | INV-1043 | Global Logistics Corp | no_po |
+| inv_044.txt | INV-1044 | TriGate Manufacturing | match_fail |
+| inv_045.txt | INV-1045 | Apex Office Solutions | match_fail |
+| inv_046.txt | INV-1046 | Horizon Freight Systems | match_fail |
+| inv_047.txt | INV-1047 | Delta Mechanical Services | match_fail |
+| inv_048.txt | INV-1048 | Silverline Packaging | multiple_totals |
+| inv_049.txt | INV-1049 | Atlas Electrical Supply | weird_spacing |
+| inv_050.txt | INV-1050 | MetroTech Services | no_po, table_like |
+
+---
+
+## Adding New Gold Invoices (Checklist)
+
+1. Create `datasets/gold_invoices/inv_NNN.txt` with the invoice text
+   - Include vendor name verbatim on a line
+   - Include an amount line (e.g. `Total: 1234.56`)
+   - Include a PO line (e.g. `PO Number: PO-12345`) or `PO: None` for no-PO invoices
+   - **Important**: no-PO invoices must have an explicit `PO: None` line
+
+2. Append one JSON line to `datasets/expected.jsonl` with all required keys:
+   `invoice_id`, `file`, `po_match`, `expected_status`, `expected_fields`,
+   `mock_extraction`, `tags`
+
+3. Ensure all `mock_extraction.*.evidence` strings are **verbatim substrings**
+   of the invoice text (after `_normalize_text` normalization)
+
+4. Set `has_po.evidence` to a non-null grounded string (use `"PO: None"` for
+   no-PO invoices). Null evidence is not allowed.
+
+5. Add a row to this README catalog table
+
+6. Validate:
+   ```bash
+   python -m pytest tests/test_eval_harness.py::TestEvidenceGrounding -v
+   python eval_runner.py --filter <invoice_ids> --show-failures
+   ```
