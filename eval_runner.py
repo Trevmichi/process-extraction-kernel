@@ -122,8 +122,8 @@ def build_mock_dispatch(gold_records: list[dict]) -> Callable[[str], dict]:
 # Field comparison
 # ---------------------------------------------------------------------------
 def _norm_str(s: str) -> str:
-    """Casefold + whitespace collapse for vendor comparison."""
-    return re.sub(r"\s+", " ", s).strip().casefold()
+    """Casefold + whitespace collapse + trailing punctuation strip for vendor comparison."""
+    return re.sub(r"\s+", " ", s).strip().casefold().rstrip(".,")
 
 
 def compare_fields(expected_fields: dict, result_state: dict) -> dict:
@@ -171,6 +171,39 @@ def classify_failure(status_match: bool, field_comparison: dict) -> dict:
         "field_mismatches": field_mismatches,
         "terminal_match": status_match,
     }
+
+
+# ---------------------------------------------------------------------------
+# Failure groupings
+# ---------------------------------------------------------------------------
+_FAILURE_BUCKETS = ("terminal_mismatch", "field_mismatch",
+                    "both_terminal_and_field_mismatch")
+
+
+def compute_failure_groupings(
+    results: list[dict],
+) -> tuple[dict[str, list[str]], dict[str, dict[str, list[str]]]]:
+    """Return (failures_by_bucket, failures_by_tag) from per-invoice results.
+
+    failures_by_bucket always has all 3 bucket keys (stable shape).
+    failures_by_tag only includes tags with ≥1 failure.
+    """
+    by_bucket: dict[str, list[str]] = {b: [] for b in _FAILURE_BUCKETS}
+    tag_buckets: dict[str, dict[str, list[str]]] = {}
+
+    for r in results:
+        bucket = r.get("failure_bucket", "pass")
+        if bucket == "pass":
+            continue
+        inv_id = r["invoice_id"]
+        by_bucket[bucket].append(inv_id)
+
+        for tag in r.get("tags", []):
+            if tag not in tag_buckets:
+                tag_buckets[tag] = {b: [] for b in _FAILURE_BUCKETS}
+            tag_buckets[tag][bucket].append(inv_id)
+
+    return by_bucket, tag_buckets
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +310,9 @@ def run_eval(
             "audit_log": audit_log,
             "failure_bucket": failure_info["failure_bucket"],
             "field_mismatches": failure_info["field_mismatches"],
+            "extraction": final_state.get("extraction", {}),
+            "raw_text": raw_text,
+            "failure_codes": final_state.get("failure_codes", []),
         }
 
         # Optional trace checks
@@ -395,6 +431,44 @@ def compute_metrics(results: list[dict]) -> dict:
             "field_accuracy": tag_fa,
         }
 
+    # Failure groupings (stable shape — always present)
+    failures_by_bucket, failures_by_tag = compute_failure_groupings(results)
+
+    # Invariant signal checks + triage autopilot
+    from eval_triage import compute_invariant_signals, generate_action_plan
+
+    suspicious_passes: list[str] = []
+    for r in results:
+        # Parse LAST amount_candidates event from audit_log
+        # (CRITIC_RETRY may emit multiple; last = final extraction state)
+        amount_candidates_event = None
+        for entry in r.get("audit_log", []):
+            try:
+                evt = json.loads(entry)
+                if evt.get("event") == "amount_candidates":
+                    amount_candidates_event = evt  # keep overwriting → last wins
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        signals = compute_invariant_signals(
+            r.get("raw_text", ""),
+            r.get("extraction", {}),
+            amount_candidates_event,
+        )
+        r["invariant_signals"] = signals
+
+        # Suspicious pass: passed eval but invariant flags raised
+        if r["failure_bucket"] == "pass" and len(signals) > 0:
+            suspicious_passes.append(r["invoice_id"])
+
+        # Action plan for failures and suspicious passes
+        if r["failure_bucket"] != "pass" or len(signals) > 0:
+            r["action_plan"] = generate_action_plan(
+                bucket=r["failure_bucket"],
+                failure_codes=r.get("failure_codes", []),
+                signals=signals,
+            )
+
     return {
         "field_accuracy": field_accuracy,
         "terminal_accuracy": {
@@ -405,6 +479,9 @@ def compute_metrics(results: list[dict]) -> dict:
         "unknown_rate": unknown_rate,
         "confusion_matrix": confusion_plain,
         "by_tag": by_tag,
+        "failures_by_bucket": failures_by_bucket,
+        "failures_by_tag": failures_by_tag,
+        "suspicious_passes": suspicious_passes,
         "per_invoice": results,
     }
 
@@ -462,6 +539,35 @@ def write_md_report(
         lines.append(f"| {expected} | " + " | ".join(row_counts) + " |")
     lines.append("")
 
+    # Failures by bucket
+    fbb = metrics.get("failures_by_bucket", {})
+    total_failures = sum(len(v) for v in fbb.values())
+    if total_failures > 0:
+        lines.append("## Failures by Bucket\n")
+        lines.append("| Bucket | Count | Invoice IDs |")
+        lines.append("|--------|-------|-------------|")
+        for bucket in _FAILURE_BUCKETS:
+            ids = fbb.get(bucket, [])
+            if ids:
+                lines.append(f"| {bucket} | {len(ids)} | {', '.join(ids)} |")
+        lines.append("")
+    else:
+        lines.append("## Failures\n")
+        lines.append("No failures.\n")
+
+    # Failures by tag
+    fbt = metrics.get("failures_by_tag", {})
+    if fbt:
+        lines.append("## Failures by Tag\n")
+        lines.append("| Tag | Bucket | Invoice IDs |")
+        lines.append("|-----|--------|-------------|")
+        for tag in sorted(fbt.keys()):
+            for bucket in _FAILURE_BUCKETS:
+                ids = fbt[tag].get(bucket, [])
+                if ids:
+                    lines.append(f"| {tag} | {bucket} | {', '.join(ids)} |")
+        lines.append("")
+
     # Tag breakdown (optional)
     if group_by_tag and "by_tag" in metrics:
         lines.append("## Accuracy by Tag\n")
@@ -476,6 +582,67 @@ def write_md_report(
                 f" ({ta_tag['accuracy']:.1%})"
                 f" | {fa_tag.get('correct', 0)}/{fa_tag.get('total', 0)}"
                 f" ({fa_tag.get('accuracy', 0):.1%}) |"
+            )
+        lines.append("")
+
+    # Suspicious passes
+    sp = metrics.get("suspicious_passes", [])
+    if sp:
+        lines.append("## Suspicious Passes (Accidental Correctness)\n")
+        lines.append("| Invoice | Signals |")
+        lines.append("|---------|---------|")
+        for r in metrics["per_invoice"]:
+            if r["invoice_id"] in sp:
+                sigs = ", ".join(r.get("invariant_signals", []))
+                lines.append(f"| {r['invoice_id']} | {sigs} |")
+        lines.append("")
+    else:
+        lines.append("## Suspicious Passes\n")
+        lines.append("No suspicious passes detected.\n")
+
+    # Triage action plans
+    plans_by_owner: dict[str, list] = {}
+    for r in metrics["per_invoice"]:
+        ap = r.get("action_plan")
+        if ap:
+            owner = ap.get("owner", "unknown")
+            plans_by_owner.setdefault(owner, []).append(r)
+    if plans_by_owner:
+        lines.append("## Triage Action Plans\n")
+        for owner in sorted(plans_by_owner.keys()):
+            items = plans_by_owner[owner]
+            lines.append(f"### Owner: {owner} ({len(items)} invoice(s))\n")
+            lines.append("| Invoice | Bucket | Signals | Next Steps | Files |")
+            lines.append("|---------|--------|---------|------------|-------|")
+            for r in items:
+                ap = r["action_plan"]
+                sigs = ", ".join(r.get("invariant_signals", []))
+                steps = "; ".join(ap.get("recommended_next_steps", []))
+                files = ", ".join(ap.get("likely_files", []))
+                lines.append(
+                    f"| {r['invoice_id']} | {r['failure_bucket']}"
+                    f" | {sigs} | {steps} | {files} |"
+                )
+            lines.append("")
+
+    # Variance & Fragility Report (only when variance data exists)
+    variance_data = metrics.get("variance")
+    if variance_data:
+        lines.append("## Variance & Fragility Report\n")
+        lines.append("| Invoice ID | Runs | Matches | Fragility Score | Unstable Fields |")
+        lines.append("|------------|------|---------|-----------------|-----------------|")
+        for vr in variance_data:
+            unstable = ", ".join(vr["unstable_fields"]) or "none"
+            score_pct = f"{vr['fragility_score']:.0%}"
+            lines.append(
+                f"| {vr['invoice_id']} | {vr['runs']} | {vr['matches']}"
+                f" | {score_pct} | {unstable} |"
+            )
+        brittle = [v for v in variance_data if v["fragility_score"] < 1.0]
+        if brittle:
+            lines.append(
+                f"\n> **WARNING**: {len(brittle)} invoice(s) showed extraction "
+                "non-determinism."
             )
         lines.append("")
 
@@ -515,6 +682,37 @@ def main() -> None:
                         help="Include tag breakdown table in markdown report")
     parser.add_argument("--show-failures", action="store_true",
                         help="Print console summary of failing invoices by bucket")
+    # Audit layer flags (optional, advisory only)
+    parser.add_argument("--audit", action="store_true",
+                        help="Enable optional LLM audit layer")
+    parser.add_argument("--audit-sample", type=int, default=5,
+                        help="Number of passing invoices to audit (default: 5)")
+    parser.add_argument("--audit-max", type=int, default=None,
+                        help="Hard cap on total audited invoices")
+    parser.add_argument("--audit-mode", type=str, default="failures_and_sample",
+                        choices=["failures_and_sample", "failures_only", "sample_only"],
+                        help="Audit target selection mode (default: failures_and_sample)")
+    parser.add_argument("--audit-provider", type=str, default="ollama",
+                        choices=["ollama", "openai"],
+                        help="LLM provider for audit (default: ollama)")
+    parser.add_argument("--audit-model", type=str, default=None,
+                        help="Model name for audit (default: auto per provider)")
+    parser.add_argument("--audit-timeout-secs", type=int, default=30,
+                        help="Per-call timeout in seconds (default: 30)")
+    parser.add_argument("--audit-output", type=str, default="eval_audit_report.json",
+                        help="JSON output path for audit report")
+    parser.add_argument("--audit-md-output", type=str, default="eval_audit_report.md",
+                        help="Markdown output path for audit report")
+    parser.add_argument("--audit-seed", type=int, default=1337,
+                        help="PRNG seed for audit sample selection (default: 1337)")
+    parser.add_argument("--variance-test", action="store_true",
+                        help="Run variance (fragility) testing on a sample of invoices")
+    parser.add_argument("--variance-runs", type=int, default=5,
+                        help="Number of LLM calls per invoice for variance test (default: 5)")
+    parser.add_argument("--variance-sample", type=int, default=3,
+                        help="Number of invoices to sample for variance test (default: 3)")
+    parser.add_argument("--variance-seed", type=int, default=42,
+                        help="PRNG seed for variance sample selection (default: 42)")
     args = parser.parse_args()
 
     print(f"{'=' * 60}")
@@ -574,10 +772,79 @@ def main() -> None:
         else:
             print("\n  --- 0 failures ---")
 
+    # Suspicious passes
+    sp = metrics.get("suspicious_passes", [])
+    if sp:
+        print(f"  Suspicious passes: {len(sp)} ({', '.join(sp)})")
+
+    # Variance testing (requires --live mode)
+    if args.variance_test and not args.live:
+        print("\n  [Warning] --variance-test requires --live mode. "
+              "Skipping variance testing.")
+    elif args.variance_test:
+        import random as _random
+        from eval_variance import run_variance_test
+
+        rng = _random.Random(args.variance_seed)
+        sample_size = min(args.variance_sample, len(gold_records))
+        sampled = rng.sample(gold_records, sample_size)
+
+        print(f"\n{'=' * 60}")
+        print(f"  Variance Testing ({sample_size} invoices x {args.variance_runs} runs)")
+        print(f"{'=' * 60}\n")
+
+        variance_results = []
+        for rec in sampled:
+            raw_text = load_invoice_text(_DEFAULT_DATASETS_DIR, rec["file"])
+            vr = run_variance_test(
+                rec["invoice_id"], raw_text, rec, args.variance_runs,
+            )
+            variance_results.append(vr)
+            score_pct = f"{vr['fragility_score']:.0%}"
+            unstable = ", ".join(vr["unstable_fields"]) or "none"
+            print(f"  {vr['invoice_id']}: {vr['matches']}/{vr['runs']} "
+                  f"({score_pct}) unstable=[{unstable}]")
+
+        metrics["variance"] = variance_results
+
+        avg_score = (
+            sum(v["fragility_score"] for v in variance_results) / len(variance_results)
+            if variance_results else 0.0
+        )
+        brittle = [v for v in variance_results if v["fragility_score"] < 1.0]
+        print(f"\n  Average fragility score: {avg_score:.0%}")
+        if brittle:
+            print(f"  WARNING: {len(brittle)} invoice(s) showed extraction "
+                  "non-determinism")
+
     # Write reports
     write_json_report(metrics, "eval_report.json")
     write_md_report(metrics, "eval_report.md", group_by_tag=args.group_by_tag)
     print(f"\n[eval] Reports written: eval_report.json, eval_report.md")
+
+    # Optional audit layer (advisory only — does NOT affect exit code)
+    if args.audit:
+        from eval_audit import run_audit, write_audit_md_report
+
+        print(f"\n{'=' * 60}")
+        print("  Audit Layer (advisory only)")
+        print(f"{'=' * 60}\n")
+
+        audit_metrics = run_audit(
+            results=metrics["per_invoice"],
+            gold_records=gold_records,
+            datasets_dir=_DEFAULT_DATASETS_DIR,
+            audit_mode=args.audit_mode,
+            audit_sample=args.audit_sample,
+            audit_seed=args.audit_seed,
+            audit_max=args.audit_max,
+            provider=args.audit_provider,
+            model=args.audit_model,
+            timeout_secs=args.audit_timeout_secs,
+        )
+        write_json_report(audit_metrics, args.audit_output)
+        write_audit_md_report(audit_metrics, args.audit_md_output)
+        print(f"\n[audit] Reports written: {args.audit_output}, {args.audit_md_output}")
 
     # Exit code: non-zero if terminal or field accuracy < 100%
     sys.exit(0 if should_exit_zero(metrics) else 1)

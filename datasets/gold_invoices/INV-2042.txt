@@ -1,0 +1,11 @@
+Bob's Industrial Plumbing
+INVOICE INV-2042 | 2026-06-30
+PO# ORD-58754
+
+Item A              175.62
+Item B               185.20
+  Subtotal          360.82
+Tax (8%)             28.87
+Shipping            5.49
+---
+Final Balance Due:  1795.15

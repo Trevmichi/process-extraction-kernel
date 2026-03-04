@@ -216,7 +216,8 @@ class TestPatchedEdgeMetadata:
         conditions = {e.get("condition") for e in n3_edges}
         assert 'status == "MISSING_DATA"' in conditions
         assert (
-            'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" AND has_po == false'
+            'status != "BAD_EXTRACTION" AND status != "NEEDS_RETRY" '
+            'AND status != "MISSING_DATA" AND has_po == false'
             in conditions
         )
 

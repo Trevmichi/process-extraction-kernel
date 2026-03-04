@@ -1,0 +1,11 @@
+Harbor Point Logistics
+INVOICE INV-2006 | 2026-05-05
+PO# REF-57696
+
+Item A               540.72
+Item B              514.36
+  Subtotal          1055.08
+Tax (8%)             84.41
+Shipping             35.55
+---
+Final Balance Due:  2194.41

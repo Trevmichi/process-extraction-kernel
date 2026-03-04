@@ -1,0 +1,14 @@
+From: CloudNine Infra LLC
+To: accounts@buyer.com
+Subject: Invoice INV-2017
+
+Hi,
+
+Please find attached invoice INV-2017 dated 2026-08-21.
+Thi s references Purchase Order ORD-89503.
+The total amount due is 1794.92.
+
+Please remit payment within 30days.
+
+Best regards,
+CloudNine Infra LLC Billing

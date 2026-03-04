@@ -15,6 +15,7 @@ invoices with known expected outputs. It supports two modes:
 | File | Role |
 |------|------|
 | `eval_runner.py` | Evaluation runner (mock + live modes) |
+| `eval_audit.py` | Optional LLM audit layer (advisory only) |
 | `scripts/qa_eval.sh` | QA script — pytest + eval (Bash) |
 | `scripts/qa_eval.ps1` | QA script — pytest + eval (PowerShell) |
 | `tests/test_eval_harness.py` | CI validation of dataset integrity |
@@ -293,6 +294,91 @@ The script runs two checks in sequence:
   accuracy < 100%.
 
 If the script prints `QA: OK` and exits 0, the dataset is clean.
+
+---
+
+## Auditing LLM Layer (Optional)
+
+The eval harness includes an optional LLM-based audit layer that explains
+failures and probes passing invoices for "accidental correctness". The audit
+is **advisory only** — it never affects scoring, routing, or pass/fail
+decisions.
+
+### Usage
+
+```bash
+# Audit all failures + 5 random passes (default)
+python eval_runner.py --audit --audit-sample 5
+
+# Audit failures only
+python eval_runner.py --audit --audit-mode failures_only
+
+# Use OpenAI instead of Ollama
+python eval_runner.py --audit --audit-provider openai --audit-model gpt-4o-mini
+
+# Custom seed for reproducible sampling
+python eval_runner.py --audit --audit-seed 42 --audit-sample 10
+```
+
+### CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--audit` | off | Enable audit mode |
+| `--audit-sample` | 5 | Passing invoices to sample |
+| `--audit-max` | None | Hard cap on total audited |
+| `--audit-mode` | `failures_and_sample` | `failures_and_sample`, `failures_only`, `sample_only` |
+| `--audit-provider` | `ollama` | `ollama` or `openai` |
+| `--audit-model` | auto | Model name (auto: `gemma3:12b` for ollama, `gpt-4o-mini` for openai) |
+| `--audit-timeout-secs` | 30 | Per-call timeout |
+| `--audit-output` | `eval_audit_report.json` | JSON report path |
+| `--audit-md-output` | `eval_audit_report.md` | Markdown report path |
+| `--audit-seed` | 1337 | PRNG seed for sample selection |
+
+### Output Files
+
+- `eval_audit_report.json` — full audit results (not committed)
+- `eval_audit_report.md` — human-readable summary
+
+### Verdicts
+
+Each audited invoice receives a verdict:
+
+| Verdict | Meaning |
+|---------|---------|
+| `dataset_issue` | Gold record is inconsistent (wrong expected_status, evidence mismatch) |
+| `deterministic_bug` | Router/condition/verifier logic is wrong |
+| `model_extraction_error` | LLM extraction produced wrong output; pipeline behaved correctly |
+| `suspicious_pass` | Passed, but evidence is weak or ambiguous |
+| `unclear` | Cannot determine root cause |
+
+### Root Cause Categories
+
+`AMOUNT_DISAMBIGUATION`, `PO_DETECTION`, `VENDOR_GARBAGE`, `ROUTING_AMBIGUITY`,
+`EVIDENCE_GROUNDING`, `DATASET_LABEL`, `OTHER`
+
+### Graceful Degradation
+
+If the LLM provider is unavailable (Ollama not running, no API key), each
+audited invoice receives `verdict="unclear"` with an explanation. The audit
+never crashes or blocks the deterministic eval.
+
+### Architecture
+
+The audit layer lives in `eval_audit.py` (separate from `eval_runner.py`).
+Key functions:
+
+- `select_audit_targets()` — seeded PRNG target selection
+- `build_diagnostic_snapshot()` — harness-side analysis (amount/PO/vendor
+  candidates, trace summary)
+- `compute_signals()` — deterministic signal flags
+- `audit_llm_call()` — provider abstraction (ollama/openai with JSON mode)
+- `run_audit()` — orchestrator
+- `write_audit_md_report()` — markdown report writer
+
+The `src/agent/nodes.py` ENTER_RECORD block emits a `verifier_summary`
+structured event into `audit_log` for audit consumption (observational only,
+does not affect routing or scoring).
 
 ---
 

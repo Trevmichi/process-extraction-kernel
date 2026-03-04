@@ -1414,7 +1414,186 @@ def wire_bad_extraction_route(data: dict) -> tuple[dict, list[str]]:
 
 
 # ===========================================================================
-# Pass 12 — Inject match_result == "UNKNOWN" guardrail edges
+# Pass 12 — Wire CRITIC_RETRY route from ENTER_RECORD
+# ===========================================================================
+
+def wire_critic_retry_route(data: dict) -> tuple[dict, list[str]]:
+    """
+    Replace the simple ``BAD_EXTRACTION`` → reject edge with a two-path
+    routing through the CRITIC_RETRY node.
+
+    After this pass, ENTER_RECORD routes:
+    - ``status == "NEEDS_RETRY"``     → n_critic_retry
+    - ``status == "BAD_EXTRACTION"``  → n_exc_bad_extraction
+
+    And n_critic_retry routes:
+    - ``status == "BAD_EXTRACTION"``  → n_exc_bad_extraction
+    - ``has_po == false`` (guarded)   → n_exception  (no-PO guard)
+    - unconditional fallback          → n4           (success path)
+
+    Contract
+    --------
+    Pre:     ``wire_bad_extraction_route`` has already injected the
+             ``status == "BAD_EXTRACTION"`` edge from ENTER_RECORD to reject.
+    Post:    That edge is replaced; critic retry edges are wired.
+    Mutates: ``data['edges']``.
+    """
+    log: list[str] = []
+    _PATCH_ID = "normalize_critic_retry_route"
+
+    # --- Find required nodes -------------------------------------------------
+
+    # ENTER_RECORD
+    enter_id: str | None = None
+    for node in data.get("nodes", []):
+        action = node.get("action") or {}
+        if action.get("type") == "ENTER_RECORD":
+            enter_id = node["id"]
+            break
+
+    if enter_id is None:
+        log.append("  [CRITIC_RETRY] No ENTER_RECORD node found — skipping")
+        return data, log
+
+    # CRITIC_RETRY node
+    critic_id: str | None = None
+    for node in data.get("nodes", []):
+        action = node.get("action") or {}
+        if action.get("type") == "CRITIC_RETRY":
+            critic_id = node["id"]
+            break
+
+    if critic_id is None:
+        log.append("  [CRITIC_RETRY] No CRITIC_RETRY node found — skipping")
+        return data, log
+
+    # Exception station for bad extraction
+    exc_id: str | None = None
+    for node in data.get("nodes", []):
+        meta = node.get("meta") or {}
+        ik = meta.get("intent_key") or meta.get("canonical_key", "")
+        if ik == "task:MANUAL_REVIEW_BAD_EXTRACTION":
+            exc_id = node["id"]
+            break
+
+    if exc_id is None:
+        log.append("  [CRITIC_RETRY] No BAD_EXTRACTION exception station found — skipping")
+        return data, log
+
+    # No-PO exception node (MANUAL_REVIEW_NO_PO)
+    nopo_id: str | None = None
+    for node in data.get("nodes", []):
+        action = node.get("action") or {}
+        if action.get("type") == "MANUAL_REVIEW_NO_PO":
+            nopo_id = node["id"]
+            break
+
+    # Find the unconditional fallback target from ENTER_RECORD (n4)
+    fallback_target: str | None = None
+    for edge in data.get("edges", []):
+        if edge.get("frm") == enter_id and edge.get("condition") is None:
+            fallback_target = edge.get("to")
+            break
+
+    if fallback_target is None:
+        log.append("  [CRITIC_RETRY] No unconditional fallback edge from ENTER_RECORD — skipping")
+        return data, log
+
+    # --- Idempotency check ---------------------------------------------------
+    needs_retry_cond = 'status == "NEEDS_RETRY"'
+    for edge in data.get("edges", []):
+        if (
+            edge.get("frm") == enter_id
+            and edge.get("to") == critic_id
+            and edge.get("condition") == needs_retry_cond
+        ):
+            log.append(
+                f"  [CRITIC_RETRY] Edge {enter_id}->{critic_id} "
+                f"(condition={needs_retry_cond!r}) already present — skipping"
+            )
+            return data, log
+
+    # --- Step A: Remove old BAD_EXTRACTION → reject edge from ENTER_RECORD ---
+    old_cond = 'status == "BAD_EXTRACTION"'
+    removed = _remove_edges(data, lambda e: (
+        e.get("frm") == enter_id
+        and e.get("condition") == old_cond
+    ))
+    if removed:
+        log.append(
+            f"  [CRITIC_RETRY] Removed {removed} old BAD_EXTRACTION edge(s) from {enter_id}"
+        )
+
+    # Insert new edges from ENTER_RECORD (before unconditional fallback)
+    insert_idx = len(data["edges"])
+    for idx, edge in enumerate(data["edges"]):
+        if edge.get("frm") == enter_id and edge.get("condition") is None:
+            insert_idx = idx
+            break
+
+    # n3 → n_critic_retry: status == "NEEDS_RETRY"
+    data["edges"].insert(insert_idx, _norm_edge(
+        enter_id, critic_id, needs_retry_cond, _PATCH_ID,
+    ))
+    log.append(
+        f"  [CRITIC_RETRY] Injected {enter_id}->{critic_id} "
+        f"(condition={needs_retry_cond!r})"
+    )
+
+    # n3 → n_exc_bad_extraction: status == "BAD_EXTRACTION"
+    data["edges"].insert(insert_idx + 1, _norm_edge(
+        enter_id, exc_id, old_cond, _PATCH_ID,
+    ))
+    log.append(
+        f"  [CRITIC_RETRY] Injected {enter_id}->{exc_id} "
+        f"(condition={old_cond!r})"
+    )
+
+    # --- Step B: Add edges from n_critic_retry --------------------------------
+
+    # critic → exc_bad_extraction: status == "BAD_EXTRACTION"
+    if not any(
+        e.get("frm") == critic_id and e.get("to") == exc_id
+        for e in data.get("edges", [])
+    ):
+        data["edges"].append(_norm_edge(
+            critic_id, exc_id, old_cond, _PATCH_ID,
+        ))
+        log.append(
+            f"  [CRITIC_RETRY] Injected {critic_id}->{exc_id} "
+            f"(condition={old_cond!r})"
+        )
+
+    # critic → n_exception: no-PO guard (mirrors n3's pattern)
+    if nopo_id is not None:
+        nopo_cond = 'status != "BAD_EXTRACTION" AND has_po == false'
+        if not any(
+            e.get("frm") == critic_id and e.get("to") == nopo_id
+            for e in data.get("edges", [])
+        ):
+            data["edges"].append(_norm_edge(
+                critic_id, nopo_id, nopo_cond, _PATCH_ID,
+            ))
+            log.append(
+                f"  [CRITIC_RETRY] Injected {critic_id}->{nopo_id} "
+                f"(condition={nopo_cond!r})"
+            )
+
+    # critic → fallback_target: unconditional (success path)
+    if not _has_edge(data, critic_id, fallback_target):
+        data["edges"].append(_norm_edge(
+            critic_id, fallback_target, None, _PATCH_ID,
+        ))
+        log.append(
+            f"  [CRITIC_RETRY] Injected {critic_id}->{fallback_target} "
+            f"(condition=None, unconditional fallback)"
+        )
+
+    return data, log
+
+
+# ===========================================================================
+# Pass 13 — Inject match_result == "UNKNOWN" guardrail edges
 # ===========================================================================
 
 def inject_match_result_unknown_guardrail(data: dict) -> tuple[dict, list[str]]:
@@ -1602,6 +1781,7 @@ def normalize_all(data: dict) -> tuple[dict, list[str]]:
         ("convert_whitelisted_fanout_to_sequential", convert_whitelisted_fanout_to_sequential),
         ("convert_fanout_gateways_to_ambiguous_station", convert_fanout_gateways_to_ambiguous_station),
         ("wire_bad_extraction_route",    wire_bad_extraction_route),
+        ("wire_critic_retry_route",     wire_critic_retry_route),
         ("inject_match_result_unknown_guardrail", inject_match_result_unknown_guardrail),
         ("deduplicate_edges",            deduplicate_edges),
         ("deduplicate_edges_strict",     deduplicate_edges_strict),

@@ -1,0 +1,14 @@
+Bob's Industrial Plumbing
+1600  Pennsylvania Ave NW
+
+Invoice: INV-2049
+D ate: 2026-03-10
+PO Number: REF-49489
+
+Description               Qty    Price
+----------------------------------------
+Toner Cartridge          6      42.99
+LE D Monitor 27in         3      299.99
+Network Cables (100ft)   12     8.50
+----------------------------------------
+Total: 2308.33

@@ -129,6 +129,25 @@ NEW_NODES: list[dict] = [
             "rationale":     "Guardrail: missing PO must be manually reviewed, not auto-matched",
         },
     },
+    {
+        "id":       "n_critic_retry",
+        "kind":     "task",
+        "name":     "Critic Retry — LLM correction attempt for failed extraction",
+        "action":   {
+            "type":        "CRITIC_RETRY",
+            "actor_id":    "role_ap_clerk",
+            "artifact_id": "art_invoice",
+            "extra":       {},
+        },
+        "decision": None,
+        "evidence": [],
+        "meta": {
+            "canonical_key": "task:CRITIC_RETRY",
+            "origin":        "patch",
+            "patch_id":      "patch_3_critic_retry",
+            "rationale":     "Guardrail: one LLM correction attempt before manual review",
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -338,8 +357,8 @@ def _patch(data: dict) -> tuple[dict, list[str]]:
         "meta":      _edge_meta("patch_2_data_loophole"),
     })
     _NO_PO_GUARD = (
-        'status != "BAD_EXTRACTION" AND status != "MISSING_DATA" '
-        'AND has_po == false'
+        'status != "BAD_EXTRACTION" AND status != "NEEDS_RETRY" '
+        'AND status != "MISSING_DATA" AND has_po == false'
     )
     data["edges"].append({
         "frm":       "n3",

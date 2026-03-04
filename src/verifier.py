@@ -51,7 +51,7 @@ _NUM_RE = re.compile(r"[\d,]+\.?\d*|\.\d+")
 _CURRENCY_RE = re.compile(r"[$€£¥₹]")
 
 # Keywords that disambiguate which number is the "total" amount
-_AMOUNT_KEYWORDS = ("total", "amount due", "balance due", "sum")
+_AMOUNT_KEYWORDS = ("total", "amount due", "balance due", "sum", "due", "amount")
 
 # Window size (chars) to look back for a keyword before a number
 _KEYWORD_WINDOW = 30
@@ -104,6 +104,20 @@ _PO_RE = re.compile(
     r"\b(PO|Purchase\s+Order)\b|\bP\.O\.(?:\s|$|#)|PO-?\d+",
     re.IGNORECASE,
 )
+
+
+# ---------------------------------------------------------------------------
+# Public API for eval/audit tooling
+# ---------------------------------------------------------------------------
+# These are read-only exports consumed by eval_audit.py and tests.
+# They must remain backward-compatible; if you rename or remove a private
+# symbol, update the alias here (or update eval_audit accordingly).
+MONEY_RE = _NUM_RE
+CURRENCY_RE = _CURRENCY_RE
+PO_RE = _PO_RE
+AMOUNT_KEYWORDS = _AMOUNT_KEYWORDS
+KEYWORD_WINDOW = _KEYWORD_WINDOW
+normalize_text = _normalize_text
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +332,17 @@ def _verify_has_po(
     # Type check: value must be bool
     if not isinstance(value, bool):
         codes.append("WRONG_TYPE")
+        return
+
+    # Null-tolerance: has_po=False with None/empty evidence is valid —
+    # there is no PO to ground when the invoice has none.
+    if value is False and (
+        evidence is None
+        or not isinstance(evidence, str)
+        or not evidence.strip()
+    ):
+        prov["has_po"]["grounded"] = True
+        prov["has_po"]["po_pattern_found"] = False
         return
 
     if evidence is not None and not isinstance(evidence, str):

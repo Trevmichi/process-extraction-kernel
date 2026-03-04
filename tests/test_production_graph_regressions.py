@@ -375,7 +375,7 @@ class TestStructuralInvariants:
 #   fp = json.dumps({'nodes': node_tuples, 'edges': edge_tuples}, sort_keys=True)
 #   print(hashlib.sha256(fp.encode()).hexdigest())
 #   "
-_EXPECTED_GRAPH_FINGERPRINT = "d617bc5abedb1acd911add430d4caa2963da57a944e0c986571fb10bfb3ecacb"
+_EXPECTED_GRAPH_FINGERPRINT = "a47585833c514e2daa5713011bf7d2a399f7d97ef2b4b598b85c1d57b0c169c5"
 
 
 class TestGraphDeterminism:

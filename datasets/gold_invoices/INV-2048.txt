@@ -1,0 +1,14 @@
+From: Quantum Data Systems Inc
+To: acco un ts@buyer.com
+Subject: Invoice INV-2048
+
+Hi,
+
+Please find attached invoice INV- 2048 dated 2026-11-12.
+This references Purchase Order PO-83125.
+The total amount due is 2213.82.
+
+Please remit payment within 30 days,
+
+Best regards,
+Quantum Data Systems Inc Billing

@@ -1,0 +1,11 @@
+Harbor Point Logistics
+INVOICE INV-2047 | 2026-01-15
+PO# PO-69279
+
+Item  A              500.82
+Item B              152.84
+  Sub total          653.66
+Tax (8%)            52.29
+Shipping            21.64
+---
+Final Balance Due:  1974.29

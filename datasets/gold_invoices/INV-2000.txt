@@ -1,0 +1,14 @@
+Brightwave Telecom Ltd
+8000 Marina Blvd, Brisbane
+
+Invoice: INV-2000
+Date: 2026-11-12
+PO Number: REF-28289
+
+Description              Qty    Price
+------------- ---------------------------
+Whiteboard Markers (box ) 10     12.50
+Network Cables (100ft)    12     B.50
+LED Monitor 27in         3      299.99
+-- --------------------------------------
+Total: 565.54

@@ -1,0 +1,11 @@
+Pinnacle Office Solutions
+INVOICE INV-2002 | 2026-08- 21
+PO# PRQ-92149
+
+Item A              241.43
+Item B               374.38
+  Subtotal          615.81
+Tax (8%)            49.26
+Shipping           17.23
+---
+Final Balance Due:  4200.92

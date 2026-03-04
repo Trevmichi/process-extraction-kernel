@@ -1,0 +1,98 @@
+src\benchmarker.py: def run_benchmark(
+src\branch_model.py: def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
+src\calibrator.py: def test_batch_efficiency(
+src\canonicalize.py: def canonicalize_manual_to_explicit(proc: ProcessDoc) -> None:
+src\conditions.py: class Comparison:
+src\conditions.py: class Conjunction:
+src\conditions.py: class ConditionParseError(ValueError):
+src\conditions.py: def parse_condition(expr: str) -> ConditionAST:
+src\conditions.py: def compile_condition(expr: str) -> Callable[[dict], bool]:
+src\conditions.py: def normalize_condition(raw: str | None) -> str | None:
+src\conditions.py: def get_predicate(raw: str | None) -> Callable[[dict], bool] | None:
+src\database.py: def init_db() -> None:
+src\database.py: def log_extraction(
+src\database.py: def log_calibration_result(
+src\database.py: def log_hyperparameter_result(
+src\database.py: def get_hyperparameter_result(
+src\database.py: def get_performance_trends() -> None:
+src\diff_tool.py: def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B") -> Dict[str, Any]:
+src\diff_tool.py: def diff_to_markdown(d: Dict[str, Any]) -> str:
+src\diff_tool.py: def write_diff(a_path: str, b_path: str, out_json: str, out_md: str, label_a: str, label_b: str) -> None:
+src\extract.py: def manual_extract_doc_001(text: str) -> ProcessDoc:
+src\extract.py: def manual_extract_doc_002(text: str) -> ProcessDoc:
+src\extract.py: def manual_extract_doc_003(text: str) -> ProcessDoc:
+src\extract.py: def manual_extract_doc_004(text: str) -> ProcessDoc:
+src\extract.py: def manual_extract_doc_005(text: str) -> ProcessDoc:
+src\gap_analyzer.py: def run_gap_analysis(output_dir: str = "outputs") -> str:
+src\gap_analyzer.py: def write_gap_analysis(output_dir: str = "outputs") -> str:
+src\heuristic.py: class ParsedIntent(TypedDict, total=False):
+src\heuristic.py: def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report: str = "") -> ProcessDoc:
+src\invariants.py: def check_match_split_invariants(data: dict) -> list[LintError]:
+src\invariants.py: def check_no_placeholder_conditions(data: dict) -> list[LintError]:
+src\invariants.py: def check_match_result_ownership(data: dict) -> list[LintError]:
+src\invariants.py: def check_match_result_routing(data: dict) -> list[LintError]:
+src\invariants.py: def check_match_decision_truth_table(data: dict) -> list[LintError]:
+src\invariants.py: def check_synthetic_completeness(data: dict) -> list[LintError]:
+src\linter.py: class LintError:
+src\linter.py: def lint_process_graph(graph: dict) -> list[LintError]:  # noqa: C901
+src\linter.py: def assert_graph_valid(graph: dict) -> None:
+src\llm_classifier.py: def get_heatmap_log() -> List[dict]:
+src\llm_classifier.py: def clear_heatmap_log() -> None:
+src\llm_classifier.py: def build_system_prompt(gap_report: str = "") -> str:
+src\llm_classifier.py: def classify_text_block_llm(
+src\main.py: def write_outputs(proc, out_json: str, out_mmd: str):
+src\main.py: def run_one_manual(source_id: str, extractor, input_path: str, out_json: str, out_mmd: str, out_trace: str):
+src\main.py: def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str, gap_report: str = ""):
+src\main.py: def main():
+src\mermaid.py: def to_mermaid(process: ProcessDoc) -> str:
+src\models.py: class Evidence:
+src\models.py: class Action:
+src\models.py: class Decision:
+src\models.py: class Node:
+src\models.py: class Edge:
+src\models.py: class ProcessDoc:
+src\monitor.py: def success_predictor(
+src\monitor.py: def watchdog(
+src\normalize_graph.py: def fix_artifact_references(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_canonical_key_duplicates(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def normalize_edge_conditions(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def inject_exception_nodes(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_match3way_gateway(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_main_execution_path(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_haspo_gateway(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def fix_placeholder_gateways(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def convert_unparseable_gateways_to_station(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def convert_fanout_gateways_to_ambiguous_station(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def wire_bad_extraction_route(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def inject_match_result_unknown_guardrail(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def deduplicate_edges(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def deduplicate_edges_strict(data: dict) -> tuple[dict, list[str]]:
+src\normalize_graph.py: def normalize_all(data: dict) -> tuple[dict, list[str]]:
+src\referee.py: def referee_add_unknowns(process: ProcessDoc) -> List[Dict]:
+src\render.py: def to_json(process: ProcessDoc) -> str:
+src\trace.py: def trace_event(path: str, action_type: str, payload: Dict[str, Any], cost: Optional[Dict[str, Any]] = None) -> None:
+src\ui_audit.py: def extract_exception_event(audit_log: list) -> dict | None:
+src\ui_audit.py: def extract_match_event(audit_log: list) -> dict | None:
+src\ui_audit.py: def extract_router_events(audit_log: list) -> list[dict]:
+src\ui_audit.py: def extract_verifier_event(audit_log: list) -> dict | None:
+src\unknown_normalize.py: def normalize_unknowns(proc) -> List[Dict]:
+src\unmodeled.py: def record_event(event: dict, path: str = _DEFAULT_PATH) -> None:
+src\validate.py: def validate(process: ProcessDoc) -> List[str]:
+src\verifier.py: def verify_extraction(
+src\visualizer.py: def generate_dashboard(
+src\visualizer.py: def generate_performance_curve(
+src\visualizer.py: def generate_complexity_heatmap(
+src\visualizer.py: def generate_logic_density_chart(
+src\visualizer.py: def generate_logic_density_profile(
+src\visualizer.py: def generate_schema_report(
+src\agent\compiler.py: def build_ap_graph(json_path: str):
+src\agent\nodes.py: def execute_node(state: APState, node_data: dict,
+src\agent\nodes.py: def create_node_handler(
+src\agent\router.py: class RouterError(Exception):
+src\agent\router.py: class RouteResult:
+src\agent\router.py: def analyze_routing(
+src\agent\router.py: def route_edge(
+src\agent\state.py: class APState(TypedDict):
+src\agent\state.py: def make_initial_state(

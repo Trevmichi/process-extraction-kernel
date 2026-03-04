@@ -1,0 +1,13 @@
+Emerald Bay Consulting
+1600 Pennsylvania Ave NW
+
+Invoice: INV-2041
+Date: 2026-01-15
+
+Description              Qty    Price
+----------------------------------------
+Office Chairs            4      189.0 0
+LED Monitor 27in         3      299.99
+USB-C Adapters            20     15.00
+----------------------------------------
+Total: 3949.90

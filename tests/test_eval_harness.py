@@ -21,10 +21,23 @@ from eval_runner import (
     check_trace,
     classify_failure,
     compare_fields,
+    compute_failure_groupings,
     compute_metrics,
     load_expected,
     load_invoice_text,
     should_exit_zero,
+)
+from eval_audit import (
+    build_diagnostic_snapshot,
+    compute_signals,
+    select_audit_targets,
+    _validate_audit_result,
+    _make_unclear_result,
+    _extract_json,
+    _parse_trace_summary,
+    run_audit,
+    VERDICTS,
+    ROOT_CAUSE_CATEGORIES,
 )
 from src.verifier import _normalize_text
 
@@ -39,9 +52,9 @@ EXPECTED_PATH = DATASETS_DIR / "expected.jsonl"
 class TestLoadExpected:
 
     def test_load_expected_reads_all_records(self):
-        """expected.jsonl should contain exactly 50 gold records."""
+        """expected.jsonl should contain at least 50 gold records."""
         records = load_expected(EXPECTED_PATH)
-        assert len(records) == 50
+        assert len(records) >= 50
 
     def test_load_expected_validates_schema(self):
         """Every record passes _validate_gold_record without error."""
@@ -135,7 +148,7 @@ class TestEvidenceGrounding:
             norm_text = _normalize_text(raw_text)
 
             for field, extraction in rec["mock_extraction"].items():
-                evidence = extraction.get("evidence", "")
+                evidence = extraction.get("evidence") or ""
                 if not evidence.strip():
                     continue  # empty evidence is tested separately by verifier
                 norm_evidence = _normalize_text(evidence)
@@ -337,3 +350,356 @@ class TestExitCodeLogic:
         m = {"terminal_accuracy": {"accuracy": 0.98},
              "field_accuracy": {"overall": {"accuracy": 1.0}}}
         assert should_exit_zero(m) is False
+
+
+# ===========================================================================
+# TestFailureGroupings (Part B)
+# ===========================================================================
+
+def _make_result(invoice_id, bucket="pass", tags=None):
+    """Helper to build a minimal per-invoice result dict."""
+    return {
+        "invoice_id": invoice_id,
+        "failure_bucket": bucket,
+        "tags": tags or [],
+        "expected_status": ["APPROVED"],
+        "actual_status": "APPROVED" if bucket == "pass" else "REJECTED",
+        "status_match": bucket == "pass",
+        "field_comparison": {},
+        "match_result": "MATCH",
+        "audit_log": [],
+        "field_mismatches": [],
+    }
+
+
+class TestFailureGroupings:
+
+    def test_failures_by_bucket_structure(self):
+        """failures_by_bucket always has all 3 bucket keys (stable shape)."""
+        results = [
+            _make_result("INV-0001", "terminal_mismatch", ["tag_a"]),
+            _make_result("INV-0002", "pass", ["tag_a"]),
+        ]
+        by_bucket, _ = compute_failure_groupings(results)
+        assert set(by_bucket.keys()) == {
+            "terminal_mismatch", "field_mismatch",
+            "both_terminal_and_field_mismatch",
+        }
+        assert by_bucket["terminal_mismatch"] == ["INV-0001"]
+        assert by_bucket["field_mismatch"] == []
+        assert by_bucket["both_terminal_and_field_mismatch"] == []
+
+    def test_failures_by_tag_only_failing_tags(self):
+        """failures_by_tag only includes tags with ≥1 failure."""
+        results = [
+            _make_result("INV-0001", "field_mismatch", ["no_po"]),
+            _make_result("INV-0002", "pass", ["happy_path"]),
+        ]
+        _, by_tag = compute_failure_groupings(results)
+        assert "no_po" in by_tag
+        assert "happy_path" not in by_tag
+        assert by_tag["no_po"]["field_mismatch"] == ["INV-0001"]
+
+    def test_empty_failures(self):
+        """When all pass, buckets are empty but all keys present."""
+        results = [
+            _make_result("INV-0001", "pass", ["tag_a"]),
+            _make_result("INV-0002", "pass", ["tag_b"]),
+        ]
+        by_bucket, by_tag = compute_failure_groupings(results)
+        assert all(v == [] for v in by_bucket.values())
+        assert by_tag == {}
+
+    def test_multiple_tags_per_invoice(self):
+        """A failing invoice with multiple tags appears in each tag's bucket."""
+        results = [
+            _make_result("INV-0001", "terminal_mismatch", ["no_po", "high_value"]),
+        ]
+        _, by_tag = compute_failure_groupings(results)
+        assert "no_po" in by_tag
+        assert "high_value" in by_tag
+        assert by_tag["no_po"]["terminal_mismatch"] == ["INV-0001"]
+        assert by_tag["high_value"]["terminal_mismatch"] == ["INV-0001"]
+
+
+# ===========================================================================
+# TestAuditTargetSelection
+# ===========================================================================
+
+class TestAuditTargetSelection:
+
+    def _results(self):
+        return [
+            _make_result("INV-0001", "pass"),
+            _make_result("INV-0002", "pass"),
+            _make_result("INV-0003", "pass"),
+            _make_result("INV-0004", "terminal_mismatch"),
+            _make_result("INV-0005", "field_mismatch"),
+        ]
+
+    def test_failures_always_included(self):
+        """In failures_and_sample mode, all failures are always included."""
+        targets = select_audit_targets(
+            self._results(), "failures_and_sample", audit_sample=1, audit_seed=42,
+        )
+        target_ids = [t["invoice_id"] for t in targets]
+        assert "INV-0004" in target_ids
+        assert "INV-0005" in target_ids
+
+    def test_sample_size_respected(self):
+        """Number of sampled passes should not exceed audit_sample."""
+        targets = select_audit_targets(
+            self._results(), "failures_and_sample", audit_sample=2, audit_seed=42,
+        )
+        pass_targets = [t for t in targets if t["failure_bucket"] == "pass"]
+        assert len(pass_targets) <= 2
+
+    def test_deterministic_seed(self):
+        """Same seed produces same targets."""
+        t1 = select_audit_targets(
+            self._results(), "failures_and_sample", audit_sample=2, audit_seed=99,
+        )
+        t2 = select_audit_targets(
+            self._results(), "failures_and_sample", audit_sample=2, audit_seed=99,
+        )
+        assert [t["invoice_id"] for t in t1] == [t["invoice_id"] for t in t2]
+
+    def test_audit_mode_failures_only(self):
+        """failures_only mode excludes all passes."""
+        targets = select_audit_targets(
+            self._results(), "failures_only", audit_sample=10, audit_seed=42,
+        )
+        assert all(t["failure_bucket"] != "pass" for t in targets)
+        assert len(targets) == 2
+
+    def test_audit_mode_sample_only(self):
+        """sample_only mode excludes all failures."""
+        targets = select_audit_targets(
+            self._results(), "sample_only", audit_sample=2, audit_seed=42,
+        )
+        assert all(t["failure_bucket"] == "pass" for t in targets)
+        assert len(targets) == 2
+
+    def test_audit_max_caps_total(self):
+        """audit_max trims from passes first."""
+        targets = select_audit_targets(
+            self._results(), "failures_and_sample", audit_sample=3,
+            audit_seed=42, audit_max=3,
+        )
+        assert len(targets) <= 3
+        # Failures (2) should still be included
+        failure_ids = [t["invoice_id"] for t in targets
+                       if t["failure_bucket"] != "pass"]
+        assert len(failure_ids) == 2
+
+
+# ===========================================================================
+# TestDiagnosticSnapshot
+# ===========================================================================
+
+class TestDiagnosticSnapshot:
+
+    def test_amount_candidates_extracted(self):
+        """Amount candidates should find all money-like numbers."""
+        raw = "Invoice Total: $1,250.00\nTax: $125.00\nSubtotal: $1,125.00"
+        snapshot = build_diagnostic_snapshot(raw, {}, {"audit_log": []})
+        assert len(snapshot["amount_candidates"]) >= 3
+        assert 1250.0 in snapshot["amount_candidates"]
+        assert 125.0 in snapshot["amount_candidates"]
+
+    def test_po_candidates_extracted(self):
+        """PO candidates should find PO-like patterns."""
+        raw = "Reference: PO-12345\nVendor: ACME"
+        snapshot = build_diagnostic_snapshot(raw, {}, {"audit_log": []})
+        assert len(snapshot["po_candidates"]) >= 1
+        # PO_RE matches 'PO' as a word boundary match
+        assert any("PO" in c for c in snapshot["po_candidates"])
+
+    def test_vendor_line_candidates(self):
+        """Should return first 5 non-empty lines."""
+        raw = "ACME Corp\n123 Main St\nCity, ST 12345\n\nInvoice #1001\nDate: 2024-01-01\nMore lines"
+        snapshot = build_diagnostic_snapshot(raw, {}, {"audit_log": []})
+        assert len(snapshot["vendor_line_candidates"]) == 5
+        assert snapshot["vendor_line_candidates"][0] == "ACME Corp"
+
+    def test_trace_summary_from_audit_log(self):
+        """Trace summary should parse route_decision events."""
+        import json as _json
+        audit_log = [
+            _json.dumps({"event": "route_decision", "from_node": "n3",
+                         "selected": "n4", "reason": "condition_match"}),
+            _json.dumps({"event": "verifier_summary", "valid": True,
+                         "failure_codes": []}),
+        ]
+        snapshot = build_diagnostic_snapshot("text", {}, {"audit_log": audit_log})
+        trace = snapshot["trace_summary"]
+        assert len(trace["route_decisions"]) == 1
+        assert trace["route_decisions"][0]["from_node"] == "n3"
+        assert trace["verifier_summary"]["valid"] is True
+
+    def test_empty_audit_log_safe(self):
+        """Empty audit_log should produce safe defaults."""
+        snapshot = build_diagnostic_snapshot("", {}, {"audit_log": []})
+        trace = snapshot["trace_summary"]
+        assert trace["route_decisions"] == []
+        assert trace["verifier_summary"] is None
+        assert trace["exception_station"] is None
+
+    def test_total_line_candidates(self):
+        """Should find lines with total/amount due keywords."""
+        raw = "Item: Widget\nTotal: $500.00\nAmount Due: $500.00\nThank you"
+        snapshot = build_diagnostic_snapshot(raw, {}, {"audit_log": []})
+        assert len(snapshot["total_line_candidates"]) == 2
+
+
+# ===========================================================================
+# TestAuditSignals
+# ===========================================================================
+
+class TestAuditSignals:
+
+    def test_multiple_totals_detected(self):
+        """Signal should fire when >1 amount candidate found."""
+        snapshot = {"amount_candidates": [100.0, 200.0], "po_candidates": []}
+        signals = compute_signals(snapshot, {})
+        assert signals["multiple_total_candidates"] is True
+
+    def test_single_total_not_flagged(self):
+        """Signal should not fire with exactly 1 amount candidate."""
+        snapshot = {"amount_candidates": [100.0], "po_candidates": []}
+        signals = compute_signals(snapshot, {})
+        assert signals["multiple_total_candidates"] is False
+
+    def test_po_mismatch_detected(self):
+        """Signal should fire when gold says has_po=true but no PO regex match."""
+        snapshot = {"amount_candidates": [], "po_candidates": []}
+        gold = {"expected_fields": {"has_po": True}}
+        signals = compute_signals(snapshot, gold)
+        assert signals["po_missing_but_has_po_true"] is True
+
+    def test_po_mismatch_not_flagged_when_po_found(self):
+        """Signal should not fire when PO candidates exist."""
+        snapshot = {"amount_candidates": [], "po_candidates": ["PO-12345"]}
+        gold = {"expected_fields": {"has_po": True}}
+        signals = compute_signals(snapshot, gold)
+        assert signals["po_missing_but_has_po_true"] is False
+
+
+# ===========================================================================
+# TestAuditReportStructure
+# ===========================================================================
+
+class TestAuditReportStructure:
+
+    def test_validate_audit_result_normalizes(self):
+        """_validate_audit_result should normalize valid LLM responses."""
+        raw = {
+            "verdict": "deterministic_bug",
+            "confidence": 0.85,
+            "root_cause_category": "AMOUNT_DISAMBIGUATION",
+            "explanation": "The amount was wrong.",
+            "recommended_action": "Fix verifier.",
+            "suggested_new_test_cases": [],
+        }
+        result = _validate_audit_result(raw)
+        assert result["verdict"] == "deterministic_bug"
+        assert result["confidence"] == 0.85
+        assert result["root_cause_category"] == "AMOUNT_DISAMBIGUATION"
+
+    def test_validate_audit_result_clamps_confidence(self):
+        """Confidence should be clamped to [0, 1]."""
+        raw = {"confidence": 1.5, "verdict": "unclear"}
+        result = _validate_audit_result(raw)
+        assert result["confidence"] == 1.0
+
+        raw2 = {"confidence": -0.5, "verdict": "unclear"}
+        result2 = _validate_audit_result(raw2)
+        assert result2["confidence"] == 0.0
+
+    def test_validate_audit_result_bad_verdict_becomes_unclear(self):
+        """Unknown verdict should be replaced with 'unclear'."""
+        raw = {"verdict": "totally_wrong", "root_cause_category": "INVALID"}
+        result = _validate_audit_result(raw)
+        assert result["verdict"] == "unclear"
+        assert result["root_cause_category"] == "OTHER"
+
+    def test_make_unclear_result_structure(self):
+        """_make_unclear_result should produce well-formed dict."""
+        result = _make_unclear_result("test reason")
+        assert result["verdict"] == "unclear"
+        assert result["confidence"] == 0.0
+        assert result["explanation"] == "test reason"
+        assert result["suggested_new_test_cases"] == []
+
+    def test_extract_json_plain(self):
+        """_extract_json should parse plain JSON."""
+        raw = '{"verdict": "unclear"}'
+        assert _extract_json(raw)["verdict"] == "unclear"
+
+    def test_extract_json_fenced(self):
+        """_extract_json should strip markdown fences."""
+        raw = '```json\n{"verdict": "unclear"}\n```'
+        assert _extract_json(raw)["verdict"] == "unclear"
+
+    def test_extract_json_with_prefix(self):
+        """_extract_json should find JSON even with surrounding text."""
+        raw = 'Here is the result: {"verdict": "unclear"} done.'
+        assert _extract_json(raw)["verdict"] == "unclear"
+
+    def test_failed_llm_produces_unclear_verdict(self):
+        """When audit_llm_call returns _error, verdict should be 'unclear'."""
+        from unittest.mock import patch as mock_patch
+
+        # Mock audit_llm_call to return error
+        with mock_patch("eval_audit.audit_llm_call",
+                        return_value={"_error": "connection refused"}):
+            results = [_make_result("INV-0001", "terminal_mismatch")]
+            gold = [{
+                "invoice_id": "INV-0001",
+                "file": "inv_0001.txt",
+                "expected_status": ["APPROVED"],
+                "expected_fields": {"vendor": "X", "amount": 100.0, "has_po": True},
+            }]
+            # Also mock the file read
+            with mock_patch("eval_audit.Path.read_text", return_value="Invoice text"):
+                audit = run_audit(
+                    results, gold, Path("datasets"),
+                    audit_mode="failures_only", audit_sample=0, audit_seed=42,
+                )
+        assert len(audit["audits"]) == 1
+        assert audit["audits"][0]["llm_audit"]["verdict"] == "unclear"
+        assert "connection refused" in audit["audits"][0]["llm_audit"]["explanation"]
+
+    def test_audit_report_top_level_keys(self):
+        """Audit report should have run, summary, audits keys."""
+        from unittest.mock import patch as mock_patch
+
+        mock_llm_response = {
+            "verdict": "model_extraction_error",
+            "confidence": 0.7,
+            "root_cause_category": "AMOUNT_DISAMBIGUATION",
+            "explanation": "Test",
+            "recommended_action": "Fix",
+            "suggested_new_test_cases": [],
+        }
+        with mock_patch("eval_audit.audit_llm_call",
+                        return_value=mock_llm_response):
+            results = [_make_result("INV-0001", "terminal_mismatch")]
+            gold = [{
+                "invoice_id": "INV-0001",
+                "file": "inv_0001.txt",
+                "expected_status": ["APPROVED"],
+                "expected_fields": {},
+            }]
+            with mock_patch("eval_audit.Path.read_text", return_value="text"):
+                audit = run_audit(
+                    results, gold, Path("datasets"),
+                    audit_mode="failures_only", audit_sample=0, audit_seed=42,
+                )
+        assert "run" in audit
+        assert "summary" in audit
+        assert "audits" in audit
+        assert audit["run"]["audit_mode"] == "failures_only"
+        assert audit["summary"]["audited_count"] == 1
+        assert audit["summary"]["failures_audited"] == 1
+        assert audit["summary"]["passes_audited"] == 0

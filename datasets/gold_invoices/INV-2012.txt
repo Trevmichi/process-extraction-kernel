@@ -1,0 +1,11 @@
+CloudNine Infra LLC
+INVOICE INV-2012 | 2026-06-30
+PO# ORD-69597
+
+Item A              726.31
+Ite m B              529.24
+  Subtotal          1255.55
+Tax (8% )             100.44
+Shipping            43.12
+- - -
+Final Balance Due:  2020.23

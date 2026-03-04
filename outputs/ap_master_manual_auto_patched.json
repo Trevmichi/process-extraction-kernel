@@ -942,6 +942,26 @@
       }
     },
     {
+      "id": "n_critic_retry",
+      "kind": "task",
+      "name": "Critic Retry — LLM correction attempt for failed extraction",
+      "action": {
+        "type": "CRITIC_RETRY",
+        "actor_id": "role_ap_clerk",
+        "artifact_id": "art_invoice",
+        "extra": {}
+      },
+      "decision": null,
+      "evidence": [],
+      "meta": {
+        "canonical_key": "task:CRITIC_RETRY",
+        "origin": "patch",
+        "patch_id": "patch_3_critic_retry",
+        "rationale": "Guardrail: one LLM correction attempt before manual review",
+        "intent_key": "task:CRITIC_RETRY"
+      }
+    },
+    {
       "id": "n_exc_bad_extraction",
       "kind": "task",
       "name": "Manual Review — Bad Extraction (evidence verification failed)",
@@ -1117,12 +1137,22 @@
     },
     {
       "frm": "n3",
-      "to": "n_reject",
+      "to": "n_critic_retry",
+      "condition": "status == \"NEEDS_RETRY\"",
+      "meta": {
+        "origin": "normalize",
+        "patch_id": "normalize_critic_retry_route",
+        "rationale": "normalize: n3->n_critic_retry"
+      }
+    },
+    {
+      "frm": "n3",
+      "to": "n_exc_bad_extraction",
       "condition": "status == \"BAD_EXTRACTION\"",
       "meta": {
         "origin": "normalize",
-        "patch_id": "normalize_bad_extraction_route",
-        "rationale": "normalize: n3->n_reject"
+        "patch_id": "normalize_critic_retry_route",
+        "rationale": "normalize: n3->n_exc_bad_extraction"
       }
     },
     {
@@ -1214,7 +1244,7 @@
     {
       "frm": "n3",
       "to": "n_exception",
-      "condition": "status != \"BAD_EXTRACTION\" AND status != \"MISSING_DATA\" AND has_po == false",
+      "condition": "status != \"BAD_EXTRACTION\" AND status != \"NEEDS_RETRY\" AND status != \"MISSING_DATA\" AND has_po == false",
       "meta": {
         "origin": "patch",
         "patch_id": "patch_2_data_loophole"
@@ -1428,6 +1458,36 @@
         "origin": "normalize",
         "patch_id": "normalize_sequential_dispatch",
         "rationale": "normalize: n15->n16"
+      }
+    },
+    {
+      "frm": "n_critic_retry",
+      "to": "n_exc_bad_extraction",
+      "condition": "status == \"BAD_EXTRACTION\"",
+      "meta": {
+        "origin": "normalize",
+        "patch_id": "normalize_critic_retry_route",
+        "rationale": "normalize: n_critic_retry->n_exc_bad_extraction"
+      }
+    },
+    {
+      "frm": "n_critic_retry",
+      "to": "n_exception",
+      "condition": "status != \"BAD_EXTRACTION\" AND has_po == false",
+      "meta": {
+        "origin": "normalize",
+        "patch_id": "normalize_critic_retry_route",
+        "rationale": "normalize: n_critic_retry->n_exception"
+      }
+    },
+    {
+      "frm": "n_critic_retry",
+      "to": "n4",
+      "condition": null,
+      "meta": {
+        "origin": "normalize",
+        "patch_id": "normalize_critic_retry_route",
+        "rationale": "normalize: n_critic_retry->n4"
       }
     }
   ],

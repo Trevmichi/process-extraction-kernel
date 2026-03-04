@@ -1,0 +1,14 @@
+From: Quantum Data Systems Inc
+To: accounts@buyer.com
+Subject: Invoice INV-2022
+
+Hi,
+
+Please find attac hed invoice INV-2022 dated 2026-12-01.
+This references Purchase Order PRQ-96105.
+The total amount due is 4746.09.
+
+Please remit payment within 30 days.
+
+Best regards,
+Quantum Data Systems Inc Billing
