@@ -1,6 +1,6 @@
 # Gold Invoice Text Files
 
-62 invoice text files across 13 vendors for evaluation of the AP extraction pipeline.
+70 invoice text files across 13 vendors for evaluation of the AP extraction pipeline.
 
 | File | Invoice ID | Vendor | Scenario |
 |------|-----------|--------|----------|
@@ -66,6 +66,14 @@
 | inv_066.txt | INV-1066 | Acme Industrial Supply Inc. | vendor_alias_variation, happy_path |
 | inv_067.txt | INV-1067 | Atlas Electrical Supply | footer_total_vs_amount_due_conflict, happy_path |
 | inv_068.txt | INV-1068 | MetroTech Services | multi_currency_symbol_noise, happy_path |
+| inv_069.txt | INV-1069 | Acme Industrial Supply | date_us_format, tax_standard, happy_path |
+| inv_070.txt | INV-1070 | NorthRiver Office Solutions | date_us_format, tax_standard, happy_path |
+| inv_071.txt | INV-1071 | Global Logistics Corp | date_eu_format, tax_standard, happy_path |
+| inv_072.txt | INV-1072 | Horizon Freight Systems | date_eu_format, tax_standard, happy_path |
+| inv_073.txt | INV-1073 | Delta Mechanical Services | tax_complex_lines, happy_path |
+| inv_074.txt | INV-1074 | Silverline Packaging | tax_complex_lines, happy_path |
+| inv_075.txt | INV-1075 | Atlas Electrical Supply | tax_zero_explicit, happy_path |
+| inv_076.txt | INV-1076 | MetroTech Services | tax_zero_explicit, happy_path |
 
 ---
 

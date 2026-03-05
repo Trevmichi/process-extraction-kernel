@@ -1,0 +1,13 @@
+NorthRiver Office Solutions
+310 River Rd, Suite 200, Chicago, IL 60601
+
+Date: 12/03/2026
+Invoice Number: INV-1070
+PO Number: PO-NRO-415
+
+Office desk chairs (qty 6)           $2,400.00
+Monitor arms (qty 6)                   $540.00
+
+Subtotal: $2,940.00
+Tax: $235.20
+Total: $3,175.20

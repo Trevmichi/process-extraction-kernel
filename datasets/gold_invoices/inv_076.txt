@@ -1,0 +1,13 @@
+MetroTech Services
+Rue de la Loi 42, 1040 Brussels, Belgium
+
+Invoice Date: 14/02/2026
+Invoice Number: INV-1076
+PO Number: PO-MTS-890
+
+Cloud platform migration consulting    EUR 4,200.00
+Security audit and compliance review    EUR 1,800.00
+
+Subtotal: EUR 6,000.00
+VAT: EUR 0.00
+Total: EUR 6,000.00
