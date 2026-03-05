@@ -165,7 +165,8 @@ Text:
 # Core executor
 # ---------------------------------------------------------------------------
 def execute_node(state: APState, node_data: dict,
-                 outgoing_edges: list[dict] | None = None) -> dict:
+                 outgoing_edges: list[dict] | None = None,
+                 station_map: dict[str, str] | None = None) -> dict:
     """Simulate an agent performing work at *node_data*.
     
     Smart nodes (ENTER_RECORD, VALIDATE_FIELDS) call the local Ollama LLM.
@@ -196,14 +197,25 @@ def execute_node(state: APState, node_data: dict,
         updates["last_gateway"] = node_id
         # Emit structured route_decision audit event
         if outgoing_edges:
-            from .router import analyze_routing
+            from .router import analyze_routing, build_route_record
             result = analyze_routing(state, outgoing_edges)
+            route_record = build_route_record(
+                gateway_id=node_id,
+                outgoing_edges=outgoing_edges,
+                result=result,
+                station_map=station_map,
+            )
             updates.setdefault("audit_log", []).append(json.dumps({
                 "event": "route_decision",
                 "from_node": node_id,
                 "candidates": result.candidates,
                 "selected": result.selected,
                 "reason": result.reason,
+            }))
+            updates.setdefault("route_records", []).append(route_record)
+            updates.setdefault("audit_log", []).append(json.dumps({
+                "event": "route_record",
+                "route_record": route_record,
             }))
 
     # ---- Smart node: evidence-backed data extraction -------------------------
@@ -588,9 +600,10 @@ def create_node_handler(
     node_id: str,
     node_data: dict,
     outgoing_edges: list[dict] | None = None,
+    station_map: dict[str, str] | None = None,
 ) -> Callable[[APState], dict]:
     """Return a LangGraph-compatible callable for *node_id*.
-    
+
     The returned function is named ``node_<id>`` so it appears legibly
     in LangGraph's debug output and Mermaid diagram exports.
 
@@ -598,12 +611,14 @@ def create_node_handler(
       node_id: str
       node_data: dict
       outgoing_edges: list
-      node_id: str: 
-      node_data: dict: 
+      station_map: dict[str, str] | None
+      node_id: str:
+      node_data: dict:
       outgoing_edges: list[dict] | None:  (Default value = None)
+      station_map: dict[str, str] | None:  (Default value = None)
 
     Returns:
-      
+
 
     """
     def handler(state: APState) -> dict:
@@ -611,12 +626,12 @@ def create_node_handler(
 
         Args:
           state: APState:
-          state: APState: 
+          state: APState:
 
         Returns:
 
         """
-        return execute_node(state, node_data, outgoing_edges)
+        return execute_node(state, node_data, outgoing_edges, station_map)
 
     handler.__name__ = f"node_{node_id}"
     return handler
