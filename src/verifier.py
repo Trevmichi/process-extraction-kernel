@@ -36,7 +36,14 @@ FailureCode = Literal[
 # ---------------------------------------------------------------------------
 
 def _normalize_text(s: str) -> str:
-    """Collapse whitespace runs to single space, strip, casefold."""
+    """Collapse whitespace runs to single space, strip, casefold.
+
+    Args:
+      s: str: 
+
+    Returns:
+
+    """
     return re.sub(r"\s+", " ", s).strip().casefold()
 
 
@@ -58,11 +65,16 @@ _KEYWORD_WINDOW = 30
 
 
 def _extract_numbers(evidence: str) -> list[tuple[float, int]]:
-    """
-    Extract all numeric tokens from *evidence*, returning
+    """Extract all numeric tokens from *evidence*, returning
     ``[(parsed_float, char_index), ...]``.
-
+    
     Currency symbols and commas are stripped before parsing.
+
+    Args:
+      evidence: str: 
+
+    Returns:
+
     """
     # Replace with space instead of empty string to preserve match indices
     cleaned = _CURRENCY_RE.sub(" ", evidence)
@@ -81,10 +93,17 @@ def _extract_numbers(evidence: str) -> list[tuple[float, int]]:
 def _disambiguate_amount(
     numbers: list[tuple[float, int]], norm_evidence: str
 ) -> float | None:
-    """
-    When *numbers* has >1 entry, try to pick the one preceded by a keyword
+    """When *numbers* has >1 entry, try to pick the one preceded by a keyword
     within ``_KEYWORD_WINDOW`` characters.  Returns the chosen number or
     ``None`` if disambiguation fails.
+
+    Args:
+      numbers: list[tuple[float: 
+      int]]: 
+      norm_evidence: str: 
+
+    Returns:
+
     """
     candidates: list[float] = []
     for value, idx in numbers:
@@ -126,7 +145,7 @@ normalize_text = _normalize_text
 # ---------------------------------------------------------------------------
 
 def _default_provenance() -> dict:
-    """Return provenance dict with all consistent keys at default values."""
+    """ """
     return {
         "vendor": {"grounded": False, "evidence_found_at": -1},
         "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
@@ -137,11 +156,17 @@ def _default_provenance() -> dict:
 def _check_grounding(
     evidence: str, norm_raw: str
 ) -> tuple[bool, int]:
-    """
-    Check whether *evidence* appears as a substring of the raw text.
+    """Check whether *evidence* appears as a substring of the raw text.
     Both are normalised before comparison.
-
+    
     Returns ``(grounded, evidence_found_at)``.
+
+    Args:
+      evidence: str: 
+      norm_raw: str: 
+
+    Returns:
+
     """
     norm_ev = _normalize_text(evidence)
     idx = norm_raw.find(norm_ev)
@@ -156,20 +181,17 @@ def verify_extraction(
     raw_text: str,
     extraction: dict,
 ) -> tuple[bool, list[FailureCode], dict]:
-    """
-    Verify an evidence-backed extraction payload against *raw_text*.
+    """Verify an evidence-backed extraction payload against *raw_text*.
 
-    Parameters
-    ----------
-    raw_text   : the original invoice/PO text
-    extraction : nested dict ``{field: {value, evidence}, ...}``
+    Args:
+      raw_text(the original invoice/PO text): 
+      extraction(nested dict ``{field: {value, evidence}, ...}``): 
+      raw_text: str: 
+      extraction: dict: 
 
-    Returns
-    -------
-    (is_valid, failure_codes, provenance)
+    Returns:
 
-    ``provenance`` always has keys ``vendor``, ``amount``, ``has_po``,
-    each with consistent sub-keys regardless of pass/fail.
+    
     """
     codes: list[FailureCode] = []
     prov = _default_provenance()
@@ -195,6 +217,17 @@ def _verify_vendor(
     extraction: dict, norm_raw: str,
     codes: list, prov: dict,
 ) -> None:
+    """
+
+    Args:
+      extraction: dict: 
+      norm_raw: str: 
+      codes: list: 
+      prov: dict: 
+
+    Returns:
+
+    """
     field = extraction.get("vendor")
     if field is None:
         codes.append("MISSING_KEY")
@@ -246,6 +279,17 @@ def _verify_amount(
     extraction: dict, norm_raw: str,
     codes: list, prov: dict,
 ) -> None:
+    """
+
+    Args:
+      extraction: dict: 
+      norm_raw: str: 
+      codes: list: 
+      prov: dict: 
+
+    Returns:
+
+    """
     field = extraction.get("amount")
     if field is None:
         codes.append("MISSING_KEY")
@@ -323,6 +367,17 @@ def _verify_has_po(
     extraction: dict, norm_raw: str,
     codes: list, prov: dict,
 ) -> None:
+    """
+
+    Args:
+      extraction: dict: 
+      norm_raw: str: 
+      codes: list: 
+      prov: dict: 
+
+    Returns:
+
+    """
     field = extraction.get("has_po")
     if field is None:
         codes.append("MISSING_KEY")
