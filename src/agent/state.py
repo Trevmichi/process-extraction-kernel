@@ -43,7 +43,7 @@ failure_codes : list[str]
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict, cast
 
 # Strict Literal type for 3-way match outcomes
 MatchResult = Literal["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]
@@ -74,7 +74,7 @@ class APState(TypedDict):
 # annotations.
 # ---------------------------------------------------------------------------
 
-DEFAULT_STATE_TEMPLATE: dict = {
+DEFAULT_STATE_TEMPLATE: APState = {
     "invoice_id":   "",
     "vendor":       "",
     "amount":       0.0,
@@ -116,7 +116,7 @@ def make_initial_state(
     if match_3_way is None:
         match_3_way = po_match
 
-    state: APState = {**DEFAULT_STATE_TEMPLATE}   # shallow copy
+    state = cast(APState, DEFAULT_STATE_TEMPLATE.copy())   # shallow copy
     # Refresh mutable defaults so callers don't share state
     state["audit_log"] = []
     state["extraction"] = {}
