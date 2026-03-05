@@ -36,24 +36,16 @@ from .state import APState
 
 
 def build_ap_graph(json_path: str) -> Any:
-    """
-    Compile and return a LangGraph graph from *json_path*.
+    """Compile and return a LangGraph graph from *json_path*.
 
-    Parameters
-    ----------
-    json_path : path to an ``ap_*_auto.json`` file produced by the
-                extraction pipeline.
+    Args:
+      json_path(path to an ``ap_*_auto.json`` file produced by the): extraction pipeline.
+      json_path: str:
+      json_path: str: 
 
-    Returns
-    -------
-    A compiled LangGraph ``CompiledGraph`` ready for ``.invoke()``.
+    Returns:
+      : 
 
-    Raises
-    ------
-    ValueError
-        If the graph JSON fails linting (missing artifacts, invalid
-        conditions, gateway fan-out, etc.).  The error message contains
-        a detailed multi-line lint report.
     """
     data: dict = json.loads(Path(json_path).read_text(encoding="utf-8"))
 
@@ -157,7 +149,30 @@ def build_ap_graph(json_path: str) -> Any:
                 bound_node: dict,
                 bound_stations: dict[str, str],
             ):
+                """
+
+                Args:
+                  bound_edges: list[dict]:
+                  bound_node: dict:
+                  bound_stations: dict[str:
+                  str]: 
+                  bound_edges: list[dict]: 
+                  bound_node: dict: 
+                  bound_stations: dict[str: 
+
+                Returns:
+
+                """
                 def _route(state: APState) -> str:
+                    """
+
+                    Args:
+                      state: APState:
+                      state: APState: 
+
+                    Returns:
+
+                    """
                     return route_edge(
                         state, bound_edges, bound_node, bound_stations
                     )
