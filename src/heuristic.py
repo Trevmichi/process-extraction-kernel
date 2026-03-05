@@ -60,7 +60,7 @@ _BRANCH_GW_TYPES: Dict[str, str] = {
 }
 
 class ParsedIntent(TypedDict, total=False):
-    """ """
+    """Structured intermediate intent extracted from a sentence."""
     kind: Literal["action", "decision"]
     intent: str  # ActionType or DecisionType
     actor_id: str
