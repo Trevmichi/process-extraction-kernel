@@ -61,7 +61,7 @@ from ..unmodeled import record_event
 
 
 class RouterError(Exception):
-    """Raised when no valid outgoing edge can be selected."""
+    """ """
 
 
 # ---------------------------------------------------------------------------
@@ -88,14 +88,22 @@ def analyze_routing(
     state: APState,
     outgoing_edges: list[dict],
 ) -> RouteResult:
-    """
-    Pure routing analysis — no side effects, no station resolution.
-
+    """Pure routing analysis — no side effects, no station resolution.
+    
     Evaluates outgoing edges against *state* and returns a structured
     ``RouteResult``.  ``selected`` is ``None`` for ambiguous_route / no_route;
     the caller handles station resolution and logging.
-
+    
     Raises ``RouterError`` if *outgoing_edges* is empty.
+
+    Args:
+      state: APState:
+      outgoing_edges: list[dict]:
+      state: APState: 
+      outgoing_edges: list[dict]: 
+
+    Returns:
+
     """
     if not outgoing_edges:
         raise RouterError("No outgoing edges — cannot determine next step.")
@@ -202,9 +210,16 @@ _NO_ROUTE_INTENT = "task:MANUAL_REVIEW_NO_ROUTE"
 
 def _resolve_station(station_map: dict[str, str], intent_key: str) -> str:
     """
-    Return the node ID for the exception station matching *intent_key*.
 
-    Raises ``ValueError`` if the station is not in *station_map*.
+    Args:
+      station_map: dict[str:
+      str]: 
+      intent_key: str:
+      station_map: dict[str: 
+      intent_key: str: 
+
+    Returns:
+
     """
     node_id = station_map.get(intent_key)
     if node_id is None:
@@ -225,7 +240,21 @@ def _log_unmodeled(
     state: APState,
     matched_targets: list[str] | None = None,
 ) -> None:
-    """Log a NO_ROUTE or AMBIGUOUS_ROUTE event (no raw text — privacy)."""
+    """Log a NO_ROUTE or AMBIGUOUS_ROUTE event (no raw text — privacy).
+
+    Args:
+      reason: str:
+      node_data: dict:
+      state: APState:
+      matched_targets: list[str] | None:  (Default value = None)
+      reason: str: 
+      node_data: dict: 
+      state: APState: 
+      matched_targets: list[str] | None:  (Default value = None)
+
+    Returns:
+
+    """
     event = {
         "reason": reason,
         "from_node": node_data.get("id", ""),
@@ -248,21 +277,26 @@ def route_edge(
     node_data: dict,
     station_map: dict[str, str] | None = None,
 ) -> str:
-    """
-    Return the ``node_id`` of the next node to execute.
-
+    """Return the ``node_id`` of the next node to execute.
+    
     Delegates to ``analyze_routing()`` for the pure evaluation, then
     handles station resolution and JSONL logging for exception cases.
 
-    Parameters
-    ----------
-    state          : current APState snapshot
-    outgoing_edges : all edges whose ``frm`` == current node (already deduped)
-    node_data      : the full node dict from the process JSON
-    station_map    : mapping of ``meta.intent_key`` → node ID for all
-                     exception stations.  When ``None``, ambiguous / no-route
-                     situations raise ``RouterError`` instead of routing to
-                     a station (backward-compat for tests without stations).
+    Args:
+      state: APState
+      outgoing_edges: list
+      node_data: dict
+      station_map: dict
+      str: None
+      state: APState: 
+      outgoing_edges: list[dict]: 
+      node_data: dict: 
+      station_map: dict[str: 
+      str] | None:  (Default value = None)
+
+    Returns:
+      
+
     """
     result = analyze_routing(state, outgoing_edges)
 
