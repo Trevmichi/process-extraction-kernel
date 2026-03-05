@@ -58,10 +58,12 @@ _AUDIT_FIELDNAMES = [
 
 def _load_baseline() -> Optional[Dict[str, Any]]:
     """
-    Return the most recent sweet-spot calibration row from metrics.db,
-    or None if no baseline exists yet.
 
-    Keys returned: node_recovery_rate, info_density, chunk_size_tokens, doc_name
+    Args:
+
+    Returns:
+      Keys returned: node_recovery_rate, info_density, chunk_size_tokens, doc_name
+
     """
     if not _DB_PATH.exists():
         return None
@@ -94,14 +96,24 @@ def success_predictor(
     stitch_failures: int,
     baseline_density: float,
 ) -> Tuple[str, float]:
-    """
-    Compare node_density against baseline_density and return
+    """Compare node_density against baseline_density and return
     (status_label, confidence_ratio).
-
+    
     Priority order:
       1. confidence_ratio < RED_THRESHOLD  →  RED:    Low Confidence
       2. stitch_failures > 0              →  YELLOW: Logic Break
       3. otherwise                        →  GREEN:  Pass
+
+    Args:
+      node_density: float:
+      stitch_failures: int:
+      baseline_density: float:
+      node_density: float: 
+      stitch_failures: int: 
+      baseline_density: float: 
+
+    Returns:
+
     """
     confidence_ratio = (node_density / baseline_density) if baseline_density > 0 else 1.0
 
@@ -117,12 +129,18 @@ def success_predictor(
 # ---------------------------------------------------------------------------
 
 def _extract_file(filepath: Path) -> Dict[str, Any]:
-    """
-    Run heuristic extraction at _WATCH_CHUNK_SIZE on *filepath*.
-
+    """Run heuristic extraction at _WATCH_CHUNK_SIZE on *filepath*.
+    
     Aggregates unique canonical keys across all chunks (global dedup),
     computes stitch failures at every chunk boundary, and returns a
     metrics dict ready for audit logging and confidence scoring.
+
+    Args:
+      filepath: Path:
+      filepath: Path: 
+
+    Returns:
+
     """
     from src.calibrator import _words_to_chunks, _run_extraction
 
@@ -181,7 +199,22 @@ def _append_audit_log(
     confidence_ratio: float,
     status: str,
 ) -> None:
-    """Append one row to master_audit_log.csv, writing the header if needed."""
+    """Append one row to master_audit_log.csv, writing the header if needed.
+
+    Args:
+      result: Dict[str:
+      Any]: 
+      baseline_density: float:
+      confidence_ratio: float:
+      status: str:
+      result: Dict[str: 
+      baseline_density: float: 
+      confidence_ratio: float: 
+      status: str: 
+
+    Returns:
+
+    """
     _AUDIT_CSV.parent.mkdir(exist_ok=True)
     write_header = not _AUDIT_CSV.exists()
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -224,6 +257,22 @@ def _print_status_report(
     confidence_ratio: float,
     baseline_density: float,
 ) -> None:
+    """
+
+    Args:
+      result: Dict[str:
+      Any]: 
+      status: str:
+      confidence_ratio: float:
+      baseline_density: float:
+      result: Dict[str: 
+      status: str: 
+      confidence_ratio: float: 
+      baseline_density: float: 
+
+    Returns:
+
+    """
     color_key = status.split(":")[0].strip()
     badge = _BADGE.get(color_key, f" {color_key} ")
     threshold_note = (
@@ -262,17 +311,29 @@ def watchdog(
     batch_csv: str = "outputs/batch_report.csv",
     dashboard_png: str = "outputs/performance_benchmark.png",
 ) -> None:
-    """
-    Poll *input_dir* every *poll_interval* seconds for new .txt files.
-
+    """Poll *input_dir* every *poll_interval* seconds for new .txt files.
+    
     For each new file:
       - Extract at the 5k-token threshold.
       - Score confidence against the sweet-spot baseline.
       - Regenerate the analytics dashboard PNG.
       - Append a row to master_audit_log.csv.
       - Print a Status Report.
-
+    
     Runs until interrupted with Ctrl-C.
+
+    Args:
+      input_dir: str:  (Default value = "data/input")
+      poll_interval: int:  (Default value = 10)
+      batch_csv: str:  (Default value = "outputs/batch_report.csv")
+      dashboard_png: str:  (Default value = "outputs/performance_benchmark.png")
+      input_dir: str:  (Default value = "data/input")
+      poll_interval: int:  (Default value = 10)
+      batch_csv: str:  (Default value = "outputs/batch_report.csv")
+      dashboard_png: str:  (Default value = "outputs/performance_benchmark.png")
+
+    Returns:
+
     """
     from src.visualizer import generate_dashboard
 
