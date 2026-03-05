@@ -3,6 +3,14 @@ import re
 from typing import Dict, List
 
 def _clean(s: str) -> str:
+    """
+
+    Args:
+      s: str: 
+
+    Returns:
+
+    """
     s = (s or "").strip()
     s = s.replace("\ufeff", "")      # Unicode BOM
     s = s.replace("ï»¿", "")         # Common mojibake BOM rendering
@@ -14,6 +22,14 @@ def _clean(s: str) -> str:
     return s
 
 def _canon_question(q: str) -> str:
+    """
+
+    Args:
+      q: str: 
+
+    Returns:
+
+    """
     q = _clean(q)
 
     # --- Canonical rewrite rules (domain-specific AP) ---
@@ -36,6 +52,14 @@ def _canon_question(q: str) -> str:
     return q
 
 def _unknown_key(q_canon: str) -> str:
+    """
+
+    Args:
+      q_canon: str: 
+
+    Returns:
+
+    """
     q = (q_canon or "").lower()
     if "3-way match fails" in q or "no_match" in q:
         return "U.NO_MATCH_PATH"
@@ -48,13 +72,18 @@ def _unknown_key(q_canon: str) -> str:
     return "U.OTHER"
 
 def normalize_unknowns(proc) -> List[Dict]:
-    """
-    Normalizes unknown question phrasing and removes duplicates by canonical question.
+    """Normalizes unknown question phrasing and removes duplicates by canonical question.
     Adds:
       - question: canonicalized question
       - key: stable key derived from canonical question
       - meta.original_question: preserves the original
     Returns a small report list for optional tracing.
+
+    Args:
+      proc: 
+
+    Returns:
+
     """
     if not getattr(proc, "unknowns", None):
         return []
