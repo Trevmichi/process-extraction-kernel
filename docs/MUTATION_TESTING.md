@@ -32,8 +32,8 @@ Each mutant run is classified as one of:
 - `skipped`: mutant was not runnable (e.g., patch pattern mismatch, dry-run)
 
 ## Initial Mutation Budget
-Phase 1 budget is intentionally small: **10-20 curated mutants**.  
-Current catalog (`scripts/mutation_catalog.py`) ships with **16** mutants.
+Phase 1 budget is intentionally small: **10-30 curated mutants**.  
+Current catalog (`scripts/mutation_catalog.py`) ships with **24** mutants.
 
 ## Local Usage
 ### Quick Start
@@ -140,8 +140,45 @@ and added targeted tests to kill all 4. Final score: **16/16 killed**.
 3. **Boundary completeness**: Boundary checks (== 1 vs >= 1) need tests on
    both sides of the boundary, not just one (M011).
 
+## Phase 3 — Date/Tax Mutation Hardening (RFC 6C)
+
+RFC 6B added deterministic `invoice_date` and `tax_amount` validators with 13 new
+failure codes. Phase 3 adds 8 curated mutants (M017-M024) targeting these validators.
+
+### New Mutants
+
+| ID | Target | Mutation | Kill Test |
+|----|--------|----------|-----------|
+| **M017** | date EU branch | `second <= 12` -> `>= 12` | `test_invoice_date_eu_format_day_gt_month` |
+| **M018** | date equal-pair guard | `==` -> `!=` | `test_invoice_date_ambiguous_fails_explicitly` |
+| **M019** | date ambiguous flag | `if saw_ambiguous` -> `if not` | ambiguous + US format tests |
+| **M020** | date ambiguous code | `DATE_AMBIGUOUS` -> `DATE_PARSE_FAILED` | `test_invoice_date_ambiguous_fails_explicitly` |
+| **M021** | tax anchor guard | `if not search` -> `if search` | `test_tax_anchor_disambiguates_from_subtotal_shipping_total` |
+| **M022** | tax ambiguity threshold | `> 1` -> `> 100` | `test_tax_multiple_anchored_values_rejected` |
+| **M023** | tax tolerance | `> 0.01` -> `> 1000.0` | `test_tax_amount_value_mismatch` |
+| **M024** | tax anchor window | `{0,24}` -> `{0,240}` | `test_tax_distant_number_not_captured` |
+
+### Results
+
+**8/8 killed, 0 survived, 0 error.**
+
+Full verifier category (M009-M012 legacy + M017-M024 new): **12/12 killed**.
+
+### Infrastructure Fixes
+
+1. **M009 anchor disambiguation**: RFC 6B added a second `if delta > 0.01:` line
+   (for `TAX_AMOUNT_MISMATCH`). M009's apply_rule was updated to include
+   `AMOUNT_MISMATCH` in the pattern to disambiguate.
+
+2. **Runner `__pycache__` race fix**: Sequential mutant runs on Windows could use
+   stale `.pyc` bytecode, causing false survivors. Fixed by setting
+   `PYTHONDONTWRITEBYTECODE=1` in the runner's subprocess environment.
+
+3. **Unicode encoding fix**: Mutant descriptions containing `->` (U+2192) caused
+   `cp1252` encoding errors on Windows console output. Replaced with ASCII `->`.
+
 ## Future Phases
-Planned expansion after Phase 2:
+Planned expansion after Phase 3:
 1. Nightly/CI integration with non-blocking trend reporting.
 2. Expanded curated catalog with tighter per-module coverage targets.
 3. Optional policy thresholds (e.g., max survived count) once stability is proven.
