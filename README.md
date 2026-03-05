@@ -241,6 +241,7 @@ on Ubuntu with Python 3.11.
 | [Evaluation Harness](docs/EVALUATION.md) | Gold invoices, evidence grounding rules, mock dispatch, metrics |
 | [Dataset Schema](datasets/schema.md) | JSONL schema, field comparison, tag taxonomy, mock dispatch rules |
 | [Changelog](CHANGELOG.md) | Milestone list with commit citations |
+| [Quality Gates](docs/QUALITY_GATES.md) | Validation sequences, PR checklist, mutation guidance, failure-pattern taxonomy |
 
 ---
 
