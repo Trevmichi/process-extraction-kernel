@@ -3,6 +3,23 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 def trace_event(path: str, action_type: str, payload: Dict[str, Any], cost: Optional[Dict[str, Any]] = None) -> None:
+    """
+
+    Args:
+      path: str:
+      action_type: str:
+      payload: Dict[str:
+      Any]: 
+      cost: Optional[Dict[str:
+      Any]]: (Default value = None)
+      path: str: 
+      action_type: str: 
+      payload: Dict[str: 
+      cost: Optional[Dict[str: 
+
+    Returns:
+
+    """
     evt = {
         "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "action_type": action_type,
