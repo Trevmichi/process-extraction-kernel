@@ -2,9 +2,21 @@
 from .models import ProcessDoc, Node, Edge, Action, Decision, Evidence
 
 def _base_ap_meta(source_id: str, process_id: str) -> dict:
+    """
+
+    Args:
+      source_id: str:
+      process_id: str:
+      source_id: str: 
+      process_id: str: 
+
+    Returns:
+
+    """
     return {"process_id": process_id, "domain": "accounts_payable", "source_ids": [source_id], "version": "0.1"}
 
 def _base_ap_actors() -> list:
+    """ """
     return [
         {"id": "role_ap_clerk", "type": "human_role", "name": "AP Clerk"},
         {"id": "role_manager", "type": "human_role", "name": "Department Manager"},
@@ -13,6 +25,7 @@ def _base_ap_actors() -> list:
     ]
 
 def _base_ap_artifacts() -> list:
+    """ """
     return [
         {"id": "art_invoice", "type": "document", "name": "Invoice"},
         {"id": "art_po", "type": "record", "name": "Purchase Order"},
@@ -23,6 +36,15 @@ def _base_ap_artifacts() -> list:
     ]
 
 def manual_extract_doc_001(text: str) -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     meta = _base_ap_meta("doc_001", "ap_invoice_doc_001")
     actors = _base_ap_actors()
     artifacts = _base_ap_artifacts()
@@ -75,6 +97,15 @@ def manual_extract_doc_001(text: str) -> ProcessDoc:
     return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=unknowns)
 
 def manual_extract_doc_002(text: str) -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     meta = _base_ap_meta("doc_002", "ap_invoice_doc_002")
     actors = _base_ap_actors()
     artifacts = _base_ap_artifacts()
@@ -130,6 +161,15 @@ def manual_extract_doc_002(text: str) -> ProcessDoc:
     return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=unknowns)
 
 def manual_extract_doc_003(text: str) -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     meta = _base_ap_meta("doc_003", "ap_invoice_doc_003")
     actors = _base_ap_actors()
     artifacts = _base_ap_artifacts()
@@ -183,6 +223,15 @@ def manual_extract_doc_003(text: str) -> ProcessDoc:
     return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=unknowns)
 
 def manual_extract_doc_004(text: str) -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     meta = _base_ap_meta("doc_004", "ap_invoice_doc_004")
     actors = _base_ap_actors()
     artifacts = _base_ap_artifacts()
@@ -210,6 +259,15 @@ def manual_extract_doc_004(text: str) -> ProcessDoc:
     return ProcessDoc(meta=meta, actors=actors, artifacts=artifacts, nodes=nodes, edges=edges, unknowns=[])
 
 def manual_extract_doc_005(text: str) -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     meta = _base_ap_meta("doc_005", "ap_invoice_doc_005")
     actors = _base_ap_actors()
     artifacts = _base_ap_artifacts()
