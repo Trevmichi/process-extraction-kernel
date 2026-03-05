@@ -145,7 +145,11 @@ normalize_text = _normalize_text
 # ---------------------------------------------------------------------------
 
 def _default_provenance() -> dict:
-    """ """
+    """Build a provenance payload with stable keys and default values.
+
+    Returns:
+      dict: Canonical provenance object for vendor, amount, and has_po fields.
+    """
     return {
         "vendor": {"grounded": False, "evidence_found_at": -1},
         "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
