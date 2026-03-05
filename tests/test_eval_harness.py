@@ -812,3 +812,118 @@ class TestPairedFixtureContrast:
         a, b = by_id["INV-1061"], by_id["INV-1062"]
         assert a["expected_fields"]["vendor"] == b["expected_fields"]["vendor"]
         assert a["expected_fields"]["amount"] != b["expected_fields"]["amount"]
+
+
+# ===========================================================================
+# TestDateTaxFixturePresence
+# ===========================================================================
+
+class TestDateTaxFixturePresence:
+    """Assert all date/tax fixture files exist and are referenced."""
+
+    DATE_TAX_FILES = [f"inv_{n:03d}.txt" for n in range(69, 77)]
+    DATE_TAX_IDS = [f"INV-{n}" for n in range(1069, 1077)]
+
+    def test_fixture_files_exist(self):
+        """All date/tax invoice text files must exist on disk."""
+        for fname in self.DATE_TAX_FILES:
+            path = DATASETS_DIR / "gold_invoices" / fname
+            assert path.exists(), f"Missing fixture: {path}"
+
+    def test_fixture_ids_in_expected(self):
+        """All date/tax invoice IDs must appear in expected.jsonl."""
+        records = load_expected(EXPECTED_PATH)
+        ids = {r["invoice_id"] for r in records}
+        for inv_id in self.DATE_TAX_IDS:
+            assert inv_id in ids, f"Missing from expected.jsonl: {inv_id}"
+
+    def test_new_fields_present_in_expected(self):
+        """All date/tax records must have invoice_date and tax_amount in expected_fields."""
+        records = load_expected(EXPECTED_PATH)
+        by_id = {r["invoice_id"]: r for r in records}
+        for inv_id in self.DATE_TAX_IDS:
+            rec = by_id[inv_id]
+            assert "invoice_date" in rec["expected_fields"], \
+                f"{inv_id}: missing invoice_date in expected_fields"
+            assert "tax_amount" in rec["expected_fields"], \
+                f"{inv_id}: missing tax_amount in expected_fields"
+            assert "invoice_date" in rec["mock_extraction"], \
+                f"{inv_id}: missing invoice_date in mock_extraction"
+            assert "tax_amount" in rec["mock_extraction"], \
+                f"{inv_id}: missing tax_amount in mock_extraction"
+
+
+# ===========================================================================
+# TestDateTaxFieldComparison
+# ===========================================================================
+
+class TestDateTaxFieldComparison:
+    """Test compare_fields handles invoice_date and tax_amount correctly."""
+
+    def test_invoice_date_exact_match(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {"invoice_date": "2026-01-15"})
+        assert result["invoice_date"]["match"] is True
+
+    def test_invoice_date_mismatch(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {"invoice_date": "2026-15-01"})
+        assert result["invoice_date"]["match"] is False
+
+    def test_invoice_date_missing_actual(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {})
+        assert result["invoice_date"]["match"] is False
+
+    def test_tax_amount_exact_match(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.00})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_within_tolerance(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.005})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_beyond_tolerance(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.02})
+        assert result["tax_amount"]["match"] is False
+
+    def test_tax_amount_zero(self):
+        expected = {"tax_amount": 0.0}
+        result = compare_fields(expected, {"tax_amount": 0.0})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_missing_actual_zero(self):
+        """Missing actual should NOT match even when expected is 0.0."""
+        expected = {"tax_amount": 0.0}
+        result = compare_fields(expected, {})
+        assert result["tax_amount"]["match"] is False
+
+    def test_tax_amount_missing_actual_nonzero(self):
+        """Missing actual must not silently match a nonzero expected."""
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {})
+        assert result["tax_amount"]["match"] is False
+
+
+# ===========================================================================
+# TestDateTaxTags
+# ===========================================================================
+
+class TestDateTaxTags:
+    """Assert new date/tax tags appear in at least one record."""
+
+    def test_date_tax_tags_present(self):
+        """Each date/tax scenario tag must appear in at least one record."""
+        required_tags = {
+            "date_us_format", "date_eu_format",
+            "tax_standard", "tax_complex_lines", "tax_zero_explicit",
+        }
+        records = load_expected(EXPECTED_PATH)
+        all_tags = set()
+        for r in records:
+            all_tags.update(r.get("tags", []))
+        missing = required_tags - all_tags
+        assert missing == set(), f"Missing date/tax tags: {missing}"

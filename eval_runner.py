@@ -136,8 +136,10 @@ def compare_fields(expected_fields: dict, result_state: dict) -> dict:
         actual = result_state.get(field)
         if field == "vendor":
             match = _norm_str(str(expected)) == _norm_str(str(actual or ""))
-        elif field == "amount":
-            match = abs(float(expected) - float(actual or 0)) <= 0.01
+        elif field in ("amount", "tax_amount"):
+            match = actual is not None and abs(float(expected) - float(actual)) <= 0.01
+        elif field == "invoice_date":
+            match = str(expected) == str(actual or "")
         else:  # has_po: strict
             match = expected == actual
         comparisons[field] = {"expected": expected, "actual": actual, "match": match}

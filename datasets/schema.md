@@ -56,6 +56,8 @@ metadata for analysis, not an additional evaluation check.
 | `vendor` | string | Expected vendor name |
 | `amount` | number | Expected invoice total |
 | `has_po` | bool | Whether a PO reference exists |
+| `invoice_date` | string | Expected invoice date in ISO-8601 format (YYYY-MM-DD) |
+| `tax_amount` | number | Expected tax/VAT amount |
 
 ### `mock_extraction` sub-keys
 
@@ -66,6 +68,8 @@ Each field is `{"value": <T>, "evidence": "<string>"}`:
 | `vendor` | string | Verbatim vendor name substring from invoice text |
 | `amount` | number | Verbatim total/amount line from invoice text |
 | `has_po` | bool | Verbatim PO line from invoice text |
+| `invoice_date` | string | Verbatim date line from invoice text |
+| `tax_amount` | number | Verbatim tax/VAT line from invoice text |
 
 ## Evidence Grounding Rules
 
@@ -80,6 +84,10 @@ The runtime verifier (`src/verifier.py`) normalizes both evidence and raw text v
 - **has_po evidence (false)**: Use `"PO: None"` (added to no-PO invoices).
   `has_po.evidence` must always be a non-null grounded string, even when
   `value=false`. Null is not allowed.
+- **Invoice date evidence**: Use the date line exactly (e.g. `"Date: 01/15/2026"`,
+  `"Invoice Date: 25/06/2026"`)
+- **Tax amount evidence**: Use the tax/VAT line exactly (e.g. `"Tax: $125.00"`,
+  `"VAT: 0.00"`)
 
 ### PO Evidence Rule
 
@@ -118,6 +126,8 @@ When comparing extracted fields against expected values:
 | `vendor` | `casefold()` + whitespace collapse | Normalized strings equal |
 | `amount` | None | `abs(expected - actual) <= 0.01` |
 | `has_po` | None | Strict equality |
+| `invoice_date` | None | Strict string equality |
+| `tax_amount` | None | `abs(expected - actual) <= 0.01` |
 
 ## Tag Taxonomy
 
@@ -143,7 +153,8 @@ Tags should be lowercase `snake_case`. Recommended categories:
 
 `threshold_edge_exact`, `po_false_positive_prose`, `duplicate_total_lines`,
 `vendor_alias_variation`, `footer_total_vs_amount_due_conflict`,
-`multi_currency_symbol_noise`
+`multi_currency_symbol_noise`, `date_us_format`, `date_eu_format`,
+`tax_standard`, `tax_complex_lines`, `tax_zero_explicit`
 
 **Vendor tags** (optional, prefix with `vendor_`):
 
