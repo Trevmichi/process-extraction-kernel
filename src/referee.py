@@ -68,7 +68,7 @@ def referee_add_unknowns(process: ProcessDoc) -> List[Dict]:
         process.unknowns = []
     process.unknowns.extend(added)
     # --- Normalized "minimum completeness" unknowns (deterministic across extractors) ---
-    node_types = set((n.action.type if getattr(n, "action", None) else "") for n in (process.nodes or []))
+    node_types = {n.action.type for n in (process.nodes or []) if n.action is not None}
     node_cks   = set(((n.meta or {}).get("canonical_key","")) for n in (process.nodes or []))
 
     # Helper: add unknown if missing (by exact question text)
