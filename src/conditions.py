@@ -67,7 +67,7 @@ _VALID_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
 # ---------------------------------------------------------------------------
 
 class ConditionParseError(ValueError):
-    """ """
+    """Raised when a condition expression cannot be parsed."""
 
 
 # ---------------------------------------------------------------------------
