@@ -62,7 +62,11 @@ def _words_to_chunks(words: List[str], chunk_size: int) -> List[str]:
 
 
 def _get_vram_mb() -> Optional[int]:
-    """ """
+    """Read used GPU VRAM from nvidia-smi.
+
+    Returns:
+      Optional[int]: Used VRAM in MB when available, else None.
+    """
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
