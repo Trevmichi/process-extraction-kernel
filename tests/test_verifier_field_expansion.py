@@ -69,6 +69,23 @@ def test_invoice_date_eu_format_unambiguous():
     assert prov["invoice_date"]["normalized_value"] == "2025-12-31"
 
 
+def test_invoice_date_eu_format_day_gt_month():
+    """M017 kill test: EU date with second < 12 exercises the first > 12 branch."""
+    raw = (
+        "Vendor Co\nDate: 25/06/2025\nPO Number: PO-1\nTotal: 50.00\n"
+    )
+    extraction = {
+        "vendor": {"value": "Vendor Co", "evidence": "Vendor Co"},
+        "amount": {"value": 50.00, "evidence": "Total: 50.00"},
+        "has_po": {"value": True, "evidence": "PO Number: PO-1"},
+        "invoice_date": {"value": "2025-06-25", "evidence": "Date: 25/06/2025"},
+    }
+    valid, codes, prov = verify_extraction(raw, extraction)
+    assert "DATE_AMBIGUOUS" not in codes
+    assert "DATE_PARSE_FAILED" not in codes
+    assert prov["invoice_date"]["normalized_value"] == "2025-06-25"
+
+
 def test_invoice_date_iso_format():
     raw = (
         "Vendor Co\nDate: 2025-12-31\nPO Number: PO-1\nTotal: 50.00\n"
@@ -154,6 +171,67 @@ def test_existing_fields_unchanged_when_new_fields_absent():
     valid, codes, prov = verify_extraction(RAW_TEXT, extraction)
     assert valid is True
     assert set(prov.keys()) == {"vendor", "amount", "has_po"}
+
+
+def test_tax_anchor_missing_fails_explicitly():
+    """Codex patch: evidence without tax/vat/gst keyword -> TAX_ANCHOR_MISSING."""
+    raw = "Vendor Co\nPO Number: PO-1\nFee: 35.00\nTotal: 35.00\n"
+    extraction = {
+        "vendor": {"value": "Vendor Co", "evidence": "Vendor Co"},
+        "amount": {"value": 35.00, "evidence": "Total: 35.00"},
+        "has_po": {"value": True, "evidence": "PO Number: PO-1"},
+        "tax_amount": {"value": 35.00, "evidence": "Fee: 35.00"},
+    }
+    valid, codes, _ = verify_extraction(raw, extraction)
+    assert valid is False
+    assert "TAX_ANCHOR_MISSING" in codes
+
+
+def test_tax_multiple_anchored_values_rejected():
+    """M022 survivor gap: evidence with two different tax-anchor values → TAX_AMBIGUOUS_EVIDENCE."""
+    raw = (
+        "Vendor Co\nPO Number: PO-1\n"
+        "Tax: 35.00\nVAT: 50.00\nTotal: 185.00\n"
+    )
+    extraction = {
+        "vendor": {"value": "Vendor Co", "evidence": "Vendor Co"},
+        "amount": {"value": 185.00, "evidence": "Total: 185.00"},
+        "has_po": {"value": True, "evidence": "PO Number: PO-1"},
+        "tax_amount": {"value": 35.00, "evidence": "Tax: 35.00\nVAT: 50.00"},
+    }
+    valid, codes, _ = verify_extraction(raw, extraction)
+    assert valid is False
+    assert "TAX_AMBIGUOUS_EVIDENCE" in codes
+
+
+def test_tax_amount_value_mismatch():
+    """M023 survivor gap: parsed evidence differs from extraction value → TAX_AMOUNT_MISMATCH."""
+    extraction = _base_extraction(
+        tax_amount={"value": 99.99, "evidence": "Tax: 35.00"},
+    )
+    valid, codes, prov = verify_extraction(RAW_TEXT, extraction)
+    assert valid is False
+    assert "TAX_AMOUNT_MISMATCH" in codes
+    assert prov["tax_amount"]["parsed_evidence"] == 35.0
+
+
+def test_tax_distant_number_not_captured():
+    """M024 survivor gap: number >24 chars from tax anchor → TAX_PARSE_FAILED."""
+    # Pad with 30+ non-digit chars between "Tax" and the number
+    evidence = "Tax on services rendered for the billing period ended at 500.00"
+    raw = (
+        "Vendor Co\nPO Number: PO-1\n"
+        f"{evidence}\nTotal: 500.00\n"
+    )
+    extraction = {
+        "vendor": {"value": "Vendor Co", "evidence": "Vendor Co"},
+        "amount": {"value": 500.00, "evidence": "Total: 500.00"},
+        "has_po": {"value": True, "evidence": "PO Number: PO-1"},
+        "tax_amount": {"value": 500.00, "evidence": evidence},
+    }
+    valid, codes, _ = verify_extraction(raw, extraction)
+    assert valid is False
+    assert "TAX_PARSE_FAILED" in codes
 
 
 def test_shadow_registry_no_diff_with_expanded_fields():
