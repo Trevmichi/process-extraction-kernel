@@ -83,7 +83,17 @@ def _call_llm_json(prompt: str) -> dict:
     """
     try:
         response = _llm.invoke([HumanMessage(content=prompt)])
-        raw = response.content.strip()
+        content = response.content
+        if isinstance(content, str):
+            raw = content.strip()
+        else:
+            raw_parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    raw_parts.append(item)
+                else:
+                    raw_parts.append(json.dumps(item))
+            raw = "".join(raw_parts).strip()
 
         # Strip ```json ... ``` or ``` ... ``` fences if present
         if raw.startswith("```"):
