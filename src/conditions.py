@@ -59,6 +59,43 @@ class Conjunction:
 
 ConditionAST = Union[Comparison, Conjunction]
 
+
+# ---------------------------------------------------------------------------
+# Diagnostic / provenance types
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class NormalizationProvenance:
+    """Records what normalization did to produce the canonical form."""
+    kind: str
+    # "identity" | "synonym" | "inline_canonicalization"
+    # | "compound" | "unparseable" | "null_input"
+    synonym_key: str | None = None
+    segments: tuple[NormalizationProvenance, ...] | None = None
+
+
+@dataclass(frozen=True)
+class TypeWarning:
+    """A type mismatch found during static validation of a condition AST."""
+    field: str
+    expected_types: tuple[type, ...]
+    actual_rhs_type: type
+    rhs_value: Any
+    message: str
+
+
+@dataclass(frozen=True)
+class ConditionDiagnostic:
+    """Structured result of diagnosing a condition expression."""
+    raw: str | None
+    normalized: str | None
+    parsed: bool
+    ast: ConditionAST | None
+    error: str | None
+    provenance: NormalizationProvenance | None
+    type_warnings: tuple[TypeWarning, ...] = ()
+
+
 _VALID_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
 
 
@@ -387,6 +424,18 @@ _INLINE_SPLIT = re.compile(
 # and upper-cased (e.g. status == MISSING_DATA → status == "MISSING_DATA")
 _STRING_FIELDS: frozenset[str] = frozenset({"status", "match_result"})
 
+# Known field → expected Python type(s) for static type-checking of condition ASTs.
+# Kept as a plain dict here (no import of state.py) to avoid circular imports.
+_FIELD_TYPES: dict[str, type | tuple[type, ...]] = {
+    "has_po":       bool,
+    "po_match":     bool,
+    "match_3_way":  bool,
+    "amount":       (int, float),
+    "status":       str,
+    "match_result": str,
+    "retry_count":  int,
+}
+
 
 def _normalize_rhs(field: str, raw: str) -> str:
     """Normalise a raw right-hand side token into a DSL-valid literal string.
@@ -580,6 +629,95 @@ def normalize_condition(raw: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Normalization with provenance (mirrors normalize logic, adds metadata)
+# ---------------------------------------------------------------------------
+
+def _normalize_single_with_provenance(
+    expr: str,
+) -> tuple[str | None, NormalizationProvenance]:
+    """Like ``_normalize_single`` but also returns provenance metadata."""
+    stripped = expr.strip()
+
+    # 1a. Case-sensitive exact match
+    if stripped in _SYNONYM_MAP:
+        return (
+            _SYNONYM_MAP[stripped],
+            NormalizationProvenance(kind="synonym", synonym_key=stripped),
+        )
+
+    # 1b. Case-insensitive exact match
+    lower = stripped.lower()
+    if lower in _SYNONYM_MAP_LOWER:
+        return (
+            _SYNONYM_MAP_LOWER[lower],
+            NormalizationProvenance(kind="synonym", synonym_key=lower),
+        )
+
+    # 2. Inline expression parsing
+    m = _INLINE_SPLIT.match(stripped)
+    if m:
+        field   = m.group(1)
+        op      = m.group(2)
+        rhs_raw = m.group(3).strip()
+        rhs     = _normalize_rhs(field, rhs_raw)
+        result  = f"{field} {op} {rhs}"
+        if result == stripped:
+            kind = "identity"
+        else:
+            kind = "inline_canonicalization"
+        return (result, NormalizationProvenance(kind=kind))
+
+    # 3. Unknown
+    return (None, NormalizationProvenance(kind="unparseable"))
+
+
+def _normalize_with_provenance(
+    raw: str | None,
+) -> tuple[str | None, NormalizationProvenance]:
+    """Like ``normalize_condition`` but also returns provenance metadata."""
+    if raw is None:
+        return (None, NormalizationProvenance(kind="null_input"))
+
+    stripped = raw.strip()
+
+    # Try tokenizing to detect AND compounds
+    try:
+        tokens = _tokenize(stripped)
+    except ConditionParseError:
+        result, prov = _normalize_single_with_provenance(stripped)
+        return (result, prov)
+
+    # Split on AND tokens
+    segments = _split_tokens_on_and(tokens)
+
+    if len(segments) == 1:
+        return _normalize_single_with_provenance(stripped)
+
+    # Compound: normalize each sub-expression independently
+    parts: list[str] = []
+    seg_provenances: list[NormalizationProvenance] = []
+    for seg_tokens in segments:
+        sub_expr = _tokens_to_string(seg_tokens)
+        norm, prov = _normalize_single_with_provenance(sub_expr)
+        seg_provenances.append(prov)
+        if norm is None:
+            return (
+                None,
+                NormalizationProvenance(
+                    kind="compound", segments=tuple(seg_provenances),
+                ),
+            )
+        parts.append(norm)
+
+    return (
+        " AND ".join(parts),
+        NormalizationProvenance(
+            kind="compound", segments=tuple(seg_provenances),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Module-level predicate cache
 # ---------------------------------------------------------------------------
 
@@ -612,3 +750,110 @@ def get_predicate(raw: str | None) -> Callable[[dict], bool] | None:
 
     _PREDICATE_CACHE[raw] = predicate
     return predicate
+
+
+# ---------------------------------------------------------------------------
+# Static type validation
+# ---------------------------------------------------------------------------
+
+_ORDINAL_OPS = frozenset({">", ">=", "<", "<="})
+
+
+def validate_condition_types(
+    ast: ConditionAST,
+    field_types: dict[str, type | tuple[type, ...]] | None = None,
+) -> list[TypeWarning]:
+    """Statically validate RHS literal types against known field types.
+
+    Unknown fields (not in the registry) are silently skipped.
+    Returns an empty list if all checks pass.
+    """
+    if field_types is None:
+        field_types = _FIELD_TYPES
+
+    comparisons: list[Comparison]
+    if isinstance(ast, Comparison):
+        comparisons = [ast]
+    else:
+        comparisons = list(ast.children)
+
+    warnings: list[TypeWarning] = []
+    for comp in comparisons:
+        expected = field_types.get(comp.left)
+        if expected is None:
+            continue
+
+        expected_tuple = expected if isinstance(expected, tuple) else (expected,)
+        rhs_type = type(comp.right)
+
+        if rhs_type not in expected_tuple:
+            warnings.append(TypeWarning(
+                field=comp.left,
+                expected_types=expected_tuple,
+                actual_rhs_type=rhs_type,
+                rhs_value=comp.right,
+                message=(
+                    f"Field {comp.left!r} expects {expected_tuple}, "
+                    f"got {rhs_type.__name__}({comp.right!r})"
+                ),
+            ))
+
+        if comp.left in _STRING_FIELDS and comp.op in _ORDINAL_OPS:
+            warnings.append(TypeWarning(
+                field=comp.left,
+                expected_types=expected_tuple,
+                actual_rhs_type=rhs_type,
+                rhs_value=comp.right,
+                message=(
+                    f"Ordinal operator {comp.op!r} on string field "
+                    f"{comp.left!r} is likely unintended"
+                ),
+            ))
+
+    return warnings
+
+
+# ---------------------------------------------------------------------------
+# Structured diagnostics
+# ---------------------------------------------------------------------------
+
+def diagnose_condition(raw: str | None) -> ConditionDiagnostic:
+    """Produce a structured diagnostic for a condition expression.
+
+    This is a non-destructive analysis function.  It does not affect
+    caching, routing, or any existing behavior.
+    """
+    normalized, provenance = _normalize_with_provenance(raw)
+
+    if normalized is None:
+        return ConditionDiagnostic(
+            raw=raw,
+            normalized=None,
+            parsed=False,
+            ast=None,
+            error=None if raw is None else "normalization_failed",
+            provenance=provenance,
+        )
+
+    try:
+        ast = parse_condition(normalized)
+    except ConditionParseError as exc:
+        return ConditionDiagnostic(
+            raw=raw,
+            normalized=normalized,
+            parsed=False,
+            ast=None,
+            error=str(exc),
+            provenance=provenance,
+        )
+
+    tw = validate_condition_types(ast)
+    return ConditionDiagnostic(
+        raw=raw,
+        normalized=normalized,
+        parsed=True,
+        ast=ast,
+        error=None,
+        provenance=provenance,
+        type_warnings=tuple(tw),
+    )

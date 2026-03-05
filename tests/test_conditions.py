@@ -16,10 +16,18 @@ from src.conditions import (
     ConditionParseError,
     Comparison,
     Conjunction,
+    ConditionDiagnostic,
+    NormalizationProvenance,
+    TypeWarning,
+    _FIELD_TYPES,
+    _PREDICATE_CACHE,
+    _SYNONYM_MAP,
     compile_condition,
+    diagnose_condition,
     get_predicate,
     normalize_condition,
     parse_condition,
+    validate_condition_types,
 )
 
 
@@ -422,3 +430,206 @@ class TestGetPredicate:
         assert callable(pred)
         assert pred({"status": "", "has_po": False}) is True
         assert pred({"status": "BAD_EXTRACTION", "has_po": False}) is False
+
+
+# ===========================================================================
+# diagnose_condition (structured diagnostics)
+# ===========================================================================
+
+class TestConditionDiagnostic:
+
+    def test_diagnose_none_input(self):
+        d = diagnose_condition(None)
+        assert d.raw is None
+        assert d.normalized is None
+        assert d.parsed is False
+        assert d.error is None
+        assert d.provenance is not None
+        assert d.provenance.kind == "null_input"
+
+    def test_diagnose_synonym(self):
+        d = diagnose_condition("HAS_PO")
+        assert d.normalized == "has_po == true"
+        assert d.parsed is True
+        assert d.error is None
+        assert d.provenance.kind == "synonym"
+        assert d.provenance.synonym_key == "HAS_PO"
+
+    def test_diagnose_identity(self):
+        d = diagnose_condition("has_po == true")
+        assert d.normalized == "has_po == true"
+        assert d.parsed is True
+        assert d.provenance.kind == "identity"
+
+    def test_diagnose_inline_canonicalization(self):
+        d = diagnose_condition("status==missing_data")
+        assert d.normalized == 'status == "MISSING_DATA"'
+        assert d.parsed is True
+        assert d.provenance.kind == "inline_canonicalization"
+
+    def test_diagnose_compound(self):
+        d = diagnose_condition('status != "BAD_EXTRACTION" AND has_po == false')
+        assert d.parsed is True
+        assert d.provenance.kind == "compound"
+        assert d.provenance.segments is not None
+        assert len(d.provenance.segments) == 2
+
+    def test_diagnose_unparseable(self):
+        d = diagnose_condition("IF_CONDITION")
+        assert d.normalized is None
+        assert d.parsed is False
+        assert d.error == "normalization_failed"
+        assert d.provenance.kind == "synonym"
+        # IF_CONDITION maps to None in synonym map (ambiguous)
+
+    def test_diagnose_truly_unknown(self):
+        d = diagnose_condition("TOTALLY_UNKNOWN_LABEL_XYZ")
+        assert d.normalized is None
+        assert d.parsed is False
+        assert d.error == "normalization_failed"
+        assert d.provenance.kind == "unparseable"
+
+    def test_diagnose_ast_populated(self):
+        d = diagnose_condition("amount > 10000")
+        assert d.ast is not None
+        assert d.ast == parse_condition("amount > 10000")
+
+    def test_diagnose_type_warnings_populated(self):
+        d = diagnose_condition('has_po == "yes"')
+        assert d.parsed is True
+        assert len(d.type_warnings) > 0
+        assert d.type_warnings[0].field == "has_po"
+
+    def test_diagnose_does_not_affect_cache(self):
+        cache_before = dict(_PREDICATE_CACHE)
+        diagnose_condition("amount > 99999")
+        cache_after = dict(_PREDICATE_CACHE)
+        assert cache_before == cache_after
+
+
+# ===========================================================================
+# NormalizationProvenance
+# ===========================================================================
+
+class TestNormalizationProvenance:
+
+    def test_provenance_synonym_case_sensitive(self):
+        d = diagnose_condition("MATCH_3_WAY")
+        assert d.provenance.kind == "synonym"
+        assert d.provenance.synonym_key == "MATCH_3_WAY"
+
+    def test_provenance_synonym_case_insensitive(self):
+        d = diagnose_condition("Match_3_Way")
+        assert d.provenance.kind == "synonym"
+        assert d.provenance.synonym_key == "match_3_way"
+
+    def test_provenance_compound_mixed_segments(self):
+        d = diagnose_condition("HAS_PO AND amount > 5000")
+        assert d.provenance.kind == "compound"
+        segs = d.provenance.segments
+        assert segs[0].kind == "synonym"
+        assert segs[1].kind in ("identity", "inline_canonicalization")
+
+    def test_provenance_frozen(self):
+        p = NormalizationProvenance(kind="identity")
+        with pytest.raises(AttributeError):
+            p.kind = "changed"  # type: ignore[misc]
+
+
+# ===========================================================================
+# validate_condition_types (static type checking)
+# ===========================================================================
+
+class TestValidateConditionTypes:
+
+    def test_valid_bool_field(self):
+        ast = parse_condition("has_po == true")
+        assert validate_condition_types(ast) == []
+
+    def test_valid_string_field(self):
+        ast = parse_condition('status == "APPROVED"')
+        assert validate_condition_types(ast) == []
+
+    def test_valid_numeric_field(self):
+        ast = parse_condition("amount > 10000")
+        assert validate_condition_types(ast) == []
+
+    def test_float_rhs_on_numeric_field(self):
+        ast = parse_condition("amount > 10000.50")
+        assert validate_condition_types(ast) == []
+
+    def test_type_mismatch_bool_vs_string(self):
+        ast = parse_condition('has_po == "yes"')
+        warnings = validate_condition_types(ast)
+        assert len(warnings) == 1
+        assert warnings[0].field == "has_po"
+        assert warnings[0].actual_rhs_type is str
+
+    def test_type_mismatch_string_vs_bool(self):
+        ast = parse_condition("status == true")
+        warnings = validate_condition_types(ast)
+        assert len(warnings) == 1
+        assert warnings[0].field == "status"
+        assert warnings[0].actual_rhs_type is bool
+
+    def test_unknown_field_skipped(self):
+        ast = parse_condition("unknown_field == true")
+        assert validate_condition_types(ast) == []
+
+    def test_conjunction_all_checked(self):
+        ast = parse_condition('has_po == "yes" AND status == true')
+        warnings = validate_condition_types(ast)
+        assert len(warnings) == 2
+        fields = {w.field for w in warnings}
+        assert fields == {"has_po", "status"}
+
+    def test_custom_field_types(self):
+        ast = parse_condition("amount > 10000")
+        # With custom registry that says amount is str, should warn
+        warnings = validate_condition_types(ast, field_types={"amount": str})
+        assert len(warnings) == 1
+        assert warnings[0].field == "amount"
+
+    def test_string_ordinal_warning(self):
+        ast = parse_condition('status > "A"')
+        warnings = validate_condition_types(ast)
+        assert any("ordinal" in w.message.lower() for w in warnings)
+
+
+# ===========================================================================
+# _FIELD_TYPES sync with APState
+# ===========================================================================
+
+class TestFieldTypeSync:
+
+    def test_field_types_subset_of_apstate(self):
+        from src.agent.state import APState
+        annotations = APState.__annotations__
+        for field_name in _FIELD_TYPES:
+            assert field_name in annotations, (
+                f"_FIELD_TYPES has {field_name!r} but APState does not"
+            )
+
+
+# ===========================================================================
+# diagnose_condition ↔ normalize_condition consistency
+# ===========================================================================
+
+class TestDiagnoseNormalizeConsistency:
+
+    @pytest.mark.parametrize("raw", list(_SYNONYM_MAP.keys()))
+    def test_synonym_map_consistency(self, raw: str):
+        d = diagnose_condition(raw)
+        assert d.normalized == normalize_condition(raw)
+
+    @pytest.mark.parametrize("raw", [
+        "has_po == true",
+        "amount > 10000",
+        'status == "APPROVED"',
+        "status==missing_data",
+        "amount<=5000",
+        'status != "BAD_EXTRACTION" AND has_po == false',
+    ])
+    def test_inline_consistency(self, raw: str):
+        d = diagnose_condition(raw)
+        assert d.normalized == normalize_condition(raw)
