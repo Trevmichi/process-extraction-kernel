@@ -4,9 +4,27 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 def _load_json(path: str) -> Dict[str, Any]:
+    """
+
+    Args:
+      path: str:
+      path: str: 
+
+    Returns:
+
+    """
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 def _norm_key(k: str) -> str:
+    """
+
+    Args:
+      k: str:
+      k: str: 
+
+    Returns:
+
+    """
     k = (k or "").strip()
     if not k:
         return ""
@@ -25,6 +43,16 @@ def _norm_key(k: str) -> str:
     return k
 
 def _node_key(n: Dict[str, Any]) -> str:
+    """
+
+    Args:
+      n: Dict[str:
+      Any]: 
+      n: Dict[str: 
+
+    Returns:
+
+    """
     meta = n.get("meta") or {}
     ck = _norm_key(meta.get("canonical_key") or "")
     if ck:
@@ -46,6 +74,20 @@ def _node_key(n: Dict[str, Any]) -> str:
     return _norm_key(f"{kind}:{name}")
 
 def _edge_key(e: Dict[str, Any], nodes_by_id: Dict[str, Dict[str, Any]]) -> str:
+    """
+
+    Args:
+      e: Dict[str:
+      Any]: 
+      nodes_by_id: Dict[str:
+      Dict[str: 
+      Any]]: 
+      e: Dict[str: 
+      nodes_by_id: Dict[str: 
+
+    Returns:
+
+    """
     frm_raw = e.get("frm") or e.get("from")
     to_raw = e.get("to")
     frm = frm_raw if isinstance(frm_raw, str) else ""
@@ -60,9 +102,34 @@ def _edge_key(e: Dict[str, Any], nodes_by_id: Dict[str, Dict[str, Any]]) -> str:
     return f"{frm_key} -> {to_key}"
 
 def _unknown_key(u: Dict[str, Any]) -> str:
+    """
+
+    Args:
+      u: Dict[str:
+      Any]: 
+      u: Dict[str: 
+
+    Returns:
+
+    """
     return (u.get("question") or "").strip()
 
 def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B") -> Dict[str, Any]:
+    """
+
+    Args:
+      a_path: str:
+      b_path: str:
+      label_a: str:  (Default value = "A")
+      label_b: str:  (Default value = "B")
+      a_path: str: 
+      b_path: str: 
+      label_a: str:  (Default value = "A")
+      label_b: str:  (Default value = "B")
+
+    Returns:
+
+    """
     a = _load_json(a_path)
     b = _load_json(b_path)
 
@@ -90,6 +157,16 @@ def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B
     b_unk_keys = {_unknown_key(u) for u in b_unknowns if _unknown_key(u)}
 
     def evidence_rate(nodes: List[Dict[str, Any]]) -> float:
+        """
+
+        Args:
+          nodes: List[Dict[str:
+          Any]]: 
+          nodes: List[Dict[str: 
+
+        Returns:
+
+        """
         if not nodes:
             return 0.0
         ok = 0
@@ -100,6 +177,16 @@ def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B
         return ok / len(nodes)
 
     def action_counts(nodes: List[Dict[str, Any]]) -> Dict[str, int]:
+        """
+
+        Args:
+          nodes: List[Dict[str:
+          Any]]: 
+          nodes: List[Dict[str: 
+
+        Returns:
+
+        """
         out: Dict[str, int] = {}
         for n in nodes:
             act = (n.get("action") or {}).get("type")
@@ -129,6 +216,16 @@ def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B
     return diff_obj
 
 def diff_to_markdown(d: Dict[str, Any]) -> str:
+    """
+
+    Args:
+      d: Dict[str:
+      Any]: 
+      d: Dict[str: 
+
+    Returns:
+
+    """
     s = d["summary"]
     inp = d["inputs"]
     lines: List[str] = []
@@ -148,6 +245,17 @@ def diff_to_markdown(d: Dict[str, Any]) -> str:
     lines.append("")
 
     def section(title: str, items: List[str]):
+        """
+
+        Args:
+          title: str:
+          items: List[str]:
+          title: str: 
+          items: List[str]: 
+
+        Returns:
+
+        """
         lines.append(f"### {title}")
         if not items:
             lines.append("- (none)")
@@ -169,6 +277,25 @@ def diff_to_markdown(d: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 def write_diff(a_path: str, b_path: str, out_json: str, out_md: str, label_a: str, label_b: str) -> None:
+    """
+
+    Args:
+      a_path: str:
+      b_path: str:
+      out_json: str:
+      out_md: str:
+      label_a: str:
+      label_b: str:
+      a_path: str: 
+      b_path: str: 
+      out_json: str: 
+      out_md: str: 
+      label_a: str: 
+      label_b: str: 
+
+    Returns:
+
+    """
     d = diff_process(a_path, b_path, label_a=label_a, label_b=label_b)
     Path(out_json).write_text(json.dumps(d, indent=2), encoding="utf-8")
     Path(out_md).write_text(diff_to_markdown(d), encoding="utf-8")
