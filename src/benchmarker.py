@@ -47,7 +47,7 @@ _PEAK_ZONE   = 0.90       # SP ≥ 90 % of max → "Peak Accuracy Zone"
 # ---------------------------------------------------------------------------
 
 def _get_vram_mb() -> Optional[int]:
-    """Return current GPU VRAM used in MiB via nvidia-smi, or None."""
+    """ """
     import subprocess
     try:
         r = subprocess.run(
@@ -62,7 +62,15 @@ def _get_vram_mb() -> Optional[int]:
 
 
 def _fmt_chunks(chunk_size: int) -> str:
-    """Format a chunk size as e.g. '5k' or '3.5k'."""
+    """Format a chunk size as e.g. '5k' or '3.5k'.
+
+    Args:
+      chunk_size: int:
+      chunk_size: int: 
+
+    Returns:
+
+    """
     v = chunk_size / 1000
     return f"{v:g}k"
 
@@ -76,11 +84,21 @@ def _run_one_chunk_size(
     chunk_size: int,
     doc_name: str,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Process the full document word list at *chunk_size* words per chunk.
-
+    """Process the full document word list at *chunk_size* words per chunk.
+    
     Returns a result dict with all recorded metrics, or None if a result for
     this (doc_name, chunk_size) already exists in the DB (resume / skip).
+
+    Args:
+      words: List[str]:
+      chunk_size: int:
+      doc_name: str:
+      words: List[str]: 
+      chunk_size: int: 
+      doc_name: str: 
+
+    Returns:
+
     """
     from src.database import get_hyperparameter_result
 
@@ -174,6 +192,16 @@ def _run_one_chunk_size(
 # ---------------------------------------------------------------------------
 
 def _print_results_table(results: List[Dict[str, Any]]) -> None:
+    """
+
+    Args:
+      results: List[Dict[str:
+      Any]]: 
+      results: List[Dict[str: 
+
+    Returns:
+
+    """
     hdr = (
         f"  {'Chunk':>6}  {'Chunks':>6}  {'Nodes':>7}  "
         f"{'Unknowns':>9}  {'Latency':>9}  {'SP':>10}  {'Zone':>16}"
@@ -211,6 +239,16 @@ def _print_results_table(results: List[Dict[str, Any]]) -> None:
 # ---------------------------------------------------------------------------
 
 def _print_recommendation(results: List[Dict[str, Any]]) -> None:
+    """
+
+    Args:
+      results: List[Dict[str:
+      Any]]: 
+      results: List[Dict[str: 
+
+    Returns:
+
+    """
     best = max(results, key=lambda r: r["success_probability"])
     max_sp = best["success_probability"]
     peak_thresh = _PEAK_ZONE * max_sp
@@ -251,13 +289,21 @@ def run_benchmark(
     input_path: str = _INPUT_PATH,
     out_png: str = _CURVE_PNG,
 ) -> List[Dict[str, Any]]:
-    """
-    Run the full grid search across TEST_CHUNKS and return the results list.
-
+    """Run the full grid search across TEST_CHUNKS and return the results list.
+    
     Side effects:
       - Persists every run to DB table hyperparameter_results.
       - Saves outputs/performance_curve.png.
       - Prints a results table and an Optimization Recommendation.
+
+    Args:
+      input_path: str:  (Default value = _INPUT_PATH)
+      out_png: str:  (Default value = _CURVE_PNG)
+      input_path: str:  (Default value = _INPUT_PATH)
+      out_png: str:  (Default value = _CURVE_PNG)
+
+    Returns:
+
     """
     from src.database import log_hyperparameter_result
     from src.visualizer import generate_performance_curve
