@@ -60,7 +60,15 @@ _llm = ChatOllama(model="gemma3:12b", temperature=0.0, format="json")
 # Intent → human-readable label
 # ---------------------------------------------------------------------------
 def _intent_label(node_data: dict) -> str:
-    """Extract the most descriptive label from a node dict."""
+    """Extract the most descriptive label from a node dict.
+
+    Args:
+      node_data: dict:
+      node_data: dict: 
+
+    Returns:
+
+    """
     action   = node_data.get("action") or {}
     decision = node_data.get("decision") or {}
     return (
@@ -74,12 +82,18 @@ def _intent_label(node_data: dict) -> str:
 # LLM helper
 # ---------------------------------------------------------------------------
 def _call_llm_json(prompt: str) -> dict:
-    """
-    Invoke the local LLM and return a parsed JSON dict.
-
+    """Invoke the local LLM and return a parsed JSON dict.
+    
     Strips markdown code fences if the model wraps the response in them.
     Returns ``{"_error": <message>}`` on any failure so callers can degrade
     gracefully without raising.
+
+    Args:
+      prompt: str:
+      prompt: str: 
+
+    Returns:
+
     """
     try:
         response = _llm.invoke([HumanMessage(content=prompt)])
@@ -116,9 +130,16 @@ def _call_llm_json(prompt: str) -> dict:
 
 def build_enter_record_prompt(raw_text: str) -> str:
     """Build the ENTER_RECORD extraction prompt for a given invoice text.
-
+    
     This is the single source of truth for the extraction prompt template.
     Used by execute_node (ENTER_RECORD branch) and by eval_variance.py.
+
+    Args:
+      raw_text: str:
+      raw_text: str: 
+
+    Returns:
+
     """
     return f"""You are a precise data extractor. Read the following invoice/PO text and output a JSON object.
 For EACH field, return a nested object with "value" (the canonical value) and "evidence"
@@ -145,13 +166,23 @@ Text:
 # ---------------------------------------------------------------------------
 def execute_node(state: APState, node_data: dict,
                  outgoing_edges: list[dict] | None = None) -> dict:
-    """
-    Simulate an agent performing work at *node_data*.
-
+    """Simulate an agent performing work at *node_data*.
+    
     Smart nodes (ENTER_RECORD, VALIDATE_FIELDS) call the local Ollama LLM.
     All other nodes use deterministic logic.
-
+    
     Returns a partial state dict suitable for LangGraph's merge.
+
+    Args:
+      state: APState:
+      node_data: dict:
+      outgoing_edges: list[dict] | None:  (Default value = None)
+      state: APState: 
+      node_data: dict: 
+      outgoing_edges: list[dict] | None:  (Default value = None)
+
+    Returns:
+
     """
     node_id = node_data["id"]
     intent  = _intent_label(node_data)
@@ -558,18 +589,33 @@ def create_node_handler(
     node_data: dict,
     outgoing_edges: list[dict] | None = None,
 ) -> Callable[[APState], dict]:
-    """
-    Return a LangGraph-compatible callable for *node_id*.
-
+    """Return a LangGraph-compatible callable for *node_id*.
+    
     The returned function is named ``node_<id>`` so it appears legibly
     in LangGraph's debug output and Mermaid diagram exports.
 
-    Parameters
-    ----------
-    outgoing_edges : passed to ``execute_node`` so gateway nodes can emit
-                     structured ``route_decision`` audit events.
+    Args:
+      node_id: str
+      node_data: dict
+      outgoing_edges: list
+      node_id: str: 
+      node_data: dict: 
+      outgoing_edges: list[dict] | None:  (Default value = None)
+
+    Returns:
+      
+
     """
     def handler(state: APState) -> dict:
+        """
+
+        Args:
+          state: APState:
+          state: APState: 
+
+        Returns:
+
+        """
         return execute_node(state, node_data, outgoing_edges)
 
     handler.__name__ = f"node_{node_id}"
