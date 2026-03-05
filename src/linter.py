@@ -47,13 +47,14 @@ from .conditions import normalize_condition, parse_condition, ConditionParseErro
 
 @dataclass
 class LintError:
-    """ """
+    """Structured lint finding emitted by graph validation."""
     code:     str
     severity: Literal["error", "warning"]
     message:  str
     context:  dict = field(default_factory=dict)
 
     def __str__(self) -> str:
+        """Render the lint finding as a single human-readable line."""
         ctx = " | ".join(f"{k}={v!r}" for k, v in self.context.items())
         return f"[{self.severity.upper()}] {self.code}: {self.message}" + (
             f"  ({ctx})" if ctx else ""
