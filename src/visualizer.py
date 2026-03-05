@@ -108,7 +108,7 @@ def _build_chart(
     for xi, yi in zip(x_pos, tps):
         ax1.annotate(
             f"{yi:,.0f}",
-            xy=(xi, yi), xytext=(0, 10),
+            xy=(float(xi), yi), xytext=(0, 10),
             textcoords="offset points",
             ha="center", fontsize=8, color="#1E3A8A", fontweight="bold",
         )
@@ -304,7 +304,7 @@ def generate_performance_curve(
     for xi, sp in zip(x_pos, sp_values):
         ax1.annotate(
             f"{sp:.4f}",
-            xy=(xi, sp), xytext=(0, 10),
+            xy=(float(xi), sp), xytext=(0, 10),
             textcoords="offset points",
             ha="center", fontsize=7.5, color="#4C1D95", fontweight="bold",
         )
@@ -312,7 +312,7 @@ def generate_performance_curve(
     # ------------------------------------------------------------------ Latency labels on bars
     for xi, lat in zip(x_pos, latencies):
         ax2.text(
-            xi, 0 + max(node_counts) * 0.012,
+            float(xi), 0 + max(node_counts) * 0.012,
             f"{lat:.1f}s",
             ha="center", va="bottom", fontsize=7, color="#374151",
             rotation=90,
