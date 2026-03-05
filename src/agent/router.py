@@ -131,7 +131,7 @@ def analyze_routing(
 
     for edge in conditional:
         predicate = get_predicate(edge["condition"])
-        matched = predicate is not None and predicate(state)
+        matched = predicate is not None and predicate(dict(state))
         candidates.append({
             "to": edge["to"],
             "condition": edge["condition"],
