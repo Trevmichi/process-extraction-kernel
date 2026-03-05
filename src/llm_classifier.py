@@ -22,7 +22,7 @@ _heatmap_log: List[dict] = []
 
 
 def get_heatmap_log() -> List[dict]:
-    """Return a snapshot of heatmap events accumulated since last clear."""
+    """ """
     return list(_heatmap_log)
 
 
@@ -59,12 +59,16 @@ _RETRY_WAIT_SEC = 30
 # ---------------------------------------------------------------------------
 
 def _ollama_stop() -> None:
-    """
-    Call `ollama stop <model>` to evict the model from VRAM.
-
+    """Call `ollama stop <model>` to evict the model from VRAM.
+    
     Used before recursive self-healing sub-chunk calls so the RTX 5070 does
     not accumulate 'zombie' KV-cache context across multiple failed attempts.
     Non-fatal — a warning is printed if the command is unavailable.
+
+    Args:
+
+    Returns:
+
     """
     import subprocess
     try:
@@ -84,14 +88,20 @@ def _ollama_stop() -> None:
 
 
 def _chunk_text(text: str) -> List[str]:
-    """
-    Split *text* into sequential, overlapping word-based chunks.
-
+    """Split *text* into sequential, overlapping word-based chunks.
+    
     Chunk size : _CHUNK_TOKENS  words
     Overlap    : _OVERLAP_TOKENS words (tail of chunk N is head of chunk N+1)
-
+    
     Chunks are ALWAYS processed sequentially — never in parallel — to prevent
     simultaneous GPU calls.
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
     """
     words = text.split()
     if not words:
@@ -109,6 +119,15 @@ def _chunk_text(text: str) -> List[str]:
 
 
 def build_system_prompt(gap_report: str = "") -> str:
+    """
+
+    Args:
+      gap_report: str:  (Default value = "")
+      gap_report: str:  (Default value = "")
+
+    Returns:
+
+    """
     gap_section = ""
     if gap_report and gap_report.strip():
         gap_section = f"""
@@ -155,9 +174,20 @@ RULES:
 def _call_llm_single_chunk(
     chunk: str, gap_report: str, client, temperature: float = _TEMPERATURE
 ) -> List[dict]:
-    """
-    Send one chunk to the Ollama LLM and return the parsed intents list.
+    """Send one chunk to the Ollama LLM and return the parsed intents list.
     Raises on network/parse errors — caller handles retry or abort.
+
+    Args:
+      chunk: str:
+      gap_report: str:
+      client: 
+      temperature: float:  (Default value = _TEMPERATURE)
+      chunk: str: 
+      gap_report: str: 
+      temperature: float:  (Default value = _TEMPERATURE)
+
+    Returns:
+
     """
     import json
 
@@ -188,19 +218,29 @@ def _call_llm_single_chunk(
 def classify_text_block_llm(
     text: str, gap_report: str = "", _depth: int = 0
 ) -> List[dict]:
-    """
-    Classify *text* using the local Ollama LLM with a sliding-window strategy.
-
+    """Classify *text* using the local Ollama LLM with a sliding-window strategy.
+    
     The text is split into overlapping chunks of _CHUNK_TOKENS words with
     _OVERLAP_TOKENS words of overlap.  Each chunk is sent to the LLM
     SEQUENTIALLY (one at a time) to avoid simultaneous GPU calls.
-
+    
     On failure each chunk gets one retry after a _RETRY_WAIT_SEC pause.
     The client is used as a context manager so the underlying httpx connection
     pool is explicitly closed when the call completes, terminating any
     lingering Ollama connections.
-
+    
     Returns the combined list of intent dicts from all chunks.
+
+    Args:
+      text: str:
+      gap_report: str:  (Default value = "")
+      _depth: int:  (Default value = 0)
+      text: str: 
+      gap_report: str:  (Default value = "")
+      _depth: int:  (Default value = 0)
+
+    Returns:
+
     """
     from openai import OpenAI
 
