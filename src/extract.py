@@ -16,7 +16,11 @@ def _base_ap_meta(source_id: str, process_id: str) -> dict:
     return {"process_id": process_id, "domain": "accounts_payable", "source_ids": [source_id], "version": "0.1"}
 
 def _base_ap_actors() -> list:
-    """ """
+    """Return canonical AP actor definitions.
+
+    Returns:
+      list: Actor records used in manual extraction fixtures.
+    """
     return [
         {"id": "role_ap_clerk", "type": "human_role", "name": "AP Clerk"},
         {"id": "role_manager", "type": "human_role", "name": "Department Manager"},
@@ -25,7 +29,11 @@ def _base_ap_actors() -> list:
     ]
 
 def _base_ap_artifacts() -> list:
-    """ """
+    """Return canonical AP artifact definitions.
+
+    Returns:
+      list: Artifact records used in manual extraction fixtures.
+    """
     return [
         {"id": "art_invoice", "type": "document", "name": "Invoice"},
         {"id": "art_po", "type": "record", "name": "Purchase Order"},
