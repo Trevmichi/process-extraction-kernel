@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Hashable
 
 from langgraph.graph import END, StateGraph
 
@@ -34,7 +35,7 @@ from .router import route_edge
 from .state import APState
 
 
-def build_ap_graph(json_path: str):
+def build_ap_graph(json_path: str) -> Any:
     """
     Compile and return a LangGraph graph from *json_path*.
 
@@ -107,12 +108,13 @@ def build_ap_graph(json_path: str):
 
     # ---- build the StateGraph ------------------------------------------------
     graph: StateGraph = StateGraph(APState)
+    graph_any: Any = graph
 
     # Register every node from the JSON
     for node in nodes:
         nid     = node["id"]
         handler = create_node_handler(nid, node, outgoing.get(nid, []))
-        graph.add_node(nid, handler)
+        graph_any.add_node(nid, handler)
 
     # Wire edges
     for nid, node in node_by_id.items():
@@ -139,7 +141,7 @@ def build_ap_graph(json_path: str):
         else:
             # ---- Conditional routing -----------------------------------------
             # Build path_map: routing-fn return value → LangGraph node name
-            path_map: dict[str, str] = {
+            path_map: dict[Hashable, str] = {
                 t: (END if t in end_node_ids else t)
                 for t in unique_targets
             }
@@ -162,7 +164,7 @@ def build_ap_graph(json_path: str):
                 _route.__name__ = f"route_{bound_node['id']}"
                 return _route
 
-            graph.add_conditional_edges(
+            graph_any.add_conditional_edges(
                 nid,
                 _make_router(out_edges, node, station_map),
                 path_map,
