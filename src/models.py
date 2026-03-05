@@ -10,11 +10,13 @@ NodeKind = Literal["event", "task", "gateway", "end"]
 
 @dataclass
 class Evidence:
+    """ """
     source_id: str
     span: str
 
 @dataclass
 class Action:
+    """ """
     type: ActionType | Literal["UNKNOWN_ACTION"]
     actor_id: ActorId | str
     artifact_id: ArtifactId | str
@@ -62,6 +64,7 @@ class Action:
 
 @dataclass
 class Decision:
+    """ """
     type: DecisionType
     inputs: List[str] = field(default_factory=list)
     expression: Optional[str] = None
@@ -104,9 +107,14 @@ class Decision:
 @dataclass
 class Node:
     """Represents a process node, with optional metadata for extensions and annotations.
-
+    
     The ``meta`` field can be used to attach arbitrary, implementation-specific
     information to a node (for example, UI hints, tags, or integration data).
+
+    Args:
+
+    Returns:
+
     """
     id: str
     kind: NodeKind
@@ -118,12 +126,14 @@ class Node:
 
 @dataclass
 class Edge:
+    """ """
     frm: str
     to: str
     condition: Optional[str] = None
 
 @dataclass
 class ProcessDoc:
+    """ """
     meta: Dict[str, Any]
     actors: List[Dict[str, Any]]
     artifacts: List[Dict[str, Any]]
