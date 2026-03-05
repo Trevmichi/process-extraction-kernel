@@ -26,8 +26,10 @@ Prerequisites
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
+import re as _re
 import subprocess
 import sys
 import time
@@ -131,10 +133,27 @@ def stage_gemini(
         f"{json.dumps(failure['action_plan'], indent=2)}\n\n"
         "Here is the current source code of `src/verifier.py`:\n"
         f"{verifier_code}\n\n"
-        "Rewrite `src/verifier.py` to handle this edge case. "
-        "Return ONLY the raw, complete Python code. "
-        "Do not wrap it in markdown formatting or backticks. "
-        "It must be valid Python."
+        "Return ONLY the functions and/or module-level constants that need "
+        "to change to fix this edge case.  Format your response as a JSON "
+        "object with this exact schema:\n"
+        '{\n'
+        '  "functions": {\n'
+        '    "function_name": "def function_name(...):\\n    ...",\n'
+        '    ...\n'
+        '  },\n'
+        '  "constants": {\n'
+        '    "constant_name": "new_value_expression",\n'
+        '    ...\n'
+        '  }\n'
+        '}\n\n'
+        "Rules:\n"
+        "- Include ONLY functions or constants that actually changed.\n"
+        "- Each function must start with `def` and be complete, "
+        "syntactically valid Python.\n"
+        "- Constants are single assignment statements "
+        "(e.g. `_PO_RE = re.compile(...)`).\n"
+        "- Do NOT include imports, the module docstring, or unchanged code.\n"
+        "- Return valid JSON only. No markdown fences."
     )
     if debug_prompt_stats:
         prompt_bytes = len(prompt.encode("utf-8"))
@@ -157,7 +176,10 @@ def stage_gemini(
         f"models/{model}:generateContent?key={api_key}"
     )
     headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 1.0},
+    }
 
     attempt_count = retries + 1
     last_error: Exception | None = None
@@ -182,8 +204,26 @@ def stage_gemini(
             t1 = datetime.now()
             print(f"[Stage 2] Response received [{t1:%H:%M:%S}] ({(t1-t0).seconds}s)")
             result = response.json()
-            raw_code = result["candidates"][0]["content"]["parts"][0]["text"]
-            return _strip_markdown_fences(raw_code)
+            raw_text = result["candidates"][0]["content"]["parts"][0]["text"]
+
+            # Extract JSON substring: first '{' to last '}'
+            brace_start = raw_text.find("{")
+            brace_end = raw_text.rfind("}")
+            if brace_start == -1 or brace_end == -1 or brace_end <= brace_start:
+                raise ValueError(
+                    "Failed to parse surgical JSON patch from Gemini response."
+                )
+            json_str = raw_text[brace_start : brace_end + 1]
+
+            try:
+                patch = json.loads(json_str)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "Failed to parse surgical JSON patch from Gemini response."
+                ) from exc
+
+            print("[Stage 2] Parsed JSON function-swap patch — splicing ...")
+            return _apply_function_swap(verifier_code, patch)
         except requests.exceptions.HTTPError as exc:
             last_error = exc
             status_code = exc.response.status_code if exc.response is not None else None
@@ -230,11 +270,127 @@ def _strip_markdown_fences(code: str) -> str:
     code = code.strip()
     if code.startswith("```python"):
         code = code[len("```python"):]
+    elif code.startswith("```json"):
+        code = code[len("```json"):]
     elif code.startswith("```"):
         code = code[3:]
     if code.endswith("```"):
         code = code[:-3]
     return code.strip()
+
+
+# ---------------------------------------------------------------------------
+# Function-swap patch engine
+# ---------------------------------------------------------------------------
+
+def _find_function_range(lines: list[str], func_name: str) -> tuple[int, int] | None:
+    """Find the line range [start, end) for a top-level function in *lines*.
+
+    A function starts at ``def func_name(`` at column 0 and ends when the
+    next non-blank, non-indented line is reached (or EOF).
+    """
+    pattern = _re.compile(rf"^def {_re.escape(func_name)}\(")
+    start = None
+    for i, line in enumerate(lines):
+        if pattern.match(line):
+            start = i
+            break
+    if start is None:
+        return None
+
+    end = start + 1
+    while end < len(lines):
+        line = lines[end]
+        # Blank or whitespace-only lines are part of the function body
+        if not line.strip():
+            end += 1
+            continue
+        # Indented lines are part of the function body
+        if line[0] in (" ", "\t"):
+            end += 1
+            continue
+        # Non-blank, non-indented → function boundary
+        break
+
+    # Trim trailing blank lines so they stay outside the replacement
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+
+    return (start, end)
+
+
+def _find_constant_range(lines: list[str], const_name: str) -> tuple[int, int] | None:
+    """Find the line range [start, end) for a module-level constant assignment.
+
+    Handles multi-line assignments like ``_PO_RE = re.compile(\\n    ...,\\n)``.
+    """
+    pattern = _re.compile(rf"^{_re.escape(const_name)}\s*=")
+    start = None
+    for i, line in enumerate(lines):
+        if pattern.match(line):
+            start = i
+            break
+    if start is None:
+        return None
+
+    # Walk forward through continuation lines: indented or unclosed parens
+    end = start + 1
+    # Count open parens to handle multi-line expressions
+    depth = lines[start].count("(") - lines[start].count(")")
+    while end < len(lines) and depth > 0:
+        depth += lines[end].count("(") - lines[end].count(")")
+        end += 1
+
+    # If single-line assignment, end is already correct (start + 1)
+    return (start, end)
+
+
+def _apply_function_swap(original_code: str, patch: dict) -> str:
+    """Splice patched functions/constants into the original source.
+
+    *patch* is ``{"functions": {name: source, ...}, "constants": {name: expr, ...}}``.
+    Returns the full patched file content.  Raises ``ValueError`` on syntax errors.
+    """
+    lines = original_code.split("\n")
+
+    # --- Replace functions (process in reverse line order to keep indices stable) ---
+    func_replacements: list[tuple[int, int, str]] = []
+    for func_name, new_source in (patch.get("functions") or {}).items():
+        rng = _find_function_range(lines, func_name)
+        if rng is None:
+            print(f"  WARNING: function '{func_name}' not found in verifier.py — skipping")
+            continue
+        func_replacements.append((rng[0], rng[1], new_source.rstrip()))
+
+    # --- Replace constants ---
+    const_replacements: list[tuple[int, int, str]] = []
+    for const_name, new_expr in (patch.get("constants") or {}).items():
+        rng = _find_constant_range(lines, const_name)
+        if rng is None:
+            print(f"  WARNING: constant '{const_name}' not found in verifier.py — skipping")
+            continue
+        const_replacements.append((rng[0], rng[1], new_expr.rstrip()))
+
+    # Merge and sort by start line descending (so splicing doesn't shift indices)
+    all_replacements = func_replacements + const_replacements
+    all_replacements.sort(key=lambda r: r[0], reverse=True)
+
+    for start, end, new_text in all_replacements:
+        new_lines = new_text.split("\n")
+        lines[start:end] = new_lines
+
+    patched = "\n".join(lines)
+
+    # Validate syntax
+    try:
+        ast.parse(patched)
+    except SyntaxError as exc:
+        raise ValueError(
+            f"Function-swap produced invalid Python: {exc.msg} "
+            f"(line {exc.lineno})"
+        ) from exc
+
+    return patched
 
 
 # ---------------------------------------------------------------------------
