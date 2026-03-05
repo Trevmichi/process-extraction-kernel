@@ -30,6 +30,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -39,6 +40,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _VERIFIER_PATH = _PROJECT_ROOT / "src" / "verifier.py"
 _DATASETS_DIR = _PROJECT_ROOT / "datasets"
 _DEFAULT_REPORT = _PROJECT_ROOT / "eval_report.json"
+_DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+_DEFAULT_CONNECT_TIMEOUT_SECS = 15.0
+_DEFAULT_READ_TIMEOUT_SECS = 120.0
+_DEFAULT_GEMINI_RETRIES = 2
+_DEFAULT_RETRY_BACKOFF_SECS = 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +99,16 @@ def stage_triage_all(report_path: Path) -> list[dict]:
 # Stage 2: Gemini Brain — generate a patch
 # ---------------------------------------------------------------------------
 
-def stage_gemini(failure: dict, verifier_code: str) -> str:
+def stage_gemini(
+    failure: dict,
+    verifier_code: str,
+    model: str,
+    connect_timeout_secs: float,
+    read_timeout_secs: float,
+    retries: int,
+    retry_backoff_secs: float,
+    debug_prompt_stats: bool,
+) -> str:
     """Call Gemini via direct REST API to generate a patched verifier.py.
 
     Uses ``requests.post`` — no Google SDK needed. Requires GOOGLE_API_KEY
@@ -121,24 +136,93 @@ def stage_gemini(failure: dict, verifier_code: str) -> str:
         "Do not wrap it in markdown formatting or backticks. "
         "It must be valid Python."
     )
+    if debug_prompt_stats:
+        prompt_bytes = len(prompt.encode("utf-8"))
+        approx_tokens = max(1, int(round(len(prompt) / 4)))
+        raw_text_chars = len(failure.get("raw_text", ""))
+        triage_chars = len(json.dumps(failure.get("action_plan", {}), indent=2))
+        verifier_chars = len(verifier_code)
+        print("[Stage 2] Prompt stats:")
+        print(
+            f"  chars={len(prompt)}, bytes={prompt_bytes}, "
+            f"approx_tokens={approx_tokens} (~4 chars/token)"
+        )
+        print(
+            f"  sections: raw_text_chars={raw_text_chars}, "
+            f"triage_plan_chars={triage_chars}, verifier_code_chars={verifier_chars}"
+        )
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
-        f"models/gemini-3.1-pro-preview:generateContent?key={api_key}"
+        f"models/{model}:generateContent?key={api_key}"
     )
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-    t0 = datetime.now()
-    print(f"[Stage 2] Calling Gemini API (direct REST) ... [{t0:%H:%M:%S}]")
-    response = requests.post(url, json=payload, headers=headers, timeout=120)
-    response.raise_for_status()
-    t1 = datetime.now()
-    print(f"[Stage 2] Response received [{t1:%H:%M:%S}] ({(t1-t0).seconds}s)")
-    result = response.json()
+    attempt_count = retries + 1
+    last_error: Exception | None = None
+    attempts_made = 0
+    for attempt in range(1, attempt_count + 1):
+        attempts_made = attempt
+        t0 = datetime.now()
+        print(
+            f"[Stage 2] Calling Gemini API (direct REST) "
+            f"(attempt {attempt}/{attempt_count}, model={model}, "
+            f"connect_timeout={connect_timeout_secs}s, read_timeout={read_timeout_secs}s) "
+            f"... [{t0:%H:%M:%S}]"
+        )
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=(connect_timeout_secs, read_timeout_secs),
+            )
+            response.raise_for_status()
+            t1 = datetime.now()
+            print(f"[Stage 2] Response received [{t1:%H:%M:%S}] ({(t1-t0).seconds}s)")
+            result = response.json()
+            raw_code = result["candidates"][0]["content"]["parts"][0]["text"]
+            return _strip_markdown_fences(raw_code)
+        except requests.exceptions.HTTPError as exc:
+            last_error = exc
+            status_code = exc.response.status_code if exc.response is not None else None
+            body_preview = ""
+            if exc.response is not None and exc.response.text:
+                body_preview = exc.response.text.strip().replace("\n", " ")
+                if len(body_preview) > 220:
+                    body_preview = body_preview[:220] + "..."
+            t1 = datetime.now()
+            print(
+                f"[Stage 2] HTTP error [{t1:%H:%M:%S}] ({(t1-t0).seconds}s): "
+                f"status={status_code}; body={body_preview or '(empty)'}"
+            )
+            # Retry only transient HTTP statuses.
+            if status_code in {429, 500, 502, 503, 504} and attempt < attempt_count:
+                sleep_secs = retry_backoff_secs * attempt
+                print(f"[Stage 2] Retrying in {sleep_secs:.1f}s ...")
+                time.sleep(sleep_secs)
+                continue
+            break
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            t1 = datetime.now()
+            print(
+                f"[Stage 2] Request error [{t1:%H:%M:%S}] ({(t1-t0).seconds}s): "
+                f"{type(exc).__name__}: {exc}"
+            )
+            if attempt < attempt_count:
+                sleep_secs = retry_backoff_secs * attempt
+                print(f"[Stage 2] Retrying in {sleep_secs:.1f}s ...")
+                time.sleep(sleep_secs)
+                continue
+            break
 
-    raw_code = result["candidates"][0]["content"]["parts"][0]["text"]
-    return _strip_markdown_fences(raw_code)
+    raise RuntimeError(
+        "Gemini call failed after "
+        f"{attempts_made} attempt(s); "
+        "adjust --gemini-connect-timeout/--gemini-read-timeout or verify network/API key."
+    ) from last_error
 
 
 def _strip_markdown_fences(code: str) -> str:
@@ -251,6 +335,18 @@ def main() -> None:
                         help="Process ALL failures instead of just the first")
     parser.add_argument("--limit", type=int, default=0,
                         help="Max number of failures to process in sweep mode (0 = no limit)")
+    parser.add_argument("--gemini-model", type=str, default=_DEFAULT_GEMINI_MODEL,
+                        help="Gemini model id for Stage 2 generateContent call")
+    parser.add_argument("--gemini-connect-timeout", type=float, default=_DEFAULT_CONNECT_TIMEOUT_SECS,
+                        help="Gemini HTTP connect timeout in seconds")
+    parser.add_argument("--gemini-read-timeout", type=float, default=_DEFAULT_READ_TIMEOUT_SECS,
+                        help="Gemini HTTP read timeout in seconds")
+    parser.add_argument("--gemini-retries", type=int, default=_DEFAULT_GEMINI_RETRIES,
+                        help="Retry count for Stage 2 transient failures")
+    parser.add_argument("--gemini-retry-backoff", type=float, default=_DEFAULT_RETRY_BACKOFF_SECS,
+                        help="Linear backoff base seconds between Stage 2 retries")
+    parser.add_argument("--gemini-debug-prompt-stats", action="store_true",
+                        help="Print Stage 2 prompt size stats before calling Gemini")
     args = parser.parse_args()
 
     report_path = Path(args.report)
@@ -299,7 +395,16 @@ def main() -> None:
         verifier_code = _VERIFIER_PATH.read_text(encoding="utf-8")
 
         # ---- Stage 2: Gemini Brain ----
-        patched_code = stage_gemini(failure, verifier_code)
+        patched_code = stage_gemini(
+            failure,
+            verifier_code,
+            model=args.gemini_model,
+            connect_timeout_secs=args.gemini_connect_timeout,
+            read_timeout_secs=args.gemini_read_timeout,
+            retries=max(0, args.gemini_retries),
+            retry_backoff_secs=max(0.0, args.gemini_retry_backoff),
+            debug_prompt_stats=args.gemini_debug_prompt_stats,
+        )
         print(f"  Received {len(patched_code)} chars of patched code.")
 
         if args.dry_run:
