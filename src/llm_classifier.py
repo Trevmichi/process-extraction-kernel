@@ -22,7 +22,11 @@ _heatmap_log: List[dict] = []
 
 
 def get_heatmap_log() -> List[dict]:
-    """ """
+    """Return a copy of the accumulated self-healing heatmap events.
+
+    Returns:
+      List[dict]: Captured recursion-depth events for recent classifier calls.
+    """
     return list(_heatmap_log)
 
 
