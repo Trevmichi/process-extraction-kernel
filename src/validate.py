@@ -3,6 +3,14 @@ from typing import List, Dict, Set
 from .models import ProcessDoc, Node
 
 def validate(process: ProcessDoc) -> List[str]:
+    """
+
+    Args:
+      process: ProcessDoc: 
+
+    Returns:
+
+    """
     errors: List[str] = []
     nodes_by_id: Dict[str, Node] = {n.id: n for n in process.nodes}
 
