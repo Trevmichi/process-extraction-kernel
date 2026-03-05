@@ -3,12 +3,29 @@ from typing import Optional
 from .models import ProcessDoc, Node, Edge, Action
 
 def _ck(n: Node) -> str:
+    """
+
+    Args:
+      n: Node:
+      n: Node: 
+
+    Returns:
+
+    """
     return (n.meta or {}).get("canonical_key", "")
 
 def _find_by_ck(proc: ProcessDoc, ck: str) -> Optional[Node]:
-    """
-    Find node by meta.canonical_key, but fall back to (kind + action.type) when meta is missing/inconsistent.
+    """Find node by meta.canonical_key, but fall back to (kind + action.type) when meta is missing/inconsistent.
     ck examples: "task:SCHEDULE_PAYMENT", "gw:MATCH_3_WAY", "event:start", "end:end"
+
+    Args:
+      proc: ProcessDoc:
+      ck: str:
+      proc: ProcessDoc: 
+      ck: str: 
+
+    Returns:
+
     """
     # 1) canonical_key match
     for n in proc.nodes:
@@ -36,6 +53,21 @@ def _find_by_ck(proc: ProcessDoc, ck: str) -> Optional[Node]:
 
 
 def _find_by_ck_or_type(proc: ProcessDoc, ck: str, kind: str, type_name: str) -> Optional[Node]:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      ck: str:
+      kind: str:
+      type_name: str:
+      proc: ProcessDoc: 
+      ck: str: 
+      kind: str: 
+      type_name: str: 
+
+    Returns:
+
+    """
     # Try canonical_key first
     n = _find_by_ck(proc, ck)
     if n is not None:
@@ -50,6 +82,15 @@ def _find_by_ck_or_type(proc: ProcessDoc, ck: str, kind: str, type_name: str) ->
     return None
 
 def _next_id(proc: ProcessDoc) -> str:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      proc: ProcessDoc: 
+
+    Returns:
+
+    """
     used = set(n.id for n in proc.nodes)
     i = 1
     while True:
@@ -59,12 +100,18 @@ def _next_id(proc: ProcessDoc) -> str:
         i += 1
 
 def canonicalize_manual_to_explicit(proc: ProcessDoc) -> None:
-    """
-    Manual -> Explicit canonicalization:
+    """Manual -> Explicit canonicalization:
     - event -> event:start
     - ensure RECEIVE_MESSAGE exists after start
     - end -> end:end
     - expand SCHEDULE_PAYMENT -> end into SCHEDULE_PAYMENT -> EXECUTE_PAYMENT -> end
+
+    Args:
+      proc: ProcessDoc:
+      proc: ProcessDoc: 
+
+    Returns:
+
     """
 
     # Normalize start event -> event:start
