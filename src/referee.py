@@ -4,12 +4,32 @@ from typing import Dict, List, Set
 from .models import ProcessDoc
 
 def _has_action(process: ProcessDoc, action_type: str) -> bool:
+    """
+
+    Args:
+      process: ProcessDoc:
+      action_type: str:
+      process: ProcessDoc: 
+      action_type: str: 
+
+    Returns:
+
+    """
     for n in process.nodes:
         if n.kind == "task" and n.action and n.action.type == action_type:
             return True
     return False
 
 def _gateway_decisions(process: ProcessDoc) -> Set[str]:
+    """
+
+    Args:
+      process: ProcessDoc:
+      process: ProcessDoc: 
+
+    Returns:
+
+    """
     out: Set[str] = set()
     for n in process.nodes:
         if n.kind == "gateway" and n.decision and n.decision.type:
@@ -17,17 +37,45 @@ def _gateway_decisions(process: ProcessDoc) -> Set[str]:
     return out
 
 def _unknown_questions_set(process: ProcessDoc) -> Set[str]:
+    """
+
+    Args:
+      process: ProcessDoc:
+      process: ProcessDoc: 
+
+    Returns:
+
+    """
     return set(u.get("question", "") for u in (process.unknowns or []))
 
 def referee_add_unknowns(process: ProcessDoc) -> List[Dict]:
-    """
-    Adds non-failing completeness hints as `unknowns`.
+    """Adds non-failing completeness hints as `unknowns`.
     Returns list of newly-added unknown entries.
+
+    Args:
+      process: ProcessDoc:
+      process: ProcessDoc: 
+
+    Returns:
+
     """
     added: List[Dict] = []
     existing_q = _unknown_questions_set(process)
 
     def add(q: str, utype: str = "completeness_hint", priority: str = "medium"):
+        """
+
+        Args:
+          q: str:
+          utype: str:  (Default value = "completeness_hint")
+          priority: str:  (Default value = "medium")
+          q: str: 
+          utype: str:  (Default value = "completeness_hint")
+          priority: str:  (Default value = "medium")
+
+        Returns:
+
+        """
         nonlocal added, existing_q
         if q in existing_q:
             return
@@ -73,6 +121,17 @@ def referee_add_unknowns(process: ProcessDoc) -> List[Dict]:
 
     # Helper: add unknown if missing (by exact question text)
     def _ensure_unknown(question: str, priority: str = "high"):
+        """
+
+        Args:
+          question: str:
+          priority: str:  (Default value = "high")
+          question: str: 
+          priority: str:  (Default value = "high")
+
+        Returns:
+
+        """
         qs = set(u.get("question","") for u in (process.unknowns or []))
         if question not in qs:
             (process.unknowns or []).append({
