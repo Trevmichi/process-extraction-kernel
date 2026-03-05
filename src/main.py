@@ -1,6 +1,7 @@
 ﻿import os
 import time
 from pathlib import Path
+from typing import Any, Callable, Sequence
 
 from tqdm import tqdm
 
@@ -14,7 +15,7 @@ from src.database import log_extraction, get_performance_trends
 
 
 from src.branch_model import apply_branch_model
-def write_outputs(proc, out_json: str, out_mmd: str):
+def write_outputs(proc: Any, out_json: str, out_mmd: str) -> None:
     # Apply manual canonicalization only to non-auto outputs
     if "_auto" not in out_json:
         canonicalize_manual_to_explicit(proc)
@@ -23,12 +24,12 @@ def write_outputs(proc, out_json: str, out_mmd: str):
     Path(out_mmd).write_text(to_mermaid(proc), encoding="utf-8")
 
 
-def run_one_manual(source_id: str, extractor, input_path: str, out_json: str, out_mmd: str, out_trace: str):
+def run_one_manual(source_id: str, extractor: Callable[[str], Any], input_path: str, out_json: str, out_mmd: str, out_trace: str) -> tuple[list[str], list[dict[str, Any]], Any, int]:
     text = Path(input_path).read_text(encoding="utf-8")
     trace_event(out_trace, "RECEIVE_INPUT", {"source_id": source_id, "path": input_path, "mode": "manual"})
 
     proc = extractor(text)
-    errors = []
+    errors: list[str] = []
     added = referee_add_unknowns(proc)
 
     apply_branch_model(proc)
@@ -36,14 +37,14 @@ def run_one_manual(source_id: str, extractor, input_path: str, out_json: str, ou
     return errors, added, proc, len(text)
 
 
-def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str, gap_report: str = ""):
+def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str, gap_report: str = "") -> tuple[list[str], list[dict[str, Any]], Any, int]:
     text = Path(input_path).read_text(encoding="utf-8")
     trace_event(out_trace, "RECEIVE_INPUT", {"source_id": source_id, "path": input_path, "mode": "heuristic"})
 
     from src.heuristic import heuristic_extract_ap
     proc = heuristic_extract_ap(text, source_id=source_id, process_id=f"ap_{source_id}_auto", gap_report=gap_report)
 
-    errors = []
+    errors: list[str] = []
     added = referee_add_unknowns(proc)
 
     apply_branch_model(proc)
@@ -51,7 +52,7 @@ def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: s
     return errors, added, proc, len(text)
 
 
-def main():
+def main() -> None:
     # Selectively delete generated artifacts from outputs/ so every run is
     # fresh.  Only .json, .mmd, and .png files are removed.
     # data/analytics/ (metrics.db, master_audit_log.csv) is NEVER touched.
@@ -72,7 +73,7 @@ def main():
         manual_extract_doc_004, manual_extract_doc_005,
     )
 
-    manual_jobs = [
+    manual_jobs: Sequence[tuple[str, Callable[[str], Any], str]] = [
         ("doc_001", manual_extract_doc_001, "data/examples/doc_001.txt"),
         ("doc_002", manual_extract_doc_002, "data/examples/doc_002.txt"),
         ("doc_003", manual_extract_doc_003, "data/examples/doc_003.txt"),
@@ -80,8 +81,8 @@ def main():
         ("doc_005", manual_extract_doc_005, "data/examples/doc_005.txt"),
     ]
 
-    manual_paths = {}
-    auto_paths = {}
+    manual_paths: dict[str, str] = {}
+    auto_paths: dict[str, str] = {}
 
     print("=== MANUAL EXTRACTS ===")
     for source_id, extractor, in_path in tqdm(manual_jobs, desc="Manual extracts", unit="doc"):
@@ -183,6 +184,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
