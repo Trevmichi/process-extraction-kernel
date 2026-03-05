@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -191,6 +192,7 @@ def _run_pytest_commands(
     last_run: dict[str, Any] = {}
     for command_args in pytest_commands:
         cmd = [python_executable, "-m", "pytest", *command_args]
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         started = time.perf_counter()
         try:
             proc = subprocess.run(
@@ -200,6 +202,7 @@ def _run_pytest_commands(
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
+                env=env,
             )
         except subprocess.TimeoutExpired as exc:
             duration = time.perf_counter() - started

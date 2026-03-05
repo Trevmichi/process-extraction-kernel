@@ -145,8 +145,8 @@ MUTATION_CATALOG: list[dict] = [
         "mutation_type": "verifier_weakening",
         "apply_rule": {
             "kind": "replace_one",
-            "old": "    if delta > 0.01:",
-            "new": "    if delta > 1000.0:",
+            "old": "    if delta > 0.01:\n        codes.append(\"AMOUNT_MISMATCH\")",
+            "new": "    if delta > 1000.0:\n        codes.append(\"AMOUNT_MISMATCH\")",
         },
         "pytest_commands": [
             ["tests/test_verifier.py::TestAmountMismatch::test_value_100_evidence_50", "-q"],
@@ -277,6 +277,146 @@ MUTATION_CATALOG: list[dict] = [
             ],
         ],
         "expected_rationale": "only MATCH_DECISION gateways may route on match_result.",
+    },
+    # ------------------------------------------------------------------
+    # Date validator mutants (RFC 6C)
+    # ------------------------------------------------------------------
+    {
+        "id": "M017_date_eu_disambiguation_inverted",
+        "target_file": "src/verifier.py",
+        "description": "Swap EU branch guard from second <= 12 to second >= 12",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "if first > 12 and second <= 12:",
+            "new": "if first > 12 and second >= 12:",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_invoice_date_eu_format_day_gt_month", "-q"],
+        ],
+        "expected_rationale": (
+            "EU date 25/06/2025 (first=25 > 12, second=6 < 12) exercises the mutated branch; "
+            "mutant changes <= to >= causing second=6 to fail the guard, producing DATE_AMBIGUOUS."
+        ),
+    },
+    {
+        "id": "M018_date_equal_pair_branch_inverted",
+        "target_file": "src/verifier.py",
+        "description": "Flip equal-pair guard from == to !=",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "elif first == second:",
+            "new": "elif first != second:",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_invoice_date_ambiguous_fails_explicitly", "-q"],
+        ],
+        "expected_rationale": (
+            "03/04/2025 (first != second, both <= 12) should be DATE_AMBIGUOUS "
+            "but mutant would match the elif branch."
+        ),
+    },
+    {
+        "id": "M019_date_ambiguous_flag_inverted",
+        "target_file": "src/verifier.py",
+        "description": "Invert ambiguous propagation: saw_ambiguous to not saw_ambiguous",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "if saw_ambiguous:",
+            "new": "if not saw_ambiguous:",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_invoice_date_ambiguous_fails_explicitly", "-q"],
+            ["tests/test_verifier_field_expansion.py::test_invoice_date_us_format_normalizes_to_iso", "-q"],
+        ],
+        "expected_rationale": (
+            "Ambiguous flag inversion would suppress DATE_AMBIGUOUS on "
+            "03/04/2025 and falsely fire on unambiguous evidence."
+        ),
+    },
+    {
+        "id": "M020_date_ambiguous_path_bypassed",
+        "target_file": "src/verifier.py",
+        "description": "Change DATE_AMBIGUOUS return to DATE_PARSE_FAILED in both-<=12 else branch",
+        "mutation_type": "verifier_regression",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "        # Both <= 12; cannot disambiguate\n        return None, \"DATE_AMBIGUOUS\"",
+            "new": "        # Both <= 12; cannot disambiguate\n        return None, \"DATE_PARSE_FAILED\"",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_invoice_date_ambiguous_fails_explicitly", "-q"],
+        ],
+        "expected_rationale": "Ambiguous dates must return DATE_AMBIGUOUS, not DATE_PARSE_FAILED.",
+    },
+    # ------------------------------------------------------------------
+    # Tax validator mutants (RFC 6C)
+    # ------------------------------------------------------------------
+    {
+        "id": "M021_tax_anchor_guard_inverted",
+        "target_file": "src/verifier.py",
+        "description": "Invert anchor requirement: not search -> search",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "if not _TAX_ANCHOR_RE.search(evidence):",
+            "new": "if _TAX_ANCHOR_RE.search(evidence):",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_tax_anchor_disambiguates_from_subtotal_shipping_total", "-q"],
+        ],
+        "expected_rationale": (
+            "Evidence 'Tax: 35.00' has anchor; inverting would return TAX_ANCHOR_MISSING."
+        ),
+    },
+    {
+        "id": "M022_tax_ambiguity_guard_weakened",
+        "target_file": "src/verifier.py",
+        "description": "Suppress multi-value rejection: > 1 -> > 100",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "if len(unique_values) > 1:\n        return None, \"TAX_AMBIGUOUS_EVIDENCE\"",
+            "new": "if len(unique_values) > 100:\n        return None, \"TAX_AMBIGUOUS_EVIDENCE\"",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_tax_multiple_anchored_values_rejected", "-q"],
+        ],
+        "expected_rationale": "Two different tax-anchor values must be rejected as TAX_AMBIGUOUS_EVIDENCE.",
+    },
+    {
+        "id": "M023_tax_tolerance_weakened",
+        "target_file": "src/verifier.py",
+        "description": "Weaken tax mismatch check: delta > 0.01 -> delta > 1000.0",
+        "mutation_type": "verifier_weakening",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "    if delta > 0.01:\n        codes.append(\"TAX_AMOUNT_MISMATCH\")",
+            "new": "    if delta > 1000.0:\n        codes.append(\"TAX_AMOUNT_MISMATCH\")",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_tax_amount_value_mismatch", "-q"],
+        ],
+        "expected_rationale": "Material tax amount mismatches must be rejected.",
+    },
+    {
+        "id": "M024_tax_anchor_window_expanded",
+        "target_file": "src/verifier.py",
+        "description": "Expand anchor proximity window: {0,24} -> {0,240}",
+        "mutation_type": "verifier_regression",
+        "apply_rule": {
+            "kind": "replace_one",
+            "old": "[^0-9\\-]{0,24}",
+            "new": "[^0-9\\-]{0,240}",
+        },
+        "pytest_commands": [
+            ["tests/test_verifier_field_expansion.py::test_tax_distant_number_not_captured", "-q"],
+        ],
+        "expected_rationale": (
+            "Distant numbers (>24 chars from tax anchor) must not be captured as tax values."
+        ),
     },
 ]
 
