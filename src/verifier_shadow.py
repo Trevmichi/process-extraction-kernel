@@ -73,6 +73,8 @@ def verify_extraction_via_registry(
     norm_raw = legacy_verifier._normalize_text(raw_text)
 
     for spec in active_registry.ordered_specs():
+        if spec.optional and spec.field_name not in extraction:
+            continue
         spec.validator(extraction, norm_raw, codes, provenance)
 
     return (len(codes) == 0, codes, provenance)

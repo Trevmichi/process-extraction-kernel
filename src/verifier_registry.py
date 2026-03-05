@@ -22,6 +22,7 @@ class FieldValidatorSpec:
     field_name: str
     validator: FieldValidatorFn
     description: str
+    optional: bool = False
 
 
 class FieldValidatorRegistry:
@@ -81,6 +82,26 @@ def validate_has_po_via_legacy(
     legacy_verifier._verify_has_po(extraction, norm_raw, codes, provenance)
 
 
+def validate_invoice_date_via_legacy(
+    extraction: dict,
+    norm_raw: str,
+    codes: list[str],
+    provenance: dict,
+) -> None:
+    """Adapter wrapper for legacy invoice_date validator."""
+    legacy_verifier._verify_invoice_date(extraction, norm_raw, codes, provenance)
+
+
+def validate_tax_amount_via_legacy(
+    extraction: dict,
+    norm_raw: str,
+    codes: list[str],
+    provenance: dict,
+) -> None:
+    """Adapter wrapper for legacy tax_amount validator."""
+    legacy_verifier._verify_tax_amount(extraction, norm_raw, codes, provenance)
+
+
 def build_legacy_validator_registry() -> FieldValidatorRegistry:
     """Build ordered registry backed by existing legacy validator functions."""
     return FieldValidatorRegistry(
@@ -99,6 +120,24 @@ def build_legacy_validator_registry() -> FieldValidatorRegistry:
                 field_name="has_po",
                 validator=validate_has_po_via_legacy,
                 description="Legacy PO grounding/pattern checks with null-tolerance branch.",
+            ),
+            FieldValidatorSpec(
+                field_name="invoice_date",
+                validator=validate_invoice_date_via_legacy,
+                description=(
+                    "Legacy invoice_date grounding + deterministic parse/ambiguity "
+                    "checks with ISO normalization."
+                ),
+                optional=True,
+            ),
+            FieldValidatorSpec(
+                field_name="tax_amount",
+                validator=validate_tax_amount_via_legacy,
+                description=(
+                    "Legacy tax_amount grounding + anchor-aware tax parsing "
+                    "and numeric tolerance checks."
+                ),
+                optional=True,
             ),
         ]
     )
