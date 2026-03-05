@@ -290,6 +290,7 @@ def _verify_amount(
         codes.append("AMOUNT_MISMATCH")
         return
 
+    parsed: float | None = None
     if len(numbers) == 1:
         parsed = numbers[0][0]
     else:
@@ -305,6 +306,10 @@ def _verify_amount(
             codes.append("AMBIGUOUS_AMOUNT_EVIDENCE")
             prov["amount"]["parsed_evidence"] = None
             return
+
+    if parsed is None:
+        codes.append("AMOUNT_MISMATCH")
+        return
 
     prov["amount"]["parsed_evidence"] = parsed
     delta = abs(parsed - float(value))
