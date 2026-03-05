@@ -36,7 +36,7 @@ Design constraints
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from typing import Callable
+from typing import Any, Callable
 
 from .conditions import normalize_condition
 
@@ -501,7 +501,9 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
             continue
 
         # --- Phase 1A: collect all original targets for chain discovery ---
-        original_targets: set[str] = {e.get("to") for e in out_edges}
+        original_targets: set[str] = {
+            to for e in out_edges for to in [e.get("to")] if isinstance(to, str)
+        }
 
         # --- Phase 1B: identify chain nodes ---
         approve_id = _find_chain_node(nodes_map, original_targets, "APPROVE")
@@ -560,7 +562,7 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
         log.append(f"  [GW2] {gw_id}: converted gateway -> task (MATCH_3_WAY)")
 
         # --- Phase 1E: inject decision gateway ---
-        decision_node = {
+        decision_node: dict[str, Any] = {
             "id":       decision_id,
             "kind":     "gateway",
             "name":     f"Match Decision ({gw_id})",
@@ -581,7 +583,7 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
         log.append(f"  [GW2] {gw_id}: injected decision gateway {decision_id}")
 
         # --- Phase 1F: remove ALL existing outgoing edges from task ---
-        removed = _remove_edges(data, lambda e, _gid=gw_id: e.get("frm") == _gid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == gw_id)
         log.append(f"  [GW2] {gw_id}: removed {removed} existing outgoing edge(s)")
 
         # --- Phase 1G: wire task → decision (unconditional) ---
@@ -1029,7 +1031,7 @@ def convert_unparseable_gateways_to_station(data: dict) -> tuple[dict, list[str]
         )
 
         # Remove all outgoing edges
-        removed = _remove_edges(data, lambda e, _nid=nid: e.get("frm") == _nid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [UNPARSE] {nid}: removed {removed} outgoing edge(s)")
 
         # Add single unconditional edge to station
@@ -1192,9 +1194,7 @@ def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str
         })
 
         # Remove ALL outgoing edges from the gateway
-        removed_gw = _remove_edges(
-            data, lambda e, _nid=nid: e.get("frm") == _nid
-        )
+        removed_gw = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [SEQ] {nid}: removed {removed_gw} outgoing edge(s)")
 
         # Remove inter-target edges (edges between any two targets)
@@ -1305,7 +1305,7 @@ def convert_fanout_gateways_to_ambiguous_station(data: dict) -> tuple[dict, list
         )
 
         # Remove all outgoing edges
-        removed = _remove_edges(data, lambda e, _nid=nid: e.get("frm") == _nid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [FANOUT] {nid}: removed {removed} outgoing edge(s)")
 
         # Add single unconditional edge to station
