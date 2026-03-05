@@ -5,15 +5,41 @@ from typing import Dict, List, Set, Tuple
 
 
 def _load(path: str) -> dict:
+    """
+
+    Args:
+      path: str:
+      path: str: 
+
+    Returns:
+
+    """
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def _canonical_keys(doc: dict) -> Set[str]:
+    """
+
+    Args:
+      doc: dict:
+      doc: dict: 
+
+    Returns:
+
+    """
     return {n["meta"]["canonical_key"] for n in doc["nodes"]}
 
 
 def _edge_key_pairs(doc: dict) -> Set[Tuple[str, str, str]]:
-    """Return set of (canonical_frm, canonical_to, condition) triples."""
+    """
+
+    Args:
+      doc: dict:
+      doc: dict: 
+
+    Returns:
+
+    """
     id_to_key: Dict[str, str] = {n["id"]: n["meta"]["canonical_key"] for n in doc["nodes"]}
     pairs: Set[Tuple[str, str, str]] = set()
     for e in doc.get("edges", []):
@@ -29,6 +55,15 @@ _SKIP_KEYS = {"event:start", "end:end"}
 
 
 def run_gap_analysis(output_dir: str = "outputs") -> str:
+    """
+
+    Args:
+      output_dir: str:  (Default value = "outputs")
+      output_dir: str:  (Default value = "outputs")
+
+    Returns:
+
+    """
     master = _load(f"{output_dir}/ap_master_manual_auto.json")
     master_keys = _canonical_keys(master)
     master_edges = _edge_key_pairs(master)
@@ -86,6 +121,15 @@ def run_gap_analysis(output_dir: str = "outputs") -> str:
 
 
 def write_gap_analysis(output_dir: str = "outputs") -> str:
+    """
+
+    Args:
+      output_dir: str:  (Default value = "outputs")
+      output_dir: str:  (Default value = "outputs")
+
+    Returns:
+
+    """
     report = run_gap_analysis(output_dir)
     out_path = Path(output_dir) / "gap_analysis_report.md"
     out_path.write_text(report, encoding="utf-8")
