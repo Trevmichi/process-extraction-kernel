@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 import os
 import re
-from typing import List, Tuple, Dict, Optional, TypedDict, Literal
+from typing import Any, List, Tuple, Dict, Optional, TypedDict, Literal, cast
 from .models import ProcessDoc, Node, Edge, Action, Decision, Evidence
 from .ontology import ActionType, DecisionType, VALID_ACTIONS, VALID_DECISIONS
 
@@ -236,10 +236,10 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
     sentences = _split_sentences(text)
 
     # --- Extraction Phase ---
-    all_intents: List[Dict] = []
+    all_intents: List[ParsedIntent] = []
     if os.environ.get("USE_LLM_CLASSIFIER") == "true":
         from .llm_classifier import classify_text_block_llm
-        all_intents = classify_text_block_llm(text, gap_report=gap_report)
+        all_intents = cast(List[ParsedIntent], classify_text_block_llm(text, gap_report=gap_report))
 
     # Fallback to regex if LLM is off, failed, or hit a rate limit
     if not all_intents:
@@ -277,7 +277,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                 kind="gateway",
                 name="Decision",
                 decision=Decision(
-                    type=dec_type,
+                    type=cast(DecisionType, dec_type),
                     expression=intent.get("expression"),
                     inputs=intent.get("inputs", []),
                 ),
@@ -306,7 +306,10 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                     id=gid,
                     kind="gateway",
                     name="Decision",
-                    decision=Decision(type=act, expression=intent.get("expression")),
+                    decision=Decision(
+                        type=cast(DecisionType, act),
+                        expression=intent.get("expression"),
+                    ),
                     evidence=ev(ev_span),
                     meta={"canonical_key": f"gw:{act}"},
                 )
@@ -324,7 +327,11 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                 id=tid,
                 kind="task",
                 name=ev_span[:60] + ("..." if len(ev_span) > 60 else ""),
-                action=Action(type=act, actor_id=intent.get("actor_id", ""), artifact_id=intent.get("artifact_id", "")),
+                action=Action(
+                    type=cast(ActionType | Literal["UNKNOWN_ACTION"], act),
+                    actor_id=intent.get("actor_id", ""),
+                    artifact_id=intent.get("artifact_id", ""),
+                ),
                 evidence=ev(ev_span),
                 meta={"canonical_key": task_key},
             ))
