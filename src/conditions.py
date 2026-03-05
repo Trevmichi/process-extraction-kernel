@@ -100,6 +100,10 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
                 f"Unexpected character at position {pos} in condition: {expr!r}"
             )
         kind = m.lastgroup
+        if kind is None:
+            raise ConditionParseError(
+                f"Tokenizer produced an unknown token at position {pos} in: {expr!r}"
+            )
         val  = m.group()
         pos  = m.end()
         if kind == "WS":
