@@ -1,0 +1,11 @@
+Acme Industrial Supply Inc.
+123 Factory Lane, Industrial City, TX 75001
+
+Date: 2026-11-05
+Invoice Number: INV-1066
+PO Number: PO-77351
+
+Precision Gears        5 @ 120.00    600.00
+Assembly Kit           2 @ 75.00     150.00
+
+Total Amount: 750.00

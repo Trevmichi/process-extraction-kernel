@@ -1,0 +1,16 @@
+Silverline Packaging
+310 Commerce Way, Nashville, TN 37201
+
+Date: 2026-10-20
+Invoice Number: INV-1061
+PO Number: PO-SLP-610
+
+Corrugated boxes (500 ct)         1200.00
+Bubble wrap rolls (20)             450.00
+Packing tape (100 rolls)           300.00
+
+Subtotal: 1950.00
+Shipping: 250.00
+Tax: 250.00
+Total: 2450.00
+Total Due: 2450.00

@@ -703,3 +703,112 @@ class TestAuditReportStructure:
         assert audit["summary"]["audited_count"] == 1
         assert audit["summary"]["failures_audited"] == 1
         assert audit["summary"]["passes_audited"] == 0
+
+
+# ===========================================================================
+# TestTagConventions
+# ===========================================================================
+
+class TestTagConventions:
+    """Validate all tags across expected.jsonl are lowercase snake_case."""
+
+    def test_all_tags_are_lowercase_snake_case(self):
+        """Every tag in expected.jsonl must match [a-z][a-z0-9_]* pattern."""
+        import re
+        tag_re = re.compile(r"^[a-z][a-z0-9_]*$")
+        records = load_expected(EXPECTED_PATH)
+        bad = []
+        for rec in records:
+            for tag in rec.get("tags", []):
+                if not tag_re.match(tag):
+                    bad.append((rec["invoice_id"], tag))
+        assert bad == [], f"Non-snake_case tags found: {bad}"
+
+    def test_no_empty_tags_list(self):
+        """Every record should have at least one tag."""
+        records = load_expected(EXPECTED_PATH)
+        empty = [r["invoice_id"] for r in records if not r.get("tags")]
+        assert empty == [], f"Records with no tags: {empty}"
+
+
+# ===========================================================================
+# TestAdversarialFixturePresence
+# ===========================================================================
+
+class TestAdversarialFixturePresence:
+    """Assert all adversarial fixture files exist and are referenced."""
+
+    ADVERSARIAL_FILES = [f"inv_{n:03d}.txt" for n in range(57, 69)]
+    ADVERSARIAL_IDS = [f"INV-{n}" for n in range(1057, 1069)]
+
+    def test_fixture_files_exist(self):
+        """All adversarial invoice text files must exist on disk."""
+        for fname in self.ADVERSARIAL_FILES:
+            path = DATASETS_DIR / "gold_invoices" / fname
+            assert path.exists(), f"Missing fixture: {path}"
+
+    def test_fixture_ids_in_expected(self):
+        """All adversarial invoice IDs must appear in expected.jsonl."""
+        records = load_expected(EXPECTED_PATH)
+        ids = {r["invoice_id"] for r in records}
+        for inv_id in self.ADVERSARIAL_IDS:
+            assert inv_id in ids, f"Missing from expected.jsonl: {inv_id}"
+
+    def test_adversarial_tags_present(self):
+        """Each adversarial scenario tag must appear in at least one record."""
+        required_tags = {
+            "threshold_edge_exact", "po_false_positive_prose",
+            "duplicate_total_lines", "ocr_spacing",
+            "vendor_alias_variation", "footer_total_vs_amount_due_conflict",
+            "multi_currency_symbol_noise",
+        }
+        records = load_expected(EXPECTED_PATH)
+        all_tags = set()
+        for r in records:
+            all_tags.update(r.get("tags", []))
+        missing = required_tags - all_tags
+        assert missing == set(), f"Missing adversarial tags: {missing}"
+
+
+# ===========================================================================
+# TestPairedFixtureContrast
+# ===========================================================================
+
+class TestPairedFixtureContrast:
+    """Lightweight assertions that paired fixtures share vendor but differ
+    in the targeted variable."""
+
+    def _load_by_id(self):
+        records = load_expected(EXPECTED_PATH)
+        return {r["invoice_id"]: r for r in records}
+
+    def test_threshold_pair_same_amount(self):
+        """INV-1057 and INV-1058 should have the same amount but differ in has_po."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1057"], by_id["INV-1058"]
+        assert a["expected_fields"]["amount"] == b["expected_fields"]["amount"]
+        assert a["expected_fields"]["has_po"] != b["expected_fields"]["has_po"]
+
+    def test_po_prose_pair_same_vendor(self):
+        """INV-1059 and INV-1060 should share vendor and both be no_po."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1059"], by_id["INV-1060"]
+        assert a["expected_fields"]["vendor"] == b["expected_fields"]["vendor"]
+        assert a["expected_fields"]["has_po"] is False
+        assert b["expected_fields"]["has_po"] is False
+
+    def test_vendor_alias_pair_different_suffix(self):
+        """INV-1065 and INV-1066 should have different vendor names (alias variation)."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1065"], by_id["INV-1066"]
+        assert a["expected_fields"]["vendor"] != b["expected_fields"]["vendor"]
+        # Both should contain the base vendor name
+        assert "Acme Industrial Supply" in a["expected_fields"]["vendor"]
+        assert "Acme Industrial Supply" in b["expected_fields"]["vendor"]
+
+    def test_duplicate_totals_pair_same_vendor(self):
+        """INV-1061 and INV-1062 should share vendor but differ in amount."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1061"], by_id["INV-1062"]
+        assert a["expected_fields"]["vendor"] == b["expected_fields"]["vendor"]
+        assert a["expected_fields"]["amount"] != b["expected_fields"]["amount"]
