@@ -3,6 +3,15 @@ from typing import Dict, List
 from .models import ProcessDoc, Node
 
 def _node_label(n: Node) -> str:
+    """
+
+    Args:
+      n: Node:
+      n: Node: 
+
+    Returns:
+
+    """
     base = n.name.strip() if n.name else n.id
     if n.kind == "task" and n.action:
         base = f"{base}\\n[{n.action.type}]"
@@ -11,6 +20,15 @@ def _node_label(n: Node) -> str:
     return base.replace('"', "'")
 
 def _node_style(n: Node) -> str:
+    """
+
+    Args:
+      n: Node:
+      n: Node: 
+
+    Returns:
+
+    """
     if n.kind == "event":
         return f"  style {n.id} fill:#9f9,stroke:#333,stroke-width:2px"
     if n.kind == "end":
@@ -21,6 +39,15 @@ def _node_style(n: Node) -> str:
     return f"  style {n.id} fill:#bbf,stroke:#333,stroke-width:1px"
 
 def to_mermaid(process: ProcessDoc) -> str:
+    """
+
+    Args:
+      process: ProcessDoc:
+      process: ProcessDoc: 
+
+    Returns:
+
+    """
     nodes_by_id: Dict[str, Node] = {n.id: n for n in process.nodes}
 
     lines: List[str] = []
