@@ -38,10 +38,18 @@ VALID_EXTRACTION = {
 
 def test_registry_loads_expected_validators():
     registry = build_legacy_validator_registry()
-    assert registry.field_names() == ["vendor", "amount", "has_po"]
+    assert registry.field_names() == [
+        "vendor",
+        "amount",
+        "has_po",
+        "invoice_date",
+        "tax_amount",
+    ]
     assert registry.get("vendor") is not None
     assert registry.get("amount") is not None
     assert registry.get("has_po") is not None
+    assert registry.get("invoice_date") is not None
+    assert registry.get("tax_amount") is not None
 
 
 def test_adapters_match_legacy_field_validator_behavior():

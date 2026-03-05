@@ -12,6 +12,7 @@ strings — so downstream consumers can switch on them deterministically.
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Literal
 
 from .verifier_registry import build_legacy_validator_registry
@@ -30,6 +31,20 @@ FailureCode = Literal[
     "PO_PATTERN_MISSING",
     "MISSING_KEY",
     "WRONG_TYPE",
+    "DATE_MISSING_KEY",
+    "DATE_WRONG_TYPE",
+    "DATE_EVIDENCE_NOT_FOUND",
+    "DATE_PARSE_FAILED",
+    "DATE_AMBIGUOUS",
+    "DATE_VALUE_MISMATCH",
+    "TAX_MISSING_KEY",
+    "TAX_WRONG_TYPE",
+    "TAX_EVIDENCE_NOT_FOUND",
+    "TAX_MISSING_EVIDENCE",
+    "TAX_PARSE_FAILED",
+    "TAX_ANCHOR_MISSING",
+    "TAX_AMBIGUOUS_EVIDENCE",
+    "TAX_AMOUNT_MISMATCH",
 ]
 
 
@@ -141,6 +156,16 @@ AMOUNT_KEYWORDS = _AMOUNT_KEYWORDS
 KEYWORD_WINDOW = _KEYWORD_WINDOW
 normalize_text = _normalize_text
 
+# Date token patterns (ISO and slash-delimited)
+_DATE_TOKEN_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{4}\b")
+
+# Tax anchor keywords and value extraction
+_TAX_ANCHOR_RE = re.compile(r"\b(tax|vat|gst)\b", re.IGNORECASE)
+_TAX_ANCHOR_VALUE_RE = re.compile(
+    r"\b(?:tax|vat|gst)\b[^0-9\-]{0,24}([-+]?(?:\d[\d,]*\.?\d*|\.\d+))",
+    re.IGNORECASE,
+)
+
 
 # ---------------------------------------------------------------------------
 # Per-field verification helpers
@@ -205,6 +230,8 @@ def verify_extraction(
 
     registry = build_legacy_validator_registry()
     for spec in registry.ordered_specs():
+        if spec.optional and spec.field_name not in extraction:
+            continue
         spec.validator(extraction, norm_raw, codes, prov)
 
     # ROLLBACK: If registry path fails, restore direct calls:
@@ -448,3 +475,241 @@ def _verify_has_po(
             codes.append("PO_PATTERN_MISSING")
     else:
         prov["has_po"]["po_pattern_found"] = False
+
+
+# ---------------------------------------------------------------------------
+# invoice_date verification
+# ---------------------------------------------------------------------------
+
+def _parse_date_token(token: str) -> tuple[str | None, str | None]:
+    """Parse one date token into ISO YYYY-MM-DD.
+
+    Returns (iso_date, error_code) where exactly one is non-None.
+    """
+    stripped = token.strip()
+    m_iso = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", stripped)
+    if m_iso:
+        year, month, day = map(int, m_iso.groups())
+        try:
+            return date(year, month, day).isoformat(), None
+        except ValueError:
+            return None, "DATE_PARSE_FAILED"
+
+    m_slash = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", stripped)
+    if not m_slash:
+        return None, "DATE_PARSE_FAILED"
+
+    first, second, year = map(int, m_slash.groups())
+
+    if first <= 0 or second <= 0:
+        return None, "DATE_PARSE_FAILED"
+    if first > 12 and second > 12:
+        return None, "DATE_PARSE_FAILED"
+
+    # Disambiguation: if only one component > 12, it must be day
+    if first > 12 and second <= 12:
+        day, month = first, second
+    elif second > 12 and first <= 12:
+        month, day = first, second
+    elif first == second:
+        month, day = first, second
+    else:
+        # Both <= 12; cannot disambiguate
+        return None, "DATE_AMBIGUOUS"
+
+    try:
+        return date(year, month, day).isoformat(), None
+    except ValueError:
+        return None, "DATE_PARSE_FAILED"
+
+
+def _extract_evidence_invoice_date(evidence: str) -> tuple[str | None, str | None]:
+    """Extract a deterministic ISO invoice date from evidence text."""
+    tokens = _DATE_TOKEN_RE.findall(evidence)
+    if not tokens:
+        return None, "DATE_PARSE_FAILED"
+
+    parsed_dates: list[str] = []
+    saw_ambiguous = False
+    for token in tokens:
+        parsed, err = _parse_date_token(token)
+        if err == "DATE_AMBIGUOUS":
+            saw_ambiguous = True
+            continue
+        if err is not None:
+            continue
+        if parsed is not None:
+            parsed_dates.append(parsed)
+
+    unique_dates = sorted(set(parsed_dates))
+    if saw_ambiguous:
+        return None, "DATE_AMBIGUOUS"
+    if len(unique_dates) == 0:
+        return None, "DATE_PARSE_FAILED"
+    if len(unique_dates) > 1:
+        return None, "DATE_AMBIGUOUS"
+    return unique_dates[0], None
+
+
+def _verify_invoice_date(
+    extraction: dict, norm_raw: str,
+    codes: list, prov: dict,
+) -> None:
+    """Verify optional invoice_date field with deterministic parsing rules."""
+    prov.setdefault(
+        "invoice_date",
+        {
+            "grounded": False,
+            "evidence_found_at": -1,
+            "normalized_value": None,
+            "normalized_evidence": None,
+        },
+    )
+
+    field = extraction.get("invoice_date")
+    if field is None:
+        codes.append("DATE_MISSING_KEY")
+        return
+
+    if not isinstance(field, dict):
+        codes.append("DATE_WRONG_TYPE")
+        return
+
+    if "value" not in field or "evidence" not in field:
+        codes.append("DATE_MISSING_KEY")
+        return
+
+    value = field.get("value")
+    evidence = field.get("evidence")
+
+    if not isinstance(value, str):
+        codes.append("DATE_WRONG_TYPE")
+        return
+
+    if not isinstance(evidence, str):
+        codes.append("DATE_WRONG_TYPE")
+        return
+
+    if not value.strip() or not evidence.strip():
+        codes.append("DATE_MISSING_KEY")
+        return
+
+    grounded, idx = _check_grounding(evidence, norm_raw)
+    prov["invoice_date"]["evidence_found_at"] = idx
+    if not grounded:
+        codes.append("DATE_EVIDENCE_NOT_FOUND")
+        return
+
+    prov["invoice_date"]["grounded"] = True
+
+    value_iso, value_err = _parse_date_token(value)
+    if value_err is not None:
+        codes.append(value_err)
+        return
+
+    evidence_iso, evidence_err = _extract_evidence_invoice_date(evidence)
+    if evidence_err is not None:
+        codes.append(evidence_err)
+        return
+
+    prov["invoice_date"]["normalized_value"] = value_iso
+    prov["invoice_date"]["normalized_evidence"] = evidence_iso
+
+    if value_iso != evidence_iso:
+        codes.append("DATE_VALUE_MISMATCH")
+
+
+# ---------------------------------------------------------------------------
+# tax_amount verification
+# ---------------------------------------------------------------------------
+
+def _extract_tax_amount_from_evidence(evidence: str) -> tuple[float | None, str | None]:
+    """Extract deterministic tax amount from evidence text."""
+    if not _TAX_ANCHOR_RE.search(evidence):
+        return None, "TAX_ANCHOR_MISSING"
+
+    cleaned = _CURRENCY_RE.sub(" ", evidence)
+    values: list[float] = []
+    for match in _TAX_ANCHOR_VALUE_RE.finditer(cleaned):
+        raw = match.group(1).replace(",", "")
+        try:
+            values.append(float(raw))
+        except ValueError:
+            continue
+
+    unique_values = sorted(set(values))
+    if len(unique_values) == 0:
+        return None, "TAX_PARSE_FAILED"
+    if len(unique_values) > 1:
+        return None, "TAX_AMBIGUOUS_EVIDENCE"
+    return unique_values[0], None
+
+
+def _verify_tax_amount(
+    extraction: dict, norm_raw: str,
+    codes: list, prov: dict,
+) -> None:
+    """Verify optional tax_amount field with anchor-aware deterministic parsing."""
+    prov.setdefault(
+        "tax_amount",
+        {
+            "grounded": False,
+            "evidence_found_at": -1,
+            "anchor_found": None,
+            "parsed_evidence": None,
+            "delta": None,
+        },
+    )
+
+    field = extraction.get("tax_amount")
+    if field is None:
+        codes.append("TAX_MISSING_KEY")
+        return
+
+    if not isinstance(field, dict):
+        codes.append("TAX_WRONG_TYPE")
+        return
+
+    if "value" not in field or "evidence" not in field:
+        codes.append("TAX_MISSING_KEY")
+        return
+
+    value = field.get("value")
+    evidence = field.get("evidence")
+
+    if not isinstance(value, (int, float)):
+        codes.append("TAX_WRONG_TYPE")
+        return
+
+    if not isinstance(evidence, str):
+        codes.append("TAX_WRONG_TYPE")
+        return
+
+    if not evidence.strip():
+        codes.append("TAX_MISSING_EVIDENCE")
+        return
+
+    grounded, idx = _check_grounding(evidence, norm_raw)
+    prov["tax_amount"]["evidence_found_at"] = idx
+    if not grounded:
+        codes.append("TAX_EVIDENCE_NOT_FOUND")
+        return
+
+    prov["tax_amount"]["grounded"] = True
+
+    anchor_found = bool(_TAX_ANCHOR_RE.search(evidence))
+    prov["tax_amount"]["anchor_found"] = anchor_found
+    if not anchor_found:
+        codes.append("TAX_ANCHOR_MISSING")
+        return
+
+    parsed, err = _extract_tax_amount_from_evidence(evidence)
+    if err is not None:
+        codes.append(err)
+        return
+
+    prov["tax_amount"]["parsed_evidence"] = parsed
+    delta = abs(float(value) - float(parsed))
+    prov["tax_amount"]["delta"] = delta
+    if delta > 0.01:
+        codes.append("TAX_AMOUNT_MISMATCH")
