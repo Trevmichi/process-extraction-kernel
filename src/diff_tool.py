@@ -46,8 +46,10 @@ def _node_key(n: Dict[str, Any]) -> str:
     return _norm_key(f"{kind}:{name}")
 
 def _edge_key(e: Dict[str, Any], nodes_by_id: Dict[str, Dict[str, Any]]) -> str:
-    frm = e.get("frm") or e.get("from")
-    to = e.get("to")
+    frm_raw = e.get("frm") or e.get("from")
+    to_raw = e.get("to")
+    frm = frm_raw if isinstance(frm_raw, str) else ""
+    to = to_raw if isinstance(to_raw, str) else ""
     cond = (e.get("condition") or "").strip().lower()
 
     frm_key = _node_key(nodes_by_id.get(frm, {"kind": "unknown", "name": frm}))
@@ -71,8 +73,12 @@ def diff_process(a_path: str, b_path: str, label_a: str = "A", label_b: str = "B
     a_unknowns: List[Dict[str, Any]] = a.get("unknowns", [])
     b_unknowns: List[Dict[str, Any]] = b.get("unknowns", [])
 
-    a_by_id = {n.get("id"): n for n in a_nodes}
-    b_by_id = {n.get("id"): n for n in b_nodes}
+    a_by_id: Dict[str, Dict[str, Any]] = {
+        n["id"]: n for n in a_nodes if isinstance(n.get("id"), str)
+    }
+    b_by_id: Dict[str, Dict[str, Any]] = {
+        n["id"]: n for n in b_nodes if isinstance(n.get("id"), str)
+    }
 
     a_node_keys = {_node_key(n) for n in a_nodes}
     b_node_keys = {_node_key(n) for n in b_nodes}
