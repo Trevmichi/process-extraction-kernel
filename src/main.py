@@ -16,6 +16,19 @@ from src.database import log_extraction, get_performance_trends
 
 from src.branch_model import apply_branch_model
 def write_outputs(proc: Any, out_json: str, out_mmd: str) -> None:
+    """
+
+    Args:
+      proc: Any:
+      out_json: str:
+      out_mmd: str:
+      proc: Any: 
+      out_json: str: 
+      out_mmd: str: 
+
+    Returns:
+
+    """
     # Apply manual canonicalization only to non-auto outputs
     if "_auto" not in out_json:
         canonicalize_manual_to_explicit(proc)
@@ -25,6 +38,26 @@ def write_outputs(proc: Any, out_json: str, out_mmd: str) -> None:
 
 
 def run_one_manual(source_id: str, extractor: Callable[[str], Any], input_path: str, out_json: str, out_mmd: str, out_trace: str) -> tuple[list[str], list[dict[str, Any]], Any, int]:
+    """
+
+    Args:
+      source_id: str:
+      extractor: Callable[[str]:
+      Any]: 
+      input_path: str:
+      out_json: str:
+      out_mmd: str:
+      out_trace: str:
+      source_id: str: 
+      extractor: Callable[[str]: 
+      input_path: str: 
+      out_json: str: 
+      out_mmd: str: 
+      out_trace: str: 
+
+    Returns:
+
+    """
     text = Path(input_path).read_text(encoding="utf-8")
     trace_event(out_trace, "RECEIVE_INPUT", {"source_id": source_id, "path": input_path, "mode": "manual"})
 
@@ -38,6 +71,25 @@ def run_one_manual(source_id: str, extractor: Callable[[str], Any], input_path: 
 
 
 def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: str, out_trace: str, gap_report: str = "") -> tuple[list[str], list[dict[str, Any]], Any, int]:
+    """
+
+    Args:
+      source_id: str:
+      input_path: str:
+      out_json: str:
+      out_mmd: str:
+      out_trace: str:
+      gap_report: str:  (Default value = "")
+      source_id: str: 
+      input_path: str: 
+      out_json: str: 
+      out_mmd: str: 
+      out_trace: str: 
+      gap_report: str:  (Default value = "")
+
+    Returns:
+
+    """
     text = Path(input_path).read_text(encoding="utf-8")
     trace_event(out_trace, "RECEIVE_INPUT", {"source_id": source_id, "path": input_path, "mode": "heuristic"})
 
@@ -53,6 +105,7 @@ def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: s
 
 
 def main() -> None:
+    """ """
     # Selectively delete generated artifacts from outputs/ so every run is
     # fresh.  Only .json, .mmd, and .png files are removed.
     # data/analytics/ (metrics.db, master_audit_log.csv) is NEVER touched.
