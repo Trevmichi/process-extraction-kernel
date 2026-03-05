@@ -61,7 +61,7 @@ from ..unmodeled import record_event
 
 
 class RouterError(Exception):
-    """ """
+    """Raised when deterministic routing cannot produce a valid next edge."""
 
 
 # ---------------------------------------------------------------------------
