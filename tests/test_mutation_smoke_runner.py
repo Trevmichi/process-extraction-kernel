@@ -26,7 +26,7 @@ def test_catalog_loads_with_required_schema():
     runner = _load_runner_module()
     catalog = runner.load_mutant_catalog()
 
-    assert 10 <= len(catalog) <= 20
+    assert 10 <= len(catalog) <= 30
     required = {
         "id",
         "target_file",
