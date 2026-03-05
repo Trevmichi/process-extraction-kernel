@@ -57,17 +57,37 @@ _MATCH_DECISION_CONDITIONS = frozenset({
 
 def check_match_split_invariants(data: dict) -> list[LintError]:
     """Verify the task+decision split pattern for MATCH_3_WAY nodes.
-
+    
     After normalisation, every node whose ``meta.intent_key`` or
     ``meta.canonical_key`` contains ``"gw:MATCH_3_WAY"`` (except n4, which
     is the primary match gateway handled by pass 5) must follow the split
     pattern: task (MATCH_3_WAY) → decision gateway (MATCH_DECISION).
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
     nodes_map: dict[str, dict] = {n["id"]: n for n in data.get("nodes", [])}
     edges = data.get("edges", [])
 
     def _err(code: str, msg: str, **ctx: object) -> None:
+        """
+
+        Args:
+          code: str:
+          msg: str:
+          **ctx: object:
+          code: str: 
+          msg: str: 
+          **ctx: object: 
+
+        Returns:
+
+        """
         errors.append(LintError(code=code, severity="error", message=msg, context=ctx))
 
     # Find candidate nodes (gw:MATCH_3_WAY in meta, skip n4)
@@ -192,10 +212,17 @@ def check_match_split_invariants(data: dict) -> list[LintError]:
 
 def check_no_placeholder_conditions(data: dict) -> list[LintError]:
     """Verify no miner-placeholder conditions survived normalisation.
-
+    
     Checks ALL edges (not just gateway edges): if a condition string is a
     known placeholder or normalises to ``None`` while being non-empty, it
     should have been resolved by the normalisation pipeline.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
 
@@ -246,11 +273,18 @@ def check_no_placeholder_conditions(data: dict) -> list[LintError]:
 def check_match_result_ownership(data: dict) -> list[LintError]:
     """Verify that no node other than MATCH_3_WAY declares ``match_result``
     in its ``action.extra`` metadata.
-
+    
     At runtime, only the ``MATCH_3_WAY`` executor writes ``match_result``
     to state.  This static check catches rogue patches or normalisation
     passes that inject ``match_result`` references into other nodes'
     ``action.extra`` dicts.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
 
@@ -287,15 +321,22 @@ def check_match_result_ownership(data: dict) -> list[LintError]:
 def check_match_result_routing(data: dict) -> list[LintError]:
     """Verify that ``match_result`` conditions only appear on edges outgoing
     from a MATCH_DECISION gateway.
-
+    
     Routing sanity check: MATCH_3_WAY (which sets ``match_result``) must
     execute before any node reads it via edge conditions.  Structurally,
     this means only the downstream MATCH_DECISION gateway should have
     ``match_result`` conditions on its outgoing edges.
-
+    
     Catches regressions like pass 5 adding ``match_result`` edges to
     a non-gateway node (e.g. VALIDATE_FIELDS) that executes *before*
     MATCH_3_WAY has run.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
     nodes_map: dict[str, dict] = {n["id"]: n for n in data.get("nodes", [])}
@@ -348,27 +389,34 @@ def check_match_result_routing(data: dict) -> list[LintError]:
 def check_match_decision_truth_table(data: dict) -> list[LintError]:
     """Verify every ``MATCH_DECISION`` gateway has the canonical 3-branch
     truth table.
-
+    
     Found by scanning ``decision.type == "MATCH_DECISION"`` directly
     (independent of meta tags or naming conventions).  Each must have
     exactly 3 outgoing edges whose conditions are:
-
+    
         match_result == "MATCH"
         match_result == "NO_MATCH"
         match_result == "UNKNOWN"
-
+    
     Additional checks:
-
+    
     * Exactly one edge per canonical condition (no duplicates, no extras).
     * Every outgoing edge has a non-null ``to`` that references a node
       present in the graph.
     * No ``priority`` field on MATCH_DECISION outgoing edges (branches
       are condition-exclusive, so priority would introduce ambiguity).
-
+    
     This is the explicit "decision truth table" check.  It overlaps with
     ``E_MATCH_SPLIT_NON_EXHAUSTIVE`` (which finds gateways via the
     ``gw:MATCH_3_WAY`` meta scan) but catches standalone MATCH_DECISION
     gateways that don't follow the split naming convention.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
     edges = data.get("edges", [])
@@ -521,13 +569,20 @@ def check_match_decision_truth_table(data: dict) -> list[LintError]:
 
 def check_synthetic_completeness(data: dict) -> list[LintError]:
     """Verify synthetic metadata completeness on nodes.
-
+    
     Sub-check 1: Every node with ``meta.synthetic == True`` must have
     non-empty ``meta.semantic_assumption`` and ``meta.origin_pass``.
-
+    
     Sub-check 2: Every node with ``meta.synthetic_edges`` (a list) must
     have each entry contain non-empty ``semantic_assumption`` and
     ``origin_pass``.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
 
