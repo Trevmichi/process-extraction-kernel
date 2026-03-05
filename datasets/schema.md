@@ -137,7 +137,13 @@ Tags should be lowercase `snake_case`. Recommended categories:
 
 `single_line`, `multi_line`, `table_like`, `email_style`, `footer_total`,
 `multi_section`, `simple`, `weird_spacing`, `multiple_totals`, `noisy_header`,
-`prose_po_reference`
+`prose_po_reference`, `ocr_spacing`
+
+**Adversarial tags** (optional, target specific anti-patterns):
+
+`threshold_edge_exact`, `po_false_positive_prose`, `duplicate_total_lines`,
+`vendor_alias_variation`, `footer_total_vs_amount_due_conflict`,
+`multi_currency_symbol_noise`
 
 **Vendor tags** (optional, prefix with `vendor_`):
 

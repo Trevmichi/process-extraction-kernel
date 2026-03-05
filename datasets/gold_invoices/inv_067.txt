@@ -1,0 +1,14 @@
+Atlas Electrical Supply
+456 Power Ave, Houston, TX 77001
+
+Date: 2026-12-01
+Invoice Number: INV-1067
+PO Number: PO-AES-880
+
+Wiring harness          1200.00
+Junction boxes           350.00
+Installation labor      1500.00
+
+Total: 3050.00
+Early Payment Discount (5%): -152.50
+Amount Due: 2897.50

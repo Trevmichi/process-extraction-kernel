@@ -1,0 +1,14 @@
+Delta Mechanical Services
+900 Industrial Park Dr, Detroit, MI 48201
+
+Date: 2026-10-10
+Invoice Number: INV-1059
+
+No PO required for this service engagement.
+
+HVAC system inspection             450.00
+Filter replacement                 120.00
+Thermostat calibration              80.00
+
+Total Due: 650.00
+PO: None
