@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 from typing import Literal
 
+from .verifier_registry import build_legacy_validator_registry
+
 # ---------------------------------------------------------------------------
 # Stable failure codes
 # ---------------------------------------------------------------------------
@@ -201,14 +203,14 @@ def verify_extraction(
     prov = _default_provenance()
     norm_raw = _normalize_text(raw_text)
 
-    # ---- vendor -----------------------------------------------------------
-    _verify_vendor(extraction, norm_raw, codes, prov)
+    registry = build_legacy_validator_registry()
+    for spec in registry.ordered_specs():
+        spec.validator(extraction, norm_raw, codes, prov)
 
-    # ---- amount -----------------------------------------------------------
-    _verify_amount(extraction, norm_raw, codes, prov)
-
-    # ---- has_po -----------------------------------------------------------
-    _verify_has_po(extraction, norm_raw, codes, prov)
+    # ROLLBACK: If registry path fails, restore direct calls:
+    #   _verify_vendor(extraction, norm_raw, codes, prov)
+    #   _verify_amount(extraction, norm_raw, codes, prov)
+    #   _verify_has_po(extraction, norm_raw, codes, prov)
 
     return (len(codes) == 0, codes, prov)
 

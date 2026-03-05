@@ -218,6 +218,18 @@ class TestAmountDisambiguation:
         valid, codes, prov = verify_extraction(RAW_TEXT_MULTI_AMOUNT, ext)
         assert "AMBIGUOUS_AMOUNT_EVIDENCE" not in codes
 
+    def test_keyword_beyond_3_chars_within_30_passes(self):
+        """Keyword ~8 chars before number, within 30 but beyond 3 (kills M012)."""
+        raw = "Invoice\nVendor: Acme\nItems: $50.00\nTotal:  $100.00\nPO: PO-1"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.00, "evidence": "Items: $50.00\nTotal:  $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1"},
+        }
+        valid, codes, _ = verify_extraction(raw, ext)
+        assert "AMBIGUOUS_AMOUNT_EVIDENCE" not in codes
+        assert "AMOUNT_MISMATCH" not in codes
+
 
 # ===========================================================================
 # 6. Ambiguous amount — disambiguation fails
@@ -231,6 +243,18 @@ class TestAmountAmbiguousFail:
         ext = {
             "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
             "amount": {"value": 100.00, "evidence": "Items: 50.00 and 100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1"},
+        }
+        valid, codes, _ = verify_extraction(raw, ext)
+        assert valid is False
+        assert "AMBIGUOUS_AMOUNT_EVIDENCE" in codes
+
+    def test_multiple_keywords_multiple_candidates_rejected(self):
+        """2+ numbers with nearby keywords → ambiguous (kills M011)."""
+        raw = "Invoice\nVendor: Acme\nAmount: $100.00\nDue: $200.00\nPO: PO-1"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.00, "evidence": "Amount: $100.00\nDue: $200.00"},
             "has_po": {"value": True, "evidence": "PO: PO-1"},
         }
         valid, codes, _ = verify_extraction(raw, ext)
