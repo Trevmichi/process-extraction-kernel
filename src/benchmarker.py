@@ -47,7 +47,11 @@ _PEAK_ZONE   = 0.90       # SP ≥ 90 % of max → "Peak Accuracy Zone"
 # ---------------------------------------------------------------------------
 
 def _get_vram_mb() -> Optional[int]:
-    """ """
+    """Read used GPU VRAM from nvidia-smi.
+
+    Returns:
+      Optional[int]: Used VRAM in MB when available, else None.
+    """
     import subprocess
     try:
         r = subprocess.run(
