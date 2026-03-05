@@ -12,7 +12,11 @@ _DB_PATH = Path("data/analytics/metrics.db")
 
 
 def _connect() -> sqlite3.Connection:
-    """ """
+    """Create a SQLite connection for the analytics DB.
+
+    Returns:
+      sqlite3.Connection: Connection with row_factory configured to sqlite3.Row.
+    """
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
@@ -20,7 +24,11 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """ """
+    """Create metrics tables and apply additive schema migrations.
+
+    Returns:
+      None
+    """
     with _connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS extraction_logs (
