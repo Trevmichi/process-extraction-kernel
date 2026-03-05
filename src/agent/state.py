@@ -50,6 +50,7 @@ MatchResult = Literal["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]
 
 
 class APState(TypedDict):
+    """ """
     invoice_id:       str
     vendor:           str
     amount:           float
@@ -103,15 +104,21 @@ def make_initial_state(
     po_match: bool = False,
     match_3_way: bool | None = None,
 ) -> APState:
-    """
-    Create a fresh APState with safe defaults from ``DEFAULT_STATE_TEMPLATE``.
+    """Create a fresh APState with safe defaults from ``DEFAULT_STATE_TEMPLATE``.
 
-    Parameters
-    ----------
-    invoice_id : unique identifier for this invoice run
-    raw_text   : original invoice text for extraction
-    po_match   : whether the PO matches (default False)
-    match_3_way : mirrors po_match if None (default)
+    Args:
+      *: 
+      invoice_id: str:
+      raw_text: str:
+      po_match: bool:  (Default value = False)
+      match_3_way: bool | None:  (Default value = None)
+      invoice_id: str: 
+      raw_text: str: 
+      po_match: bool:  (Default value = False)
+      match_3_way: bool | None:  (Default value = None)
+
+    Returns:
+
     """
     if match_3_way is None:
         match_3_way = po_match
