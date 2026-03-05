@@ -99,7 +99,7 @@ def extract_router_events(audit_log: list) -> list[dict]:
         if parsed is not None:
             ev = parsed.get("event", "")
             if (
-                "route" in ev.lower()
+                ev in ("route_decision", "route_record")
                 or "candidates" in parsed
                 or "matched_targets" in parsed
             ):

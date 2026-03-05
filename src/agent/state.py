@@ -62,6 +62,7 @@ class APState(TypedDict):
     current_node:     str
     last_gateway:     str
     audit_log:        Annotated[list[str], operator.add]
+    route_records:    Annotated[list[dict], operator.add]
     raw_text:         str
     extraction:       dict
     provenance:       dict
@@ -87,6 +88,7 @@ DEFAULT_STATE_TEMPLATE: APState = {
     "current_node": "",
     "last_gateway": "",
     "audit_log":    [],
+    "route_records": [],
     "raw_text":     "",
     "extraction":   {},
     "provenance":   {},
@@ -126,6 +128,7 @@ def make_initial_state(
     state = cast(APState, DEFAULT_STATE_TEMPLATE.copy())   # shallow copy
     # Refresh mutable defaults so callers don't share state
     state["audit_log"] = []
+    state["route_records"] = []
     state["extraction"] = {}
     state["provenance"] = {}
     state["failure_codes"] = []

@@ -56,7 +56,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .state import APState
-from ..conditions import get_predicate
+from ..conditions import get_predicate, normalize_condition
 from ..unmodeled import record_event
 
 
@@ -78,6 +78,148 @@ class RouteResult:
     unconditional_fallback, ambiguous_route, no_route."""
     candidates: list[dict] = field(default_factory=list)
     """[{"to": str, "condition": str|None, "matched": bool|None}]"""
+
+
+@dataclass(frozen=True)
+class RouteRecord:
+    """Canonical, JSON-serializable observability record for route decisions."""
+
+    gateway_id: str
+    outgoing_edge_set: list[dict]
+    normalized_conditions: list[dict]
+    predicate_results: list[dict]
+    selected_edge: dict | None
+    reason: str
+    exception_mapping: dict | None
+    schema_version: str = "route_record_v1"
+
+    def to_dict(self) -> dict:
+        """Return a plain dict so callers can JSON-serialize safely."""
+        return {
+            "gateway_id": self.gateway_id,
+            "outgoing_edge_set": self.outgoing_edge_set,
+            "normalized_conditions": self.normalized_conditions,
+            "predicate_results": self.predicate_results,
+            "selected_edge": self.selected_edge,
+            "reason": self.reason,
+            "exception_mapping": self.exception_mapping,
+            "schema_version": self.schema_version,
+        }
+
+
+def _edge_sort_key(edge: dict) -> tuple[str, int, str]:
+    raw = edge.get("raw_condition")
+    return (str(edge["to"]), 0 if raw is None else 1, "" if raw is None else str(raw))
+
+
+def _predicate_sort_key(item: dict) -> tuple[int, str, int, str]:
+    norm = item.get("normalized_condition")
+    phase_rank = 0 if item["phase"] == "conditional" else 1
+    return (
+        phase_rank,
+        str(item["to"]),
+        0 if norm is None else 1,
+        "" if norm is None else str(norm),
+    )
+
+
+def _selected_edge(
+    selected_target: str | None,
+    reason: str,
+    candidates: list[dict],
+    normalized_conditions: list[dict],
+) -> dict | None:
+    if selected_target is None:
+        return None
+
+    if reason == "condition_match":
+        for c in candidates:
+            if c["to"] == selected_target and c["matched"] is True:
+                return {"to": selected_target, "condition": c.get("condition")}
+
+    if reason == "unconditional_fallback":
+        return {"to": selected_target, "condition": None}
+
+    # single_edge / all_same_target
+    for row in normalized_conditions:
+        if row["to"] == selected_target:
+            return {"to": selected_target, "condition": row.get("raw_condition")}
+    return {"to": selected_target, "condition": None}
+
+
+def _exception_mapping(
+    reason: str,
+    station_map: dict[str, str] | None,
+) -> dict | None:
+    if reason not in ("ambiguous_route", "no_route") or station_map is None:
+        return None
+
+    intent = _AMBIGUOUS_INTENT if reason == "ambiguous_route" else _NO_ROUTE_INTENT
+    sink = station_map.get(intent)
+    if sink is None:
+        return None
+    return {"intent_key": intent, "sink_node": sink}
+
+
+def build_route_record(
+    *,
+    gateway_id: str,
+    outgoing_edges: list[dict],
+    result: RouteResult,
+    station_map: dict[str, str] | None = None,
+) -> dict:
+    """Build a canonical RouteRecord dict from routing inputs/results."""
+    outgoing_edge_set = sorted(
+        [
+            {
+                "to": edge["to"],
+                "raw_condition": edge.get("condition"),
+            }
+            for edge in outgoing_edges
+        ],
+        key=_edge_sort_key,
+    )
+
+    normalized_conditions = sorted(
+        [
+            {
+                "to": edge["to"],
+                "raw_condition": edge.get("condition"),
+                "normalized_condition": normalize_condition(edge.get("condition")),
+            }
+            for edge in outgoing_edges
+        ],
+        key=_edge_sort_key,
+    )
+
+    predicate_results = sorted(
+        [
+            {
+                "to": c["to"],
+                "normalized_condition": normalize_condition(c.get("condition")),
+                "matched": c.get("matched"),
+                "phase": "conditional" if c.get("condition") is not None else "fallback",
+            }
+            for c in result.candidates
+        ],
+        key=_predicate_sort_key,
+    )
+
+    record = RouteRecord(
+        gateway_id=gateway_id,
+        outgoing_edge_set=outgoing_edge_set,
+        normalized_conditions=normalized_conditions,
+        predicate_results=predicate_results,
+        selected_edge=_selected_edge(
+            selected_target=result.selected,
+            reason=result.reason,
+            candidates=result.candidates,
+            normalized_conditions=normalized_conditions,
+        ),
+        reason=result.reason,
+        exception_mapping=_exception_mapping(result.reason, station_map),
+    )
+    return record.to_dict()
 
 
 # ---------------------------------------------------------------------------
