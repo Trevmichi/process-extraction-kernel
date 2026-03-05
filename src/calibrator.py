@@ -42,7 +42,17 @@ _VICTORY_LAP_THRESHOLD = 15000
 # ---------------------------------------------------------------------------
 
 def _words_to_chunks(words: List[str], chunk_size: int) -> List[str]:
-    """Split a word list into text chunks of at most *chunk_size* words."""
+    """Split a word list into text chunks of at most *chunk_size* words.
+
+    Args:
+      words: List[str]:
+      chunk_size: int:
+      words: List[str]: 
+      chunk_size: int: 
+
+    Returns:
+
+    """
     chunks = []
     for i in range(0, max(1, len(words)), max(1, chunk_size)):
         chunk = " ".join(words[i: i + chunk_size])
@@ -52,7 +62,7 @@ def _words_to_chunks(words: List[str], chunk_size: int) -> List[str]:
 
 
 def _get_vram_mb() -> Optional[int]:
-    """Return current GPU VRAM used in MiB via nvidia-smi, or None if unavailable."""
+    """ """
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
@@ -66,14 +76,22 @@ def _get_vram_mb() -> Optional[int]:
 
 
 def _run_extraction(text: str, source_id: str) -> Dict[str, Any]:
-    """
-    Run heuristic extraction on *text* and return a metrics dict:
+    """Run heuristic extraction on *text* and return a metrics dict:
         unique_nodes   - count of distinct canonical keys (excl. start/end)
         unknown_count  - number of open-question unknowns in the ProcessDoc
         broken_edges   - edges whose frm or to references a missing node id
         total_nodes    - raw node count (incl. start/end)
         all_keys       - set of all meaningful canonical keys in this chunk
         last_key       - last meaningful canonical key in node-list order
+
+    Args:
+      text: str:
+      source_id: str:
+      text: str: 
+      source_id: str: 
+
+    Returns:
+
     """
     from src.heuristic import heuristic_extract_ap
 
@@ -115,11 +133,19 @@ def test_batch_efficiency(
     input_path: str = "data/ap_heavy_stress.txt",
     output_csv: str = "outputs/batch_report.csv",
 ) -> str:
-    """
-    Run the high-capacity stress test across TEST_THRESHOLDS chunk sizes,
+    """Run the high-capacity stress test across TEST_THRESHOLDS chunk sizes,
     persist results to the DB, write *output_csv*, and print a summary.
-
+    
     Returns the path to the written CSV.
+
+    Args:
+      input_path: str:  (Default value = "data/ap_heavy_stress.txt")
+      output_csv: str:  (Default value = "outputs/batch_report.csv")
+      input_path: str:  (Default value = "data/ap_heavy_stress.txt")
+      output_csv: str:  (Default value = "outputs/batch_report.csv")
+
+    Returns:
+
     """
     from src.database import log_calibration_result
 
@@ -297,6 +323,20 @@ def _print_summary(
     breaking_point: int | None,
     csv_path: str,
 ) -> None:
+    """
+
+    Args:
+      rows: List[Dict[str:
+      Any]]: 
+      breaking_point: int | None:
+      csv_path: str:
+      rows: List[Dict[str: 
+      breaking_point: int | None: 
+      csv_path: str: 
+
+    Returns:
+
+    """
     hdr = (
         f"  {'threshold':>10} {'chunks':>7} {'eff_tok':>8}"
         f" {'nodes':>7} {'unknowns':>9} {'broken':>7}"
@@ -338,7 +378,16 @@ def _print_summary(
 
 
 def _print_victory_lap(r: Dict[str, Any]) -> None:
-    """Print the Victory Lap summary for the 15k-token threshold run."""
+    """Print the Victory Lap summary for the 15k-token threshold run.
+
+    Args:
+      r: Dict[str:
+      Any]: 
+      r: Dict[str: 
+
+    Returns:
+
+    """
     tps         = r["tps"]
     nodes       = r["avg_unique_nodes"]
     recovery    = r["node_recovery_rate"]
