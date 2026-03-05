@@ -50,7 +50,7 @@ MatchResult = Literal["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]
 
 
 class APState(TypedDict):
-    """ """
+    """Canonical LangGraph state payload for AP process execution."""
     invoice_id:       str
     vendor:           str
     amount:           float
