@@ -15,7 +15,7 @@ class Evidence:
 
 @dataclass
 class Action:
-    type: ActionType
+    type: ActionType | Literal["UNKNOWN_ACTION"]
     actor_id: ActorId | str
     artifact_id: ArtifactId | str
     extra: Dict[str, Any] = field(default_factory=dict)
