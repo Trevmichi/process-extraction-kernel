@@ -31,12 +31,18 @@ from typing import Any, Dict, List
 # ---------------------------------------------------------------------------
 
 def _add_success_probability(rows: List[Dict[str, Any]]) -> None:
-    """
-    Compute success_probability in-place for each row.
-
+    """Compute success_probability in-place for each row.
+    
     success_probability = avg_unique_nodes / doc_total_words
     Represents the fraction of total document words that resolved
     to a distinct canonical process node.
+
+    Args:
+      rows: List[Dict[str: 
+      Any]]: 
+
+    Returns:
+
     """
     for r in rows:
         avg_unique = float(r["avg_unique_nodes"])
@@ -52,6 +58,16 @@ def _build_chart(
     rows: List[Dict[str, Any]],
     out_png: str,
 ) -> None:
+    """
+
+    Args:
+      rows: List[Dict[str: 
+      Any]]: 
+      out_png: str: 
+
+    Returns:
+
+    """
     thresholds = [int(r["chunk_size_tokens"]) for r in rows]
     tps        = [float(r["tps"]) for r in rows]
     unknowns   = [float(r["avg_unknown_count"]) for r in rows]
@@ -161,9 +177,15 @@ def generate_dashboard(
     csv_path: str = "outputs/batch_report.csv",
     out_png: str = "outputs/performance_benchmark.png",
 ) -> str:
-    """
-    Load calibration CSV, append success_probability, save the chart, and
+    """Load calibration CSV, append success_probability, save the chart, and
     rewrite the CSV.  Returns the path to the saved PNG.
+
+    Args:
+      csv_path: str:  (Default value = "outputs/batch_report.csv")
+      out_png: str:  (Default value = "outputs/performance_benchmark.png")
+
+    Returns:
+
     """
     # --- Load CSV ---
     with open(csv_path, newline="", encoding="utf-8") as f:
@@ -205,9 +227,8 @@ def generate_performance_curve(
     out_png: str = "outputs/performance_curve.png",
     peak_zone_pct: float = 0.90,
 ) -> str:
-    """
-    Build a 'Performance Curve' chart: Success Probability vs Chunk Size.
-
+    """Build a 'Performance Curve' chart: Success Probability vs Chunk Size.
+    
     *results* is the list of result dicts produced by src.benchmarker, each
     containing at minimum:
         chunk_size_tokens   int
@@ -215,11 +236,20 @@ def generate_performance_curve(
         total_unknown_count int
         latency_sec         float
         success_probability float
-
+    
     The 'Peak Accuracy Zone' is shaded for all chunk sizes whose SP is at
     or above *peak_zone_pct* × the maximum SP observed.
-
+    
     Returns the path to the saved PNG.
+
+    Args:
+      results: List[Dict[str: 
+      Any]]: 
+      out_png: str:  (Default value = "outputs/performance_curve.png")
+      peak_zone_pct: float:  (Default value = 0.90)
+
+    Returns:
+
     """
     if not results:
         raise ValueError("generate_performance_curve: results list is empty")
@@ -363,26 +393,33 @@ def generate_complexity_heatmap(
     heatmap_data: List[Dict[str, Any]],
     out_png: str = "outputs/process_complexity_heatmap.png",
 ) -> str:
-    """
-    Plot a 'Self-Healing Heatmap' showing where recursive self-healing fired
+    """Plot a 'Self-Healing Heatmap' showing where recursive self-healing fired
     across the document, broken down by chunk size.
-
+    
     *heatmap_data* is a list of per-chunk entries, each containing:
         chunk_size   int    — chunk size for this run
         position_pct float  — centre of the chunk in the document (0.0 – 1.0)
         depth        int    — max recursion depth reached (0 = no self-healing)
         text_preview str    — first 30 chars of the chunk text
-
+    
     One horizontal row is drawn per unique chunk size (sorted ascending).
     Each chunk is a coloured bar-segment:
         Depth 0  → green  (#86EFAC)  — clean
         Depth 1  → yellow (#FDE68A)  — one split needed
         Depth 2  → orange (#FB923C)  — two splits needed
         Depth 3+ → red    (#EF4444)  — severe struggle
-
+    
     Hot Zones (depth > 0) are labelled "D{n}" above the bar.
-
+    
     Returns the path to the saved PNG.
+
+    Args:
+      heatmap_data: List[Dict[str: 
+      Any]]: 
+      out_png: str:  (Default value = "outputs/process_complexity_heatmap.png")
+
+    Returns:
+
     """
     from collections import defaultdict
     from matplotlib.patches import Patch
@@ -418,6 +455,14 @@ def generate_complexity_heatmap(
     }
 
     def _color(d: int) -> str:
+        """
+
+        Args:
+          d: int: 
+
+        Returns:
+
+        """
         return _DEPTH_COLORS.get(min(d, 3), "#EF4444")
 
     # ---- figure: one subplot row per chunk size ----
@@ -530,24 +575,31 @@ def generate_logic_density_chart(
     density_data: List[Dict[str, Any]],
     out_png: str = "outputs/logic_density_comparison.png",
 ) -> Dict[str, Any]:
-    """
-    Plot a 'Logic Density Profile' showing nodes-per-1k-words across the
+    """Plot a 'Logic Density Profile' showing nodes-per-1k-words across the
     document, with one line per chunk size.
-
+    
     *density_data* is a list of per-chunk dicts, each containing:
         chunk_size   int    — chunk size for this run
         position_pct float  — centre of chunk in document (0.0 – 1.0)
         node_count   int    — canonical nodes extracted from this chunk
         chunk_words  int    — word count of this chunk
-
+    
     Each unique chunk size is drawn as a separate line.  Regions where
     nodes-per-1k-words exceeds _HIGH_DENSITY_THRESHOLD (15) are overlaid
     with a translucent red fill_between band.
-
+    
     Returns a dict:
         {"out_png": str, "peak_pct": float, "peak_nodes_per_1k": float}
     where peak_pct is the document position (0–100%) of the highest density
     point across all chunk sizes.
+
+    Args:
+      density_data: List[Dict[str: 
+      Any]]: 
+      out_png: str:  (Default value = "outputs/logic_density_comparison.png")
+
+    Returns:
+
     """
     from collections import defaultdict
 
@@ -686,9 +738,8 @@ def generate_logic_density_profile(
     chunk_size: int = 1250,
     out_png: str = "outputs/logic_density_profile.png",
 ) -> Dict[str, Any]:
-    """
-    Plot a single-run 'Logic Density Profile' for the given *chunk_size*.
-
+    """Plot a single-run 'Logic Density Profile' for the given *chunk_size*.
+    
     *density_data* is the list of per-chunk dicts collected by the benchmarker,
     each containing:
         chunk_size    int    — chunk size this entry belongs to
@@ -696,21 +747,30 @@ def generate_logic_density_profile(
         node_count    int    — canonical nodes extracted from this chunk
         unknown_count int    — unknown/unclassified nodes
         chunk_words   int    — word count of this chunk
-
+    
     Y-axis: Total Nodes per Chunk  (node_count + unknown_count)
     X-axis: Chunk Index (document progress)
-
+    
     Decorations:
       - Area fill under the line
       - Horizontal dashed line at the average total-node density
       - Red dot on the peak chunk
-
+    
     Falls back to the smallest available chunk size if *chunk_size* is not
     present in the data.
-
+    
     Returns a dict:
         {"out_png": str, "peak_chunk_idx": int, "peak_total_nodes": int,
          "avg_total_nodes": float, "chunk_size_used": int}
+
+    Args:
+      density_data: List[Dict[str: 
+      Any]]: 
+      chunk_size: int:  (Default value = 1250)
+      out_png: str:  (Default value = "outputs/logic_density_profile.png")
+
+    Returns:
+
     """
     Path(out_png).parent.mkdir(exist_ok=True)
 
@@ -851,18 +911,24 @@ def generate_schema_report(
     json_path: str = "data/analytics/schema_suggestions.json",
     out_md: str = "outputs/schema_suggestions.md",
 ) -> Dict[str, Any]:
-    """
-    Load data/analytics/schema_suggestions.json (written by Action.__post_init__)
+    """Load data/analytics/schema_suggestions.json (written by Action.__post_init__)
     and produce a Markdown report at *out_md*.
-
+    
     Each row shows:
         Suggested Action | Frequency | Recommended Mapping
-
+    
     Recommended Mapping is derived from ACTION_ALIASES in src.heuristic:
       - If already aliased  → confirms the existing mapping
       - If not aliased       → "Add to ACTION_ALIASES in src/heuristic.py"
-
+    
     Returns a dict: {"total_misses": int, "unique_actions": int, "out_md": str}
+
+    Args:
+      json_path: str:  (Default value = "data/analytics/schema_suggestions.json")
+      out_md: str:  (Default value = "outputs/schema_suggestions.md")
+
+    Returns:
+
     """
     import json as _json
 
