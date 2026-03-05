@@ -105,7 +105,11 @@ def run_one_heuristic(source_id: str, input_path: str, out_json: str, out_mmd: s
 
 
 def main() -> None:
-    """ """
+    """Run the full manual/auto extraction pipeline and reporting suite.
+
+    Returns:
+      None
+    """
     # Selectively delete generated artifacts from outputs/ so every run is
     # fresh.  Only .json, .mmd, and .png files are removed.
     # data/analytics/ (metrics.db, master_audit_log.csv) is NEVER touched.
