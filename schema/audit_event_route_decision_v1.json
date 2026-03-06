@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_route_decision_v1.json",
+  "title": "AuditEvent: route_decision",
+  "description": "Emitted by gateway node handlers in nodes.py before route_record. Lightweight routing summary consumed by ui_audit extract_router_events() and eval check_trace().",
+  "type": "object",
+  "$defs": {
+    "Candidate": {
+      "type": "object",
+      "description": "Per-edge evaluation result from analyze_routing().",
+      "properties": {
+        "to": { "type": "string" },
+        "condition": { "type": ["string", "null"] },
+        "matched": { "type": ["boolean", "null"] }
+      },
+      "required": ["to", "condition", "matched"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "route_decision"
+    },
+    "from_node": {
+      "type": "string",
+      "description": "Node ID of the gateway that made this routing decision."
+    },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Candidate" },
+      "description": "Per-edge evaluation results from analyze_routing()."
+    },
+    "selected": {
+      "type": ["string", "null"],
+      "description": "Target node ID selected for routing, or null for ambiguous_route/no_route."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "single_edge",
+        "all_same_target",
+        "condition_match",
+        "unconditional_fallback",
+        "ambiguous_route",
+        "no_route"
+      ],
+      "description": "Why this edge was selected (or why routing failed). Same 6-value enum as route_record_v1."
+    }
+  },
+  "required": ["event", "from_node", "candidates", "selected", "reason"],
+  "additionalProperties": false
+}
