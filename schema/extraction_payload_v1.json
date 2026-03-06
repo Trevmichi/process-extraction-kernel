@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "extraction_payload_v1.json",
+  "title": "ExtractionPayload",
+  "description": "Shape returned by _call_llm_json() for ENTER_RECORD / CRITIC_RETRY. Grounded in src/contracts.py ExtractionPayload TypedDict and validate_extraction_structure().",
+  "$defs": {
+    "FieldExtraction": {
+      "type": "object",
+      "description": "Single extracted field: claimed value + verbatim evidence span.",
+      "properties": {
+        "value": {
+          "description": "Extracted value (str, number, bool, or null)."
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Verbatim evidence span from the source text."
+        }
+      },
+      "required": ["value", "evidence"],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "Successful extraction with required and optional fields.",
+      "properties": {
+        "vendor": { "$ref": "#/$defs/FieldExtraction" },
+        "amount": { "$ref": "#/$defs/FieldExtraction" },
+        "has_po": { "$ref": "#/$defs/FieldExtraction" },
+        "invoice_date": { "$ref": "#/$defs/FieldExtraction" },
+        "tax_amount": { "$ref": "#/$defs/FieldExtraction" }
+      },
+      "required": ["vendor", "amount", "has_po"],
+      "not": { "required": ["_error"] },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "LLM invocation failure.",
+      "properties": {
+        "_error": {
+          "type": "string",
+          "description": "Error message from LLM invocation failure."
+        }
+      },
+      "required": ["_error"],
+      "additionalProperties": true
+    }
+  ]
+}
