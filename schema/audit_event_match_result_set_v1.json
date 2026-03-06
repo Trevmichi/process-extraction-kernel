@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_match_result_set_v1.json",
+  "title": "AuditEvent: match_result_set",
+  "description": "Emitted by MATCH_3_WAY handler in nodes.py. Records the resolved match result and which state flag was used.",
+  "type": "object",
+  "properties": {
+    "node": {
+      "type": "string",
+      "const": "MATCH_3_WAY"
+    },
+    "event": {
+      "type": "string",
+      "const": "match_result_set"
+    },
+    "match_result": {
+      "type": "string",
+      "enum": ["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"],
+      "description": "Resolved match result from the 3-way match resolver."
+    },
+    "source_flag": {
+      "type": ["string", "null"],
+      "enum": ["po_match", "match_3_way", null],
+      "description": "Which state flag was used to resolve the match, or null if neither was set."
+    }
+  },
+  "required": ["node", "event", "match_result", "source_flag"],
+  "additionalProperties": false
+}

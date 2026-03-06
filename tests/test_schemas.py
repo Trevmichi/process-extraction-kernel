@@ -589,3 +589,234 @@ class TestGoldRecordSchema:
         }
         with pytest.raises(jsonschema.ValidationError):
             self._validate(rec)
+
+
+# -----------------------------------------------------------------------
+# Audit Event: extraction
+# -----------------------------------------------------------------------
+
+class TestAuditEventExtractionSchema:
+    """Validate audit_event_extraction_v1.json — 3 variants via oneOf."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_extraction_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_variant1_llm_error(self):
+        """LLM error variant: reasons contains LLM_ERROR."""
+        self._validate({
+            "node": "ENTER_RECORD",
+            "event": "extraction",
+            "valid": False,
+            "reasons": ["LLM_ERROR"],
+        })
+
+    def test_variant2_structural_failure(self):
+        """Structural failure: failure_codes with STRUCT_ prefix + status."""
+        self._validate({
+            "node": "ENTER_RECORD",
+            "event": "extraction",
+            "valid": False,
+            "failure_codes": ["STRUCT_MISSING_KEY", "STRUCT_WRONG_TYPE"],
+            "status": "BAD_EXTRACTION",
+        })
+
+    def test_variant3_verifier_result_valid(self):
+        """Verifier result (valid=true): reasons is empty list."""
+        self._validate({
+            "node": "ENTER_RECORD",
+            "event": "extraction",
+            "valid": True,
+            "reasons": [],
+        })
+
+    def test_variant3_verifier_result_failure(self):
+        """Verifier result (valid=false): reasons with failure codes."""
+        self._validate({
+            "node": "ENTER_RECORD",
+            "event": "extraction",
+            "valid": False,
+            "reasons": ["AMOUNT_MISMATCH", "MISSING_VENDOR"],
+        })
+
+    def test_wrong_event_name_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "ENTER_RECORD",
+                "event": "not_extraction",
+                "valid": True,
+                "reasons": [],
+            })
+
+    def test_missing_valid_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "ENTER_RECORD",
+                "event": "extraction",
+                "reasons": [],
+            })
+
+    def test_struct_prefix_enforced(self):
+        """Variant 2 failure_codes must have STRUCT_ prefix."""
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "ENTER_RECORD",
+                "event": "extraction",
+                "valid": False,
+                "failure_codes": ["AMOUNT_MISMATCH"],
+                "status": "BAD_EXTRACTION",
+            })
+
+    def test_extra_keys_rejected(self):
+        """additionalProperties=false enforced per variant."""
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "ENTER_RECORD",
+                "event": "extraction",
+                "valid": True,
+                "reasons": [],
+                "bonus_key": "nope",
+            })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: exception_station
+# -----------------------------------------------------------------------
+
+class TestAuditEventExceptionStationSchema:
+    """Validate audit_event_exception_station_v1.json."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_exception_station_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_route_for_review_event(self):
+        """Standard ROUTE_FOR_REVIEW exception station event."""
+        self._validate({
+            "event": "exception_station",
+            "node": "n_exc_bad_extraction",
+            "reason": "BAD_EXTRACTION",
+            "gateway": "n3",
+        })
+
+    def test_all_reason_values(self):
+        """Every known reason value validates."""
+        reasons = [
+            "BAD_EXTRACTION", "UNMODELED_GATE", "AMBIGUOUS_ROUTE",
+            "NO_ROUTE", "NO_PO", "MATCH_FAILED", "UNKNOWN",
+        ]
+        for reason in reasons:
+            self._validate({
+                "event": "exception_station",
+                "node": f"n_exc_{reason.lower()}",
+                "reason": reason,
+                "gateway": "n10",
+            })
+
+    def test_legacy_manual_review(self):
+        """Legacy manual review handler emits exception_station."""
+        self._validate({
+            "event": "exception_station",
+            "node": "MANUAL_REVIEW",
+            "reason": "UNKNOWN",
+            "gateway": "?",
+        })
+
+    def test_invalid_reason_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "exception_station",
+                "node": "n_exc_foo",
+                "reason": "INVALID_REASON",
+                "gateway": "n3",
+            })
+
+    def test_missing_gateway_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "exception_station",
+                "node": "n_exc_bad_extraction",
+                "reason": "BAD_EXTRACTION",
+            })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: match_result_set
+# -----------------------------------------------------------------------
+
+class TestAuditEventMatchResultSetSchema:
+    """Validate audit_event_match_result_set_v1.json."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_match_result_set_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_match_with_po_match_source(self):
+        self._validate({
+            "node": "MATCH_3_WAY",
+            "event": "match_result_set",
+            "match_result": "MATCH",
+            "source_flag": "po_match",
+        })
+
+    def test_no_match_with_match_3_way_source(self):
+        self._validate({
+            "node": "MATCH_3_WAY",
+            "event": "match_result_set",
+            "match_result": "NO_MATCH",
+            "source_flag": "match_3_way",
+        })
+
+    def test_unknown_with_null_source(self):
+        self._validate({
+            "node": "MATCH_3_WAY",
+            "event": "match_result_set",
+            "match_result": "UNKNOWN",
+            "source_flag": None,
+        })
+
+    def test_all_match_results(self):
+        """Every MatchResult value validates."""
+        for mr in ["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]:
+            self._validate({
+                "node": "MATCH_3_WAY",
+                "event": "match_result_set",
+                "match_result": mr,
+                "source_flag": "po_match",
+            })
+
+    def test_invalid_match_result_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "MATCH_3_WAY",
+                "event": "match_result_set",
+                "match_result": "PARTIAL",
+                "source_flag": "po_match",
+            })
+
+    def test_invalid_source_flag_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "node": "MATCH_3_WAY",
+                "event": "match_result_set",
+                "match_result": "MATCH",
+                "source_flag": "invented_flag",
+            })
