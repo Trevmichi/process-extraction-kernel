@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gold_record_v1.json",
+  "title": "GoldRecord",
+  "description": "Schema for datasets/expected.jsonl gold evaluation records. Grounded in the actual JSONL corpus (126 records) and eval_runner.py consumption code.",
+  "type": "object",
+  "$defs": {
+    "FieldExtraction": {
+      "type": "object",
+      "description": "Mock extraction field: claimed value + evidence span. Evidence may be null in gold records (e.g., has_po=false with no PO to cite).",
+      "properties": {
+        "value": {
+          "description": "Expected value (str, number, bool, or null)."
+        },
+        "evidence": {
+          "type": ["string", "null"],
+          "description": "Verbatim evidence span, or null when no evidence applies."
+        }
+      },
+      "required": ["value", "evidence"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "invoice_id": {
+      "type": "string",
+      "description": "Unique invoice identifier (e.g., INV-1001)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Filename of the invoice text in datasets/gold_invoices/."
+    },
+    "po_match": {
+      "type": "boolean",
+      "description": "Whether the PO matches for 3-way match simulation."
+    },
+    "expected_status": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Acceptable terminal statuses (first is primary). Validated by eval_runner.py."
+    },
+    "expected_fields": {
+      "type": "object",
+      "description": "Expected final field values for comparison.",
+      "properties": {
+        "vendor": { "type": "string" },
+        "amount": { "type": "number" },
+        "has_po": { "type": "boolean" },
+        "invoice_date": { "type": "string" },
+        "tax_amount": { "type": "number" }
+      },
+      "required": ["vendor", "amount", "has_po"],
+      "additionalProperties": false
+    },
+    "mock_extraction": {
+      "type": "object",
+      "description": "Mock LLM extraction used in eval mode.",
+      "properties": {
+        "vendor": { "$ref": "#/$defs/FieldExtraction" },
+        "amount": { "$ref": "#/$defs/FieldExtraction" },
+        "has_po": { "$ref": "#/$defs/FieldExtraction" },
+        "invoice_date": { "$ref": "#/$defs/FieldExtraction" },
+        "tax_amount": { "$ref": "#/$defs/FieldExtraction" }
+      },
+      "required": ["vendor", "amount", "has_po"],
+      "additionalProperties": false
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Classification tags (e.g., happy_path, no_po, bad_extraction)."
+    },
+    "expected_trace": {
+      "type": "object",
+      "description": "Optional trace expectations (documented in schema.md, not yet in corpus).",
+      "properties": {
+        "must_include": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "must_exclude": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_failures": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional expected failure codes for cohort reporting."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-text notes about this test case."
+    }
+  },
+  "required": [
+    "invoice_id",
+    "file",
+    "po_match",
+    "expected_status",
+    "expected_fields",
+    "mock_extraction",
+    "tags"
+  ],
+  "additionalProperties": false
+}
