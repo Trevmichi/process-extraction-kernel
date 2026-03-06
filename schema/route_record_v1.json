@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "route_record_v1.json",
+  "title": "RouteRecord",
+  "description": "Canonical JSON-serializable observability record for route decisions. Grounded in src/agent/router.py RouteRecord frozen dataclass and to_dict() output.",
+  "type": "object",
+  "$defs": {
+    "OutgoingEdge": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "raw_condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "raw_condition"]
+    },
+    "NormalizedCondition": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "raw_condition": { "type": ["string", "null"] },
+        "normalized_condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "raw_condition", "normalized_condition"]
+    },
+    "PredicateResult": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "normalized_condition": { "type": ["string", "null"] },
+        "matched": { "type": ["boolean", "null"] },
+        "phase": {
+          "type": "string",
+          "enum": ["conditional", "fallback"]
+        }
+      },
+      "required": ["to", "normalized_condition", "matched", "phase"]
+    },
+    "SelectedEdge": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "condition"]
+    },
+    "ExceptionMapping": {
+      "type": "object",
+      "properties": {
+        "intent_key": { "type": "string" },
+        "sink_node": { "type": "string" }
+      },
+      "required": ["intent_key", "sink_node"]
+    }
+  },
+  "properties": {
+    "gateway_id": {
+      "type": "string",
+      "description": "Node ID of the gateway that produced this route decision."
+    },
+    "outgoing_edge_set": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/OutgoingEdge" },
+      "description": "All outgoing edges from the gateway, sorted by (to, raw_condition)."
+    },
+    "normalized_conditions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/NormalizedCondition" },
+      "description": "Edges with normalized DSL conditions, sorted by (to, raw_condition)."
+    },
+    "predicate_results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PredicateResult" },
+      "description": "Per-edge predicate evaluation results, sorted by (to, normalized_condition, phase)."
+    },
+    "selected_edge": {
+      "oneOf": [
+        { "$ref": "#/$defs/SelectedEdge" },
+        { "type": "null" }
+      ],
+      "description": "The edge selected for routing, or null for ambiguous_route/no_route."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "single_edge",
+        "all_same_target",
+        "condition_match",
+        "unconditional_fallback",
+        "ambiguous_route",
+        "no_route"
+      ],
+      "description": "Why this edge was selected (or why routing failed)."
+    },
+    "exception_mapping": {
+      "oneOf": [
+        { "$ref": "#/$defs/ExceptionMapping" },
+        { "type": "null" }
+      ],
+      "description": "Exception station mapping for ambiguous/no-route, or null."
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "route_record_v1",
+      "description": "Fixed version identifier."
+    }
+  },
+  "required": [
+    "gateway_id",
+    "outgoing_edge_set",
+    "normalized_conditions",
+    "predicate_results",
+    "selected_edge",
+    "reason",
+    "exception_mapping",
+    "schema_version"
+  ],
+  "additionalProperties": false
+}

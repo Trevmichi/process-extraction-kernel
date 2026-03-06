@@ -289,3 +289,303 @@ class TestProvenanceReportSchema:
         }
         _valid, _codes, prov = verify_extraction(raw, extraction)
         self._validate(prov)
+
+
+# -----------------------------------------------------------------------
+# Route Record
+# -----------------------------------------------------------------------
+
+class TestRouteRecordSchema:
+    """Validate route_record_v1.json against RouteRecord.to_dict() output."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("route_record_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_minimal_route_record(self):
+        """Single unconditional edge — simplest valid record."""
+        record = {
+            "gateway_id": "n8",
+            "outgoing_edge_set": [{"to": "n9", "raw_condition": None}],
+            "normalized_conditions": [
+                {"to": "n9", "raw_condition": None, "normalized_condition": None}
+            ],
+            "predicate_results": [
+                {"to": "n9", "normalized_condition": None, "matched": None, "phase": "fallback"}
+            ],
+            "selected_edge": {"to": "n9", "condition": None},
+            "reason": "single_edge",
+            "exception_mapping": None,
+            "schema_version": "route_record_v1",
+        }
+        self._validate(record)
+
+    def test_conditional_route_record(self):
+        """Route with conditional matching."""
+        record = {
+            "gateway_id": "n4",
+            "outgoing_edge_set": [
+                {"to": "n5", "raw_condition": "match_result == \"MATCH\""},
+                {"to": "n6", "raw_condition": "match_result == \"NO_MATCH\""},
+            ],
+            "normalized_conditions": [
+                {"to": "n5", "raw_condition": "match_result == \"MATCH\"",
+                 "normalized_condition": "match_result == \"MATCH\""},
+                {"to": "n6", "raw_condition": "match_result == \"NO_MATCH\"",
+                 "normalized_condition": "match_result == \"NO_MATCH\""},
+            ],
+            "predicate_results": [
+                {"to": "n5", "normalized_condition": "match_result == \"MATCH\"",
+                 "matched": True, "phase": "conditional"},
+                {"to": "n6", "normalized_condition": "match_result == \"NO_MATCH\"",
+                 "matched": False, "phase": "conditional"},
+            ],
+            "selected_edge": {"to": "n5", "condition": "match_result == \"MATCH\""},
+            "reason": "condition_match",
+            "exception_mapping": None,
+            "schema_version": "route_record_v1",
+        }
+        self._validate(record)
+
+    def test_ambiguous_route_with_exception(self):
+        """Ambiguous route → exception station mapping."""
+        record = {
+            "gateway_id": "n10",
+            "outgoing_edge_set": [
+                {"to": "n11", "raw_condition": "x == true"},
+                {"to": "n12", "raw_condition": "x == false"},
+            ],
+            "normalized_conditions": [
+                {"to": "n11", "raw_condition": "x == true",
+                 "normalized_condition": "x == true"},
+                {"to": "n12", "raw_condition": "x == false",
+                 "normalized_condition": "x == false"},
+            ],
+            "predicate_results": [
+                {"to": "n11", "normalized_condition": "x == true",
+                 "matched": True, "phase": "conditional"},
+                {"to": "n12", "normalized_condition": "x == false",
+                 "matched": True, "phase": "conditional"},
+            ],
+            "selected_edge": None,
+            "reason": "ambiguous_route",
+            "exception_mapping": {
+                "intent_key": "AMBIGUOUS_ROUTE",
+                "sink_node": "n_exc_ambiguous_route",
+            },
+            "schema_version": "route_record_v1",
+        }
+        self._validate(record)
+
+    def test_wrong_schema_version_rejected(self):
+        record = {
+            "gateway_id": "n1",
+            "outgoing_edge_set": [],
+            "normalized_conditions": [],
+            "predicate_results": [],
+            "selected_edge": None,
+            "reason": "no_route",
+            "exception_mapping": None,
+            "schema_version": "route_record_v2",
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(record)
+
+    def test_invalid_reason_rejected(self):
+        record = {
+            "gateway_id": "n1",
+            "outgoing_edge_set": [],
+            "normalized_conditions": [],
+            "predicate_results": [],
+            "selected_edge": None,
+            "reason": "magic_guess",
+            "exception_mapping": None,
+            "schema_version": "route_record_v1",
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(record)
+
+    def test_route_record_dataclass_to_dict(self):
+        """RouteRecord.to_dict() output validates against schema."""
+        from src.agent.router import RouteRecord
+
+        rr = RouteRecord(
+            gateway_id="n8",
+            outgoing_edge_set=[{"to": "n9", "raw_condition": None}],
+            normalized_conditions=[
+                {"to": "n9", "raw_condition": None, "normalized_condition": None}
+            ],
+            predicate_results=[
+                {"to": "n9", "normalized_condition": None,
+                 "matched": None, "phase": "fallback"}
+            ],
+            selected_edge={"to": "n9", "condition": None},
+            reason="single_edge",
+            exception_mapping=None,
+        )
+        self._validate(rr.to_dict())
+
+
+# -----------------------------------------------------------------------
+# Gold Record
+# -----------------------------------------------------------------------
+
+class TestGoldRecordSchema:
+    """Validate gold_record_v1.json against the actual JSONL corpus."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("gold_record_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_all_gold_records_validate(self):
+        """Every record in datasets/expected.jsonl must validate."""
+        jsonl_path = Path(__file__).resolve().parent.parent / "datasets" / "expected.jsonl"
+        with open(jsonl_path, encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+        assert len(records) >= 100, f"Expected >=100 gold records, got {len(records)}"
+        errors = []
+        for i, rec in enumerate(records):
+            try:
+                self._validate(rec)
+            except jsonschema.ValidationError as e:
+                errors.append(
+                    f"Record {i} ({rec.get('invoice_id', '?')}): {e.message}"
+                )
+        assert not errors, f"{len(errors)} records failed validation:\n" + "\n".join(errors)
+
+    def test_minimal_gold_record(self):
+        """Minimal valid gold record with required fields only."""
+        rec = {
+            "invoice_id": "INV-TEST",
+            "file": "test.txt",
+            "po_match": True,
+            "expected_status": ["APPROVED"],
+            "expected_fields": {
+                "vendor": "Test Corp",
+                "amount": 100.0,
+                "has_po": True,
+            },
+            "mock_extraction": {
+                "vendor": {"value": "Test Corp", "evidence": "Test Corp"},
+                "amount": {"value": 100.0, "evidence": "Total: 100.00"},
+                "has_po": {"value": True, "evidence": "PO: PO-1"},
+            },
+            "tags": ["happy_path"],
+        }
+        self._validate(rec)
+
+    def test_gold_record_with_optional_fields(self):
+        """Gold record with invoice_date and tax_amount."""
+        rec = {
+            "invoice_id": "INV-TEST-OPT",
+            "file": "test_opt.txt",
+            "po_match": True,
+            "expected_status": ["APPROVED"],
+            "expected_fields": {
+                "vendor": "Test Corp",
+                "amount": 100.0,
+                "has_po": True,
+                "invoice_date": "2024-01-15",
+                "tax_amount": 8.50,
+            },
+            "mock_extraction": {
+                "vendor": {"value": "Test Corp", "evidence": "Test Corp"},
+                "amount": {"value": 100.0, "evidence": "Total: 100.00"},
+                "has_po": {"value": True, "evidence": "PO: PO-1"},
+                "invoice_date": {"value": "2024-01-15", "evidence": "Date: Jan 15"},
+                "tax_amount": {"value": 8.50, "evidence": "Tax: $8.50"},
+            },
+            "tags": ["happy_path"],
+        }
+        self._validate(rec)
+
+    def test_gold_record_with_documented_optional_keys(self):
+        """Gold record with expected_trace, expected_failures, notes."""
+        rec = {
+            "invoice_id": "INV-TEST-FULL",
+            "file": "test_full.txt",
+            "po_match": False,
+            "expected_status": ["EXCEPTION_NO_PO"],
+            "expected_fields": {
+                "vendor": "Test Corp",
+                "amount": 100.0,
+                "has_po": False,
+            },
+            "mock_extraction": {
+                "vendor": {"value": "Test Corp", "evidence": "Test Corp"},
+                "amount": {"value": 100.0, "evidence": "Total: 100.00"},
+                "has_po": {"value": False, "evidence": ""},
+            },
+            "tags": ["no_po"],
+            "expected_trace": {
+                "must_include": ["ENTER_RECORD"],
+                "must_exclude": ["APPROVE"],
+            },
+            "expected_failures": ["PO_PATTERN_MISSING"],
+            "notes": "Test case for no-PO path.",
+        }
+        self._validate(rec)
+
+    def test_empty_expected_status_rejected(self):
+        """expected_status must be non-empty list."""
+        rec = {
+            "invoice_id": "INV-BAD",
+            "file": "bad.txt",
+            "po_match": True,
+            "expected_status": [],
+            "expected_fields": {"vendor": "X", "amount": 1.0, "has_po": True},
+            "mock_extraction": {
+                "vendor": {"value": "X", "evidence": "X"},
+                "amount": {"value": 1.0, "evidence": "1.0"},
+                "has_po": {"value": True, "evidence": "PO"},
+            },
+            "tags": [],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(rec)
+
+    def test_missing_invoice_id_rejected(self):
+        rec = {
+            "file": "bad.txt",
+            "po_match": True,
+            "expected_status": ["APPROVED"],
+            "expected_fields": {"vendor": "X", "amount": 1.0, "has_po": True},
+            "mock_extraction": {
+                "vendor": {"value": "X", "evidence": "X"},
+                "amount": {"value": 1.0, "evidence": "1.0"},
+                "has_po": {"value": True, "evidence": "PO"},
+            },
+            "tags": [],
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(rec)
+
+    def test_extra_top_level_key_rejected(self):
+        rec = {
+            "invoice_id": "INV-BAD",
+            "file": "bad.txt",
+            "po_match": True,
+            "expected_status": ["APPROVED"],
+            "expected_fields": {"vendor": "X", "amount": 1.0, "has_po": True},
+            "mock_extraction": {
+                "vendor": {"value": "X", "evidence": "X"},
+                "amount": {"value": 1.0, "evidence": "1.0"},
+                "has_po": {"value": True, "evidence": "PO"},
+            },
+            "tags": [],
+            "surprise_key": "oops",
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(rec)
