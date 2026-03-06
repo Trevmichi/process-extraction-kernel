@@ -16,12 +16,9 @@ import streamlit as st
 
 from src.agent.compiler import build_ap_graph
 from src.agent.state import APState, make_initial_state
-from src.ui_audit import (
-    extract_exception_event,
-    extract_match_event,
-    extract_router_events,
-    extract_verifier_event,
-)
+from src.audit_parser import parse_audit_log
+from src.explanation import build_explanation
+from src.ui_audit import extract_router_events
 
 # ---------------------------------------------------------------------------
 # Page config — must be the very first Streamlit call
@@ -330,14 +327,14 @@ amount_str    = f"${amount_val:,.2f}" if amount_val else "N/A"
 
 audit_log: list = result.get("audit_log", [])
 
+parsed = parse_audit_log(audit_log)
+explanation = build_explanation(parsed, final_status=status_val)
+
 # --- Exception banner (top-priority signal) ---
-exc_event = extract_exception_event(audit_log)
-if exc_event is not None:
-    reason = exc_event.get("reason", "UNKNOWN")
-    node   = exc_event.get("node", "")
+if explanation.exception is not None:
     st.error(
-        f"**Exception Station Reached** — reason: **{reason}**"
-        + (f"  (node: `{node}`)" if node else "")
+        f"**Exception Station Reached** — reason: **{explanation.exception.reason}**"
+        + (f"  (node: `{explanation.exception.node}`)" if explanation.exception.node else "")
     )
 
 # --- Metric cards ---
@@ -348,53 +345,53 @@ c3.metric("Has PO",       "Yes" if has_po_val else "No")
 c4.metric("Match Result", match_res_val)
 c5.metric("Final Status", status_val)
 
-# Colour-coded status banner
-if status_val in ("APPROVED", "PAID"):
+# Colour-coded status banner (driven by ExplanationReport outcome)
+_cat = explanation.outcome.category
+if _cat == "success":
     st.success(f"**{inv_id}** — Invoice **{status_val}** ✅")
-elif status_val == "ESCALATED":
-    st.warning(
-        f"**{inv_id}** — Escalated for director review ⚠️  "
-        "(Amount exceeds the \\$10,000 approval threshold)"
-    )
-elif status_val == "EXCEPTION_NO_PO":
-    st.warning(
-        f"**{inv_id}** — Flagged for manual review ⚠️  "
-        "(No Purchase Order found on file)"
-    )
-elif status_val.startswith("EXCEPTION_"):
-    st.warning(f"**{inv_id}** — Exception: **{status_val}** ⚠️")
-elif status_val == "BAD_EXTRACTION":
-    st.error(
-        f"**{inv_id}** — **Bad Extraction** ❌  "
-        "(Evidence verification failed — invoice rejected)"
-    )
-elif status_val in ("REJECTED", "MISSING_DATA"):
-    st.error(
-        f"**{inv_id}** — **{status_val}** ❌  "
-        "(Missing or invalid invoice data — please resubmit)"
-    )
+elif _cat == "exception":
+    if status_val == "EXCEPTION_NO_PO":
+        st.warning(
+            f"**{inv_id}** — Flagged for manual review ⚠️  "
+            "(No Purchase Order found on file)"
+        )
+    else:
+        st.warning(f"**{inv_id}** — Exception: **{status_val}** ⚠️")
+elif _cat == "rejection":
+    if status_val == "ESCALATED":
+        st.warning(
+            f"**{inv_id}** — Escalated for director review ⚠️  "
+            "(Amount exceeds the \\$10,000 approval threshold)"
+        )
+    elif status_val == "BAD_EXTRACTION":
+        st.error(
+            f"**{inv_id}** — **Bad Extraction** ❌  "
+            "(Evidence verification failed — invoice rejected)"
+        )
+    else:
+        st.error(
+            f"**{inv_id}** — **{status_val}** ❌  "
+            "(Missing or invalid invoice data — please resubmit)"
+        )
 else:
     st.info(f"**{inv_id}** — Status: **{status_val}**")
 
 # --- Verifier summary ---
-ver_event = extract_verifier_event(audit_log)
-if ver_event is not None:
-    valid   = ver_event.get("valid")
-    reasons = ver_event.get("reasons", [])
-    if valid is True:
+if explanation.extraction is not None:
+    if explanation.extraction.valid:
         st.success("Extraction verified — all evidence grounded ✅")
-    elif valid is False:
+    else:
+        _codes = explanation.extraction.failure_codes
         st.warning(
             f"Extraction verification failed ⚠️ — "
-            f"reasons: {', '.join(str(r) for r in reasons) if reasons else 'unknown'}"
+            f"reasons: {', '.join(_codes) if _codes else 'unknown'}"
         )
 
 # --- Match result detail ---
-match_event = extract_match_event(audit_log)
-if match_event is not None:
-    src_flag = match_event.get("source_flag", "")
-    mr       = match_event.get("match_result", "")
-    st.caption(f"Match result: **{mr}** (source: `{src_flag}`)" if src_flag else f"Match result: **{mr}**")
+if explanation.match is not None:
+    _mr = explanation.match.match_result
+    _sf = explanation.match.source_flag
+    st.caption(f"Match result: **{_mr}** (source: `{_sf}`)" if _sf else f"Match result: **{_mr}**")
 
 # Persist to session history
 st.session_state.history.append({
