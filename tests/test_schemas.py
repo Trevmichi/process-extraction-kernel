@@ -1121,3 +1121,158 @@ class TestAuditEventCriticRetrySchema:
                 "failure_codes": [],
                 "status": "DATA_EXTRACTED",
             })
+
+
+# -----------------------------------------------------------------------
+# Grounding: verifier_summary emitted by execute_node()
+# -----------------------------------------------------------------------
+
+class TestVerifierSummaryRoundTrip:
+    """Validate that verifier_summary events emitted by real execute_node()
+    calls conform to the schema — grounding in actual runtime payloads."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_verifier_summary_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def _extract_event(self, audit_log, event_name):
+        for entry in audit_log:
+            parsed = json.loads(entry)
+            if parsed.get("event") == event_name:
+                return parsed
+        return None
+
+    def test_enter_record_verifier_summary_validates(self):
+        """verifier_summary from ENTER_RECORD with well-formed extraction."""
+        from unittest.mock import patch as mock_patch
+        from src.agent.nodes import execute_node
+        from src.agent.state import make_initial_state
+
+        raw_text = "INVOICE #001\nVendor: Test Vendor\nTotal: $250.00\nPO: PO-1122"
+        state = make_initial_state(
+            invoice_id="INV-SCHEMA-TEST", raw_text=raw_text, po_match=True,
+        )
+        extraction = {
+            "vendor": {"value": "Test Vendor", "evidence": "Vendor: Test Vendor"},
+            "amount": {"value": 250.0, "evidence": "Total: $250.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        node = {
+            "id": "n_test", "name": "Enter Record",
+            "action": {"type": "ENTER_RECORD"},
+            "decision": None, "actors": [], "artifacts": [],
+        }
+        with mock_patch("src.agent.nodes._call_llm_json", return_value=extraction):
+            updates = execute_node(state, node)
+
+        summary = self._extract_event(updates["audit_log"], "verifier_summary")
+        assert summary is not None, "verifier_summary not found in audit_log"
+        self._validate(summary)
+
+    def test_critic_retry_verifier_summary_validates(self):
+        """verifier_summary from CRITIC_RETRY with well-formed extraction."""
+        from unittest.mock import patch as mock_patch
+        from src.agent.nodes import execute_node
+        from src.agent.state import make_initial_state
+
+        raw_text = "INVOICE #001\nVendor: Test Vendor\nTotal: $250.00\nPO: PO-1122"
+        state = make_initial_state(
+            invoice_id="INV-SCHEMA-TEST", raw_text=raw_text, po_match=True,
+        )
+        state["status"] = "NEEDS_RETRY"
+        state["retry_count"] = 0
+        state["failure_codes"] = ["AMOUNT_MISMATCH"]
+        state["extraction"] = {
+            "vendor": {"value": "Test Vendor", "evidence": "Vendor: Test Vendor"},
+            "amount": {"value": 999.0, "evidence": "Total: $250.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        good_extraction = {
+            "vendor": {"value": "Test Vendor", "evidence": "Vendor: Test Vendor"},
+            "amount": {"value": 250.0, "evidence": "Total: $250.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        node = {
+            "id": "n_critic", "name": "Critic Retry",
+            "action": {"type": "CRITIC_RETRY"},
+            "decision": None, "actors": [], "artifacts": [],
+        }
+        with mock_patch("src.agent.nodes._call_llm_json", return_value=good_extraction):
+            updates = execute_node(state, node)
+
+        summary = self._extract_event(updates["audit_log"], "verifier_summary")
+        assert summary is not None, "verifier_summary not found in audit_log"
+        self._validate(summary)
+
+
+# -----------------------------------------------------------------------
+# UI Audit compatibility: schema-backed events consumable by parsers
+# -----------------------------------------------------------------------
+
+class TestSchemaUiAuditCompatibility:
+    """Verify that schema-valid event payloads are correctly consumed
+    by the existing ui_audit.py extract_* functions."""
+
+    def test_extraction_event_consumed_by_extract_verifier_event(self):
+        """Schema-valid extraction event is found by extract_verifier_event."""
+        from src.ui_audit import extract_verifier_event
+
+        event = json.dumps({
+            "node": "ENTER_RECORD",
+            "event": "extraction",
+            "valid": True,
+            "reasons": [],
+        })
+        result = extract_verifier_event([event])
+        assert result is not None
+        assert result["event"] == "extraction"
+        assert result["valid"] is True
+
+    def test_exception_station_event_consumed_by_extract_exception_event(self):
+        """Schema-valid exception_station event is found by extract_exception_event."""
+        from src.ui_audit import extract_exception_event
+
+        event = json.dumps({
+            "event": "exception_station",
+            "node": "n_exc_bad_extraction",
+            "reason": "BAD_EXTRACTION",
+            "gateway": "n3",
+        })
+        result = extract_exception_event([event])
+        assert result is not None
+        assert result["reason"] == "BAD_EXTRACTION"
+
+    def test_match_result_set_consumed_by_extract_match_event(self):
+        """Schema-valid match_result_set event is found by extract_match_event."""
+        from src.ui_audit import extract_match_event
+
+        event = json.dumps({
+            "node": "MATCH_3_WAY",
+            "event": "match_result_set",
+            "match_result": "MATCH",
+            "source_flag": "po_match",
+        })
+        result = extract_match_event([event])
+        assert result is not None
+        assert result["match_result"] == "MATCH"
+
+    def test_route_decision_consumed_by_extract_router_events(self):
+        """Schema-valid route_decision event is found by extract_router_events."""
+        from src.ui_audit import extract_router_events
+
+        event = json.dumps({
+            "event": "route_decision",
+            "from_node": "n3",
+            "candidates": [
+                {"to": "n4", "condition": "has_po == true", "matched": True},
+            ],
+            "selected": "n4",
+            "reason": "condition_match",
+        })
+        results = extract_router_events([event])
+        assert len(results) == 1
+        assert results[0]["event"] == "route_decision"
+        assert results[0]["from_node"] == "n3"
