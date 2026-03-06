@@ -820,3 +820,304 @@ class TestAuditEventMatchResultSetSchema:
                 "match_result": "MATCH",
                 "source_flag": "invented_flag",
             })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: route_decision
+# -----------------------------------------------------------------------
+
+class TestAuditEventRouteDecisionSchema:
+    """Validate audit_event_route_decision_v1.json."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_route_decision_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_single_edge_route(self):
+        self._validate({
+            "event": "route_decision",
+            "from_node": "n8",
+            "candidates": [{"to": "n9", "condition": None, "matched": None}],
+            "selected": "n9",
+            "reason": "single_edge",
+        })
+
+    def test_condition_match_route(self):
+        self._validate({
+            "event": "route_decision",
+            "from_node": "n3",
+            "candidates": [
+                {"to": "n4", "condition": "has_po == true", "matched": True},
+                {"to": "n5", "condition": "has_po == false", "matched": False},
+            ],
+            "selected": "n4",
+            "reason": "condition_match",
+        })
+
+    def test_ambiguous_route_null_selected(self):
+        self._validate({
+            "event": "route_decision",
+            "from_node": "n10",
+            "candidates": [
+                {"to": "n11", "condition": "x == true", "matched": True},
+                {"to": "n12", "condition": "y == true", "matched": True},
+            ],
+            "selected": None,
+            "reason": "ambiguous_route",
+        })
+
+    def test_all_reason_values(self):
+        reasons = [
+            "single_edge", "all_same_target", "condition_match",
+            "unconditional_fallback", "ambiguous_route", "no_route",
+        ]
+        for reason in reasons:
+            self._validate({
+                "event": "route_decision",
+                "from_node": "n1",
+                "candidates": [],
+                "selected": None if reason in ("ambiguous_route", "no_route") else "n2",
+                "reason": reason,
+            })
+
+    def test_invalid_reason_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "route_decision",
+                "from_node": "n1",
+                "candidates": [],
+                "selected": "n2",
+                "reason": "magic_guess",
+            })
+
+    def test_missing_from_node_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "route_decision",
+                "candidates": [],
+                "selected": None,
+                "reason": "no_route",
+            })
+
+    def test_extra_keys_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "route_decision",
+                "from_node": "n1",
+                "candidates": [],
+                "selected": None,
+                "reason": "no_route",
+                "bonus": True,
+            })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: verifier_summary
+# -----------------------------------------------------------------------
+
+class TestAuditEventVerifierSummarySchema:
+    """Validate audit_event_verifier_summary_v1.json."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_verifier_summary_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_valid_extraction_summary(self):
+        """Verifier summary for a fully valid extraction."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": True,
+            "failure_codes": [],
+            "status_before": "NEW",
+            "status_after": "DATA_EXTRACTED",
+            "vendor": {"value": "Acme Corp", "ok": True, "has_evidence": True},
+            "amount": {"value": 1500.0, "ok": True, "has_evidence": True,
+                       "parsed_evidence": 1500.0, "delta": 0.0},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+        })
+
+    def test_failed_extraction_summary(self):
+        """Verifier summary with failure codes and bad fields."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": False,
+            "failure_codes": ["AMOUNT_MISMATCH", "MISSING_VENDOR"],
+            "status_before": "NEW",
+            "status_after": "NEEDS_RETRY",
+            "vendor": {"value": None, "ok": False, "has_evidence": False},
+            "amount": {"value": 999.0, "ok": False, "has_evidence": True,
+                       "parsed_evidence": 500.0, "delta": 499.0},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+        })
+
+    def test_critic_retry_summary(self):
+        """Verifier summary emitted by CRITIC_RETRY (same shape)."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": True,
+            "failure_codes": [],
+            "status_before": "NEEDS_RETRY",
+            "status_after": "DATA_EXTRACTED",
+            "vendor": {"value": "Acme Corp", "ok": True, "has_evidence": True},
+            "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                       "parsed_evidence": 100.0, "delta": 0.0},
+            "has_po": {"value": False, "ok": True, "has_evidence": False},
+        })
+
+    def test_null_parsed_evidence_and_delta(self):
+        """Amount summary with null parsed_evidence and delta."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": False,
+            "failure_codes": ["EVIDENCE_NOT_FOUND"],
+            "status_before": "NEW",
+            "status_after": "NEEDS_RETRY",
+            "vendor": {"value": "X", "ok": True, "has_evidence": True},
+            "amount": {"value": 100.0, "ok": False, "has_evidence": False,
+                       "parsed_evidence": None, "delta": None},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+        })
+
+    def test_missing_amount_field_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "verifier_summary",
+                "valid": True,
+                "failure_codes": [],
+                "status_before": "NEW",
+                "status_after": "DATA_EXTRACTED",
+                "vendor": {"value": "X", "ok": True, "has_evidence": True},
+                "has_po": {"value": True, "ok": True, "has_evidence": True},
+            })
+
+    def test_amount_missing_delta_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "verifier_summary",
+                "valid": True,
+                "failure_codes": [],
+                "status_before": "NEW",
+                "status_after": "DATA_EXTRACTED",
+                "vendor": {"value": "X", "ok": True, "has_evidence": True},
+                "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                           "parsed_evidence": 100.0},
+                "has_po": {"value": True, "ok": True, "has_evidence": True},
+            })
+
+    def test_extra_keys_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "verifier_summary",
+                "valid": True,
+                "failure_codes": [],
+                "status_before": "NEW",
+                "status_after": "DATA_EXTRACTED",
+                "vendor": {"value": "X", "ok": True, "has_evidence": True},
+                "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                           "parsed_evidence": 100.0, "delta": 0.0},
+                "has_po": {"value": True, "ok": True, "has_evidence": True},
+                "bonus": "nope",
+            })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: critic_retry_executed
+# -----------------------------------------------------------------------
+
+class TestAuditEventCriticRetrySchema:
+    """Validate audit_event_critic_retry_v1.json — 3 variants via oneOf."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_critic_retry_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_variant1_llm_error(self):
+        self._validate({
+            "event": "critic_retry_executed",
+            "node": "CRITIC_RETRY",
+            "attempt": 1,
+            "valid": False,
+            "failure_codes": ["LLM_ERROR"],
+            "status": "BAD_EXTRACTION",
+        })
+
+    def test_variant2_structural_failure(self):
+        self._validate({
+            "event": "critic_retry_executed",
+            "node": "CRITIC_RETRY",
+            "attempt": 2,
+            "valid": False,
+            "failure_codes": ["STRUCT_MISSING_KEY"],
+            "status": "BAD_EXTRACTION",
+        })
+
+    def test_variant3_verifier_success(self):
+        self._validate({
+            "event": "critic_retry_executed",
+            "node": "CRITIC_RETRY",
+            "attempt": 1,
+            "valid": True,
+            "failure_codes": [],
+            "status": "DATA_EXTRACTED",
+        })
+
+    def test_variant3_verifier_failure(self):
+        self._validate({
+            "event": "critic_retry_executed",
+            "node": "CRITIC_RETRY",
+            "attempt": 1,
+            "valid": False,
+            "failure_codes": ["AMOUNT_MISMATCH", "MISSING_VENDOR"],
+            "status": "BAD_EXTRACTION",
+        })
+
+    def test_missing_attempt_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "critic_retry_executed",
+                "node": "CRITIC_RETRY",
+                "valid": False,
+                "failure_codes": ["LLM_ERROR"],
+                "status": "BAD_EXTRACTION",
+            })
+
+    def test_extra_keys_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "critic_retry_executed",
+                "node": "CRITIC_RETRY",
+                "attempt": 1,
+                "valid": True,
+                "failure_codes": [],
+                "status": "DATA_EXTRACTED",
+                "bonus": True,
+            })
+
+    def test_wrong_node_rejected(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "critic_retry_executed",
+                "node": "ENTER_RECORD",
+                "attempt": 1,
+                "valid": True,
+                "failure_codes": [],
+                "status": "DATA_EXTRACTED",
+            })
