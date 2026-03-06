@@ -128,6 +128,11 @@ def _sync_po_match_from_example() -> None:
     st.session_state.po_match_val = MOCK_INVOICES.get(label, {}).get("po_match", True)
 
 
+def _reset_po_match_on_paste() -> None:
+    """on_change callback: reset PO Match to False when user modifies pasted text."""
+    st.session_state.po_match_val = False
+
+
 _STATUS_ICONS = {
     "APPROVED":                "✅",
     "PAID":                    "✅",
@@ -226,6 +231,7 @@ with tab_paste:
             "PO: PO-7742"
         ),
         label_visibility="collapsed",
+        on_change=_reset_po_match_on_paste,
     )
 
 with tab_upload:
@@ -310,6 +316,17 @@ with st.status("Agent processing invoice...", expanded=True) as status:
     time.sleep(0.2)
 
     status.update(label="Processing Complete!", state="complete", expanded=False)
+
+# ---------------------------------------------------------------------------
+# MAIN — LLM backend error check
+# ---------------------------------------------------------------------------
+_extraction = result.get("extraction", {})
+if isinstance(_extraction, dict) and "_error" in _extraction:
+    st.error(
+        "**LLM Backend Error** — extraction could not complete.  \n"
+        f"Error: `{_extraction['_error']}`  \n"
+        "Check that Ollama is running: `ollama serve`"
+    )
 
 # ---------------------------------------------------------------------------
 # MAIN — Results: metrics + status banner
