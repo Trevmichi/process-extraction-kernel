@@ -15,6 +15,7 @@ import re
 from datetime import date
 from typing import Literal
 
+from .contracts import ProvenanceReport
 from .verifier_registry import build_legacy_validator_registry
 
 # ---------------------------------------------------------------------------
@@ -171,7 +172,7 @@ _TAX_ANCHOR_VALUE_RE = re.compile(
 # Per-field verification helpers
 # ---------------------------------------------------------------------------
 
-def _default_provenance() -> dict:
+def _default_provenance() -> ProvenanceReport:
     """Build a provenance payload with stable keys and default values.
 
     Returns:
@@ -211,7 +212,7 @@ def _check_grounding(
 def verify_extraction(
     raw_text: str,
     extraction: dict,
-) -> tuple[bool, list[FailureCode], dict]:
+) -> tuple[bool, list[FailureCode], ProvenanceReport]:
     """Verify an evidence-backed extraction payload against *raw_text*.
 
     Args:

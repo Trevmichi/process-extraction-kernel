@@ -15,11 +15,13 @@ match_3_way : bool
     Gateway conditions ``match_3_way == true / false`` read this field.
 
 extraction : dict
-    Raw nested LLM payload from ENTER_RECORD.  Stores the evidence-backed
-    extraction before verification.  Always written (even on failure).
+    Raw nested LLM payload from ENTER_RECORD.  When well-formed, conforms to
+    ``ExtractionPayload`` (see ``src/contracts.py``).  Always written (even
+    on failure — may contain ``_error`` key on LLM invocation failure).
 
 provenance : dict
-    Validation metadata from the deterministic verifier.  Per-field
+    Validation metadata from the deterministic verifier.  When populated,
+    conforms to ``ProvenanceReport`` (see ``src/contracts.py``).  Per-field
     grounding results with consistent sub-keys.
 
 raw_text : str
@@ -45,6 +47,8 @@ from __future__ import annotations
 import operator
 from typing import Annotated, Literal, TypedDict, cast
 
+from ..ontology import StatusType
+
 # Strict Literal type for 3-way match outcomes
 MatchResult = Literal["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]
 
@@ -58,7 +62,7 @@ class APState(TypedDict):
     po_match:         bool
     match_3_way:      bool           # legacy flag (mirrors po_match)
     match_result:     MatchResult    # strict outcome of 3-way match step
-    status:           str
+    status:           StatusType
     current_node:     str
     last_gateway:     str
     audit_log:        Annotated[list[str], operator.add]
