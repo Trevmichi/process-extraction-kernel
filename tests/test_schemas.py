@@ -163,3 +163,129 @@ class TestFailureCodesSchema:
     def test_enum_count(self):
         """Sanity: enum has exactly 23 codes (matching FailureCode Literal)."""
         assert len(self.schema["enum"]) == 23
+
+
+# -----------------------------------------------------------------------
+# Provenance Report
+# -----------------------------------------------------------------------
+
+class TestProvenanceReportSchema:
+    """Validate provenance_report_v1.json against runtime shapes."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("provenance_report_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_default_provenance_validates(self):
+        """_default_provenance() output must validate against schema."""
+        from src.verifier import _default_provenance
+        prov = _default_provenance()
+        self._validate(prov)
+
+    def test_full_provenance_with_optional_fields(self):
+        """Provenance with all 5 fields (including invoice_date, tax_amount)."""
+        prov = {
+            "vendor": {"grounded": True, "evidence_found_at": 10},
+            "amount": {
+                "grounded": True,
+                "parsed_evidence": 100.0,
+                "delta": 0.0,
+                "evidence_found_at": 25,
+            },
+            "has_po": {"grounded": True, "po_pattern_found": True},
+            "invoice_date": {
+                "grounded": True,
+                "evidence_found_at": 50,
+                "normalized_value": "2024-01-15",
+                "normalized_evidence": "2024-01-15",
+            },
+            "tax_amount": {
+                "grounded": True,
+                "evidence_found_at": 75,
+                "anchor_found": True,
+                "parsed_evidence": 8.50,
+                "delta": 0.0,
+            },
+        }
+        self._validate(prov)
+
+    def test_amount_without_evidence_found_at(self):
+        """Amount from _default_provenance() lacks evidence_found_at — valid."""
+        prov = {
+            "vendor": {"grounded": False, "evidence_found_at": -1},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
+            "has_po": {"grounded": False, "po_pattern_found": None},
+        }
+        self._validate(prov)
+
+    def test_amount_with_evidence_found_at(self):
+        """Amount after _verify_amount() has evidence_found_at — valid."""
+        prov = {
+            "vendor": {"grounded": False, "evidence_found_at": -1},
+            "amount": {
+                "grounded": True,
+                "parsed_evidence": 100.0,
+                "delta": 0.0,
+                "evidence_found_at": 42,
+            },
+            "has_po": {"grounded": False, "po_pattern_found": None},
+        }
+        self._validate(prov)
+
+    def test_null_values_allowed(self):
+        """Nullable fields (parsed_evidence, delta, po_pattern_found, etc.)."""
+        prov = {
+            "vendor": {"grounded": False, "evidence_found_at": -1},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
+            "has_po": {"grounded": False, "po_pattern_found": None},
+        }
+        self._validate(prov)
+
+    def test_missing_required_vendor_rejected(self):
+        """vendor is required (always present from _default_provenance)."""
+        prov = {
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
+            "has_po": {"grounded": False, "po_pattern_found": None},
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(prov)
+
+    def test_extra_field_rejected(self):
+        """Unknown top-level field rejected."""
+        prov = {
+            "vendor": {"grounded": False, "evidence_found_at": -1},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
+            "has_po": {"grounded": False, "po_pattern_found": None},
+            "unknown": {"grounded": False},
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(prov)
+
+    def test_vendor_missing_grounded_rejected(self):
+        """VendorProvenance requires grounded."""
+        prov = {
+            "vendor": {"evidence_found_at": -1},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
+            "has_po": {"grounded": False, "po_pattern_found": None},
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(prov)
+
+    def test_real_verifier_output_validates(self):
+        """Round-trip: verify_extraction() output validates against schema."""
+        from src.verifier import verify_extraction
+
+        raw = "Invoice from Acme Corp\nTotal: $100.00\nPO: PO-123"
+        extraction = {
+            "vendor": {"value": "Acme Corp", "evidence": "Acme Corp"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-123"},
+        }
+        _valid, _codes, prov = verify_extraction(raw, extraction)
+        self._validate(prov)
