@@ -42,6 +42,8 @@ _project_root = Path(__file__).parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from src.ontology import VALID_ACTIONS, VALID_DECISIONS
+
 SRC_PATH = Path("outputs/ap_master_manual_auto.json")
 DST_PATH = Path("outputs/ap_master_manual_auto_patched.json")
 
@@ -249,6 +251,27 @@ EXCEPTION_STATIONS: list[dict] = [
         },
     },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Ontology consistency check — validate all injected types at import time
+# ---------------------------------------------------------------------------
+def _validate_injected_vocabulary() -> None:
+    for node in NEW_NODES + EXCEPTION_STATIONS:
+        act = (node.get("action") or {}).get("type")
+        dec = (node.get("decision") or {}).get("type")
+        if act and act not in VALID_ACTIONS:
+            raise ValueError(
+                f"patch_logic: node {node['id']!r} has action type {act!r} "
+                f"not in ontology.VALID_ACTIONS"
+            )
+        if dec and dec not in VALID_DECISIONS:
+            raise ValueError(
+                f"patch_logic: node {node['id']!r} has decision type {dec!r} "
+                f"not in ontology.VALID_DECISIONS"
+            )
+
+_validate_injected_vocabulary()
 
 
 def inject_exception_stations(data: dict) -> list[str]:
