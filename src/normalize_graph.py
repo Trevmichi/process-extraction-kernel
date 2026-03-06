@@ -1160,13 +1160,9 @@ def _require_station(data: dict, intent_key: str) -> str:
 # This prevents false positives where miner-label noise (e.g. a
 # "SCHEDULE_PAYMENT" condition on a MATCH_3_WAY gateway) would cause
 # premature conversion before the dedicated pass runs.
-_KNOWN_STRUCTURED_GATEWAY_TYPES = frozenset({
-    "MATCH_3_WAY",
-    "MATCH_DECISION",
-    "HAS_PO",
-    "APPROVE_OR_REJECT",
-    "THRESHOLD_AMOUNT_10K",
-})
+#
+# Imported from the canonical ontology to prevent drift.
+from .ontology import KNOWN_STRUCTURED_GATEWAY_TYPES as _KNOWN_STRUCTURED_GATEWAY_TYPES
 
 
 def convert_unparseable_gateways_to_station(data: dict) -> tuple[dict, list[str]]:
