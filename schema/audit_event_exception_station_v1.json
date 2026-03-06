@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_exception_station_v1.json",
+  "title": "AuditEvent: exception_station",
+  "description": "Emitted by ROUTE_FOR_REVIEW handler and 3 legacy manual review handlers in nodes.py. Signals that an invoice was routed to an exception station.",
+  "type": "object",
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "exception_station"
+    },
+    "node": {
+      "type": "string",
+      "description": "Node ID or canonical_key of the exception station."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "BAD_EXTRACTION",
+        "UNMODELED_GATE",
+        "AMBIGUOUS_ROUTE",
+        "NO_ROUTE",
+        "NO_PO",
+        "MATCH_FAILED",
+        "UNKNOWN"
+      ],
+      "description": "Why the invoice was routed to an exception station."
+    },
+    "gateway": {
+      "type": "string",
+      "description": "Node ID of the last gateway before exception routing, or '?' if unknown."
+    }
+  },
+  "required": ["event", "node", "reason", "gateway"],
+  "additionalProperties": false
+}
