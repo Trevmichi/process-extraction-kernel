@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import json
 
-from src.audit_parser import parse_audit_log
+from src.audit_parser import (
+    ArithmeticCheckEvent,
+    ExceptionStationEvent,
+    ExtractionEvent,
+    PlainTextEntry,
+    RouteDecisionEvent,
+    RouteStepEntry,
+    parse_audit_log,
+)
 from src.explanation import build_explanation
 from src.ui_audit import (
     extract_exception_event,
@@ -284,3 +292,418 @@ class TestRealisticParity:
 
         # Outcome
         assert report.outcome.category == "success"
+
+
+# ===================================================================
+# Arithmetic display
+# ===================================================================
+
+class TestArithmeticDisplay:
+
+    def test_arithmetic_pass_available_for_caption(self):
+        """When arithmetic checks pass, report has data for a pass caption."""
+        log = [_j({"event": "arithmetic_check",
+                    "checks_run": ["total_sum"], "passed": True,
+                    "codes": [], "total_sum": {"delta": 0.0}})]
+        parsed = parse_audit_log(log)
+        report = build_explanation(parsed, final_status="DATA_EXTRACTED")
+        assert report.arithmetic is not None
+        assert report.arithmetic.passed is True
+
+    def test_arithmetic_failure_with_codes_and_deltas(self):
+        """When arithmetic checks fail, report surfaces codes + deltas for warning."""
+        log = [_j({"event": "arithmetic_check",
+                    "checks_run": ["total_sum", "tax_rate"],
+                    "passed": False,
+                    "codes": ["ARITH_TOTAL_MISMATCH", "ARITH_TAX_RATE_MISMATCH"],
+                    "total_sum": {"delta": 300.0},
+                    "tax_rate": {"delta": 100.0}})]
+        parsed = parse_audit_log(log)
+        report = build_explanation(parsed, final_status="BAD_EXTRACTION")
+        assert report.arithmetic is not None
+        assert report.arithmetic.passed is False
+        assert "ARITH_TOTAL_MISMATCH" in report.arithmetic.failure_codes
+        assert report.arithmetic.total_sum_delta == 300.0
+        assert report.arithmetic.tax_rate_delta == 100.0
+
+    def test_no_arithmetic_event_is_none(self):
+        """No arithmetic_check event → arithmetic is None, no display."""
+        log = [_j({"event": "extraction", "node": "ENTER_RECORD",
+                    "valid": True, "reasons": []})]
+        parsed = parse_audit_log(log)
+        report = build_explanation(parsed, final_status="DATA_EXTRACTED")
+        assert report.arithmetic is None
+
+
+# ===================================================================
+# Routing display
+# ===================================================================
+
+class TestRoutingDisplay:
+
+    def test_gateway_decisions_produce_table_data(self):
+        """ExplanationReport.routing surfaces gateway decisions for the table."""
+        log = [
+            _j({"event": "route_decision", "from_node": "n3",
+                "candidates": [
+                    {"to": "n4", "condition": "has_po == true", "matched": True},
+                    {"to": "n5", "condition": "has_po == false", "matched": False},
+                ],
+                "selected": "n4", "reason": "condition_match"}),
+        ]
+        parsed = parse_audit_log(log)
+        report = build_explanation(parsed, final_status="DATA_EXTRACTED")
+        assert report.routing is not None
+        assert report.routing.total_gateways == 1
+        d = report.routing.decisions[0]
+        assert d.gateway_id == "n3"
+        assert d.selected == "n4"
+        assert d.reason == "condition_match"
+        assert d.candidate_count == 2
+
+    def test_route_steps_parsed_from_audit_log(self):
+        """RouteStepEntry instances are available from parsed.entries."""
+        log = ["Executed APPROVE [role_ap_clerk] at n32"]
+        parsed = parse_audit_log(log)
+        steps = [e for e in parsed.entries if isinstance(e, RouteStepEntry)]
+        assert len(steps) == 1
+        assert steps[0].intent == "APPROVE"
+        assert steps[0].node_id == "n32"
+        assert steps[0].actor == "role_ap_clerk"
+
+    def test_no_routing_returns_none(self):
+        """No route_decision events → explanation.routing is None."""
+        log = [_j({"event": "extraction", "node": "ENTER_RECORD",
+                    "valid": True, "reasons": []})]
+        parsed = parse_audit_log(log)
+        report = build_explanation(parsed, final_status="DATA_EXTRACTED")
+        assert report.routing is None
+
+
+# ===================================================================
+# Audit trail entry formatting
+# ===================================================================
+
+def _get_format_fn():
+    """Extract _format_audit_entry from app.py without executing module body.
+
+    app.py has Streamlit side-effects at module level, so we compile only
+    the function definition in an isolated namespace.
+    """
+    import ast
+    import textwrap
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "app.py"
+    tree = ast.parse(src.read_text(encoding="utf-8"))
+    # Find the function definition node
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_format_audit_entry":
+            func_src = ast.get_source_segment(src.read_text(encoding="utf-8"), node)
+            break
+    else:
+        raise RuntimeError("_format_audit_entry not found in app.py")
+
+    # Build a minimal namespace with the types the function needs
+    from src.audit_parser import (
+        AmountCandidatesEvent,
+        ArithmeticCheckEvent,
+        CriticRetryEvent,
+        ExceptionStationEvent,
+        ExtractionEvent,
+        MatchInputsEvent,
+        MatchResultSetEvent,
+        PlainTextEntry,
+        RouteDecisionEvent,
+        RouteRecordEvent,
+        RouteStepEntry,
+        SequentialDispatchEvent,
+        UnknownJsonEntry,
+        VerifierSummaryEvent,
+    )
+    ns: dict = {
+        "AmountCandidatesEvent": AmountCandidatesEvent,
+        "ArithmeticCheckEvent": ArithmeticCheckEvent,
+        "CriticRetryEvent": CriticRetryEvent,
+        "ExceptionStationEvent": ExceptionStationEvent,
+        "ExtractionEvent": ExtractionEvent,
+        "MatchInputsEvent": MatchInputsEvent,
+        "MatchResultSetEvent": MatchResultSetEvent,
+        "PlainTextEntry": PlainTextEntry,
+        "RouteDecisionEvent": RouteDecisionEvent,
+        "RouteRecordEvent": RouteRecordEvent,
+        "RouteStepEntry": RouteStepEntry,
+        "SequentialDispatchEvent": SequentialDispatchEvent,
+        "UnknownJsonEntry": UnknownJsonEntry,
+        "VerifierSummaryEvent": VerifierSummaryEvent,
+    }
+    exec(compile(func_src, str(src), "exec"), ns)
+    return ns["_format_audit_entry"]
+
+
+class TestFormatAuditEntry:
+
+    _fmt = staticmethod(_get_format_fn())
+
+    def test_extraction_valid(self):
+        entry = ExtractionEvent(
+            event="extraction", node="ENTER_RECORD", valid=True,
+            reasons=(), failure_codes=None, status=None,
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "✅"
+        assert tag == "EXTRACT"
+        assert "valid" in summary
+        assert "verifier" in summary
+
+    def test_extraction_failed_with_codes(self):
+        entry = ExtractionEvent(
+            event="extraction", node="ENTER_RECORD", valid=False,
+            reasons=("AMOUNT_MISMATCH",), failure_codes=None, status=None,
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "❌"
+        assert tag == "EXTRACT"
+        assert "failed" in summary
+        assert "AMOUNT_MISMATCH" in summary
+
+    def test_exception_station(self):
+        entry = ExceptionStationEvent(
+            event="exception_station", node="n_exc_bad",
+            reason="BAD_EXTRACTION", gateway="n3",
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "⚠️"
+        assert tag == "EXCEPTION"
+        assert "BAD_EXTRACTION" in summary
+        assert "n3" in summary
+
+    def test_arithmetic_passed(self):
+        entry = ArithmeticCheckEvent(
+            event="arithmetic_check", checks_run=("total_sum",),
+            passed=True, codes=(), total_sum=None, tax_rate=None,
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "✅"
+        assert tag == "ARITHMETIC"
+        assert "passed" in summary
+
+    def test_arithmetic_failed_with_codes(self):
+        entry = ArithmeticCheckEvent(
+            event="arithmetic_check", checks_run=("total_sum",),
+            passed=False, codes=("ARITH_TOTAL_MISMATCH",),
+            total_sum={"delta": 300.0}, tax_rate=None,
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "❌"
+        assert tag == "ARITHMETIC"
+        assert "failed" in summary
+        assert "ARITH_TOTAL_MISMATCH" in summary
+
+    def test_route_decision(self):
+        entry = RouteDecisionEvent(
+            event="route_decision", from_node="n3",
+            candidates=({"to": "n4", "matched": True},),
+            selected="n4", reason="condition_match",
+        )
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "▶"
+        assert tag == "ROUTE"
+        assert "n3" in summary
+        assert "n4" in summary
+        assert "1 candidates" in summary
+
+    def test_plain_text(self):
+        entry = PlainTextEntry(raw="Some unstructured log line")
+        icon, tag, summary = self._fmt(entry)
+        assert icon == "📝"
+        assert tag == "TEXT"
+        assert summary == "Some unstructured log line"
+
+
+# ===================================================================
+# Session history outcome category
+# ===================================================================
+
+def _get_outcome_fn():
+    """Extract _get_outcome_category from app.py via AST."""
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "app.py"
+    source_text = src.read_text(encoding="utf-8")
+    tree = ast.parse(source_text)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_get_outcome_category":
+            func_src = ast.get_source_segment(source_text, node)
+            break
+    else:
+        raise RuntimeError("_get_outcome_category not found in app.py")
+    ns: dict = {}
+    exec(compile(func_src, str(src), "exec"), ns)
+    return ns["_get_outcome_category"]
+
+
+class TestOutcomeCategoryHelper:
+
+    _fn = staticmethod(_get_outcome_fn())
+
+    def test_success_from_explanation(self):
+        item = {"status": "APPROVED", "explanation": {
+            "outcome": {"category": "success", "final_status": "APPROVED"}}}
+        assert self._fn(item) == "success"
+
+    def test_exception_from_explanation(self):
+        item = {"status": "EXCEPTION_NO_PO", "explanation": {
+            "outcome": {"category": "exception", "final_status": "EXCEPTION_NO_PO"}}}
+        assert self._fn(item) == "exception"
+
+    def test_rejection_from_explanation(self):
+        item = {"status": "REJECTED", "explanation": {
+            "outcome": {"category": "rejection", "final_status": "REJECTED"}}}
+        assert self._fn(item) == "rejection"
+
+    def test_fallback_approved_without_explanation(self):
+        """Old history item without explanation key — derives from status."""
+        item = {"status": "APPROVED"}
+        assert self._fn(item) == "success"
+
+    def test_fallback_exception_without_explanation(self):
+        item = {"status": "EXCEPTION_NO_ROUTE"}
+        assert self._fn(item) == "exception"
+
+    def test_fallback_rejection_without_explanation(self):
+        item = {"status": "BAD_EXTRACTION"}
+        assert self._fn(item) == "rejection"
+
+    def test_partial_explanation_missing_outcome(self):
+        """Explanation dict exists but missing outcome key."""
+        item = {"status": "PAID", "explanation": {"schema_version": "v1"}}
+        assert self._fn(item) == "success"  # falls back to status
+
+    def test_partial_explanation_missing_category(self):
+        """Outcome dict exists but missing category key."""
+        item = {"status": "NEW", "explanation": {"outcome": {"final_status": "NEW"}}}
+        assert self._fn(item) == "in_progress"  # falls back to status
+
+    def test_outcome_column_uses_structured_category(self):
+        """Verify dataframe-building expectation: Outcome derived from explanation."""
+        items = [
+            {"invoice_id": "INV-1", "vendor": "Acme", "amount": 100,
+             "status": "APPROVED", "explanation": {
+                 "outcome": {"category": "success", "final_status": "APPROVED"}}},
+            {"invoice_id": "INV-2", "vendor": "Beta", "amount": 200,
+             "status": "REJECTED"},
+        ]
+        outcomes = [self._fn(r) for r in items]
+        assert outcomes == ["success", "rejection"]
+
+
+# ===================================================================
+# Session history summary
+# ===================================================================
+
+def _get_summary_fn():
+    """Extract _get_history_summary (and its dependency _get_outcome_category)
+    from app.py via AST."""
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "app.py"
+    source_text = src.read_text(encoding="utf-8")
+    tree = ast.parse(source_text)
+    funcs: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in (
+            "_get_outcome_category", "_get_history_summary",
+        ):
+            funcs[node.name] = ast.get_source_segment(source_text, node)
+    if "_get_history_summary" not in funcs:
+        raise RuntimeError("_get_history_summary not found in app.py")
+    ns: dict = {}
+    # _get_history_summary calls _get_outcome_category, so compile both
+    for name in ("_get_outcome_category", "_get_history_summary"):
+        if name in funcs:
+            exec(compile(funcs[name], str(src), "exec"), ns)
+    return ns["_get_history_summary"]
+
+
+class TestHistorySummary:
+
+    _fn = staticmethod(_get_summary_fn())
+
+    def test_exception_summary(self):
+        item = {"status": "EXCEPTION_NO_PO", "explanation": {
+            "exception": {"reason": "NO_PO", "node": "n_exc"},
+            "outcome": {"category": "exception"}}}
+        assert self._fn(item) == "Exception: NO_PO"
+
+    def test_extraction_failure_with_codes(self):
+        item = {"status": "BAD_EXTRACTION", "explanation": {
+            "extraction": {"valid": False,
+                           "failure_codes": ["AMBIGUOUS_AMOUNT_EVIDENCE",
+                                             "PO_PATTERN_MISSING"]},
+            "outcome": {"category": "rejection"}}}
+        assert self._fn(item) == "Extraction failed: AMBIGUOUS_AMOUNT_EVIDENCE, PO_PATTERN_MISSING"
+
+    def test_arithmetic_failure_with_total_delta(self):
+        item = {"status": "BAD_EXTRACTION", "explanation": {
+            "arithmetic": {"passed": False,
+                           "failure_codes": ["ARITH_TOTAL_MISMATCH"],
+                           "total_sum_delta": 300.0},
+            "outcome": {"category": "rejection"}}}
+        assert self._fn(item) == "Arithmetic failed: ARITH_TOTAL_MISMATCH (Δ 300.0)"
+
+    def test_arithmetic_failure_with_tax_delta_only(self):
+        item = {"status": "BAD_EXTRACTION", "explanation": {
+            "arithmetic": {"passed": False,
+                           "failure_codes": ["ARITH_TAX_RATE_MISMATCH"],
+                           "tax_rate_delta": 0.05},
+            "outcome": {"category": "rejection"}}}
+        assert self._fn(item) == "Arithmetic failed: ARITH_TAX_RATE_MISMATCH (Δ 0.05)"
+
+    def test_match_with_source(self):
+        item = {"status": "APPROVED", "explanation": {
+            "match": {"match_result": "MATCH", "source_flag": "po_match"},
+            "outcome": {"category": "success"}}}
+        assert self._fn(item) == "Match: MATCH via po_match"
+
+    def test_match_without_source(self):
+        item = {"status": "APPROVED", "explanation": {
+            "match": {"match_result": "UNKNOWN"},
+            "outcome": {"category": "success"}}}
+        assert self._fn(item) == "Match: UNKNOWN"
+
+    def test_clean_pass(self):
+        """Explanation present, success category, no issues -> Clean pass."""
+        item = {"status": "APPROVED", "explanation": {
+            "outcome": {"category": "success"}}}
+        assert self._fn(item) == "Clean pass"
+
+    def test_old_item_without_explanation(self):
+        """Legacy item without explanation -> status fallback, never Clean pass."""
+        item = {"status": "APPROVED"}
+        assert self._fn(item) == "Status: APPROVED"
+
+    def test_partial_malformed_explanation(self):
+        """Malformed explanation dict -> does not crash, falls back."""
+        item = {"status": "PAID", "explanation": {"garbage": 42}}
+        # No matching signal, but explanation exists and outcome fallback
+        # _get_outcome_category falls back to status -> "success" -> "Clean pass"
+        result = self._fn(item)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_priority_exception_over_match(self):
+        """Item with both exception and match -> exception wins (first-match)."""
+        item = {"status": "EXCEPTION_NO_PO", "explanation": {
+            "exception": {"reason": "NO_PO", "node": "n_exc"},
+            "match": {"match_result": "NO_MATCH", "source_flag": "po_match"},
+            "outcome": {"category": "exception"}}}
+        assert self._fn(item) == "Exception: NO_PO"
+
+
+# ===================================================================
+# Operator review panel
+# ===================================================================
+
