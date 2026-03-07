@@ -192,6 +192,89 @@ def _get_history_summary(item: dict) -> str:
     return f"Status: {status}" if status else "No structured summary"
 
 
+def _build_operator_review(explanation) -> dict | None:
+    """Build a compact operator review summary for non-success outcomes.
+
+    Returns None for success outcomes or missing explanation.
+    Otherwise returns {"primary_issue", "supporting_signals", "review_focus"}.
+    """
+    if explanation is None:
+        return None
+    if not hasattr(explanation, "outcome") or explanation.outcome is None:
+        return None
+    if explanation.outcome.category == "success":
+        return None
+
+    primary_issue = ""
+    signals: list[str] = []
+    review_focus = "Review the structured audit sections below for the strongest failure signal."
+
+    # Priority 1: Exception
+    if explanation.exception is not None:
+        reason = explanation.exception.reason or "UNKNOWN"
+        primary_issue = f"Exception: {reason}"
+        signals.append(f"Reason: {reason}")
+        if explanation.extraction is not None and not explanation.extraction.valid:
+            codes = explanation.extraction.failure_codes
+            if codes:
+                signals.append(f"Extraction codes: {', '.join(codes)}")
+        if explanation.arithmetic is not None and not explanation.arithmetic.passed:
+            codes = explanation.arithmetic.failure_codes
+            if codes:
+                signals.append(f"Arithmetic codes: {', '.join(codes)}")
+        if reason == "NO_PO":
+            review_focus = "Confirm whether this invoice should follow a non-PO workflow or requires a valid PO."
+        elif reason == "BAD_EXTRACTION":
+            review_focus = "Review source text quality and extracted fields before manual handling."
+        else:
+            review_focus = "Review the exception reason and routing context in the audit trail below."
+
+    # Priority 2: Extraction failure
+    elif explanation.extraction is not None and not explanation.extraction.valid:
+        primary_issue = "Extraction verification failed"
+        codes = explanation.extraction.failure_codes
+        if codes:
+            signals.append(f"Failure codes: {', '.join(codes)}")
+        if explanation.retry is not None:
+            signals.append(f"Retries: {explanation.retry.total_attempts}")
+            if explanation.retry.final_status:
+                signals.append(f"Retry final status: {explanation.retry.final_status}")
+        review_focus = "Inspect invoice text and evidence anchors for vendor, amount, and PO extraction."
+
+    # Priority 3: Arithmetic failure
+    elif explanation.arithmetic is not None and not explanation.arithmetic.passed:
+        primary_issue = "Invoice arithmetic inconsistency"
+        codes = explanation.arithmetic.failure_codes
+        if codes:
+            signals.append(f"Arithmetic codes: {', '.join(codes)}")
+        delta = explanation.arithmetic.total_sum_delta
+        if delta is None:
+            delta = explanation.arithmetic.tax_rate_delta
+        if delta is not None:
+            signals.append(f"Delta: {delta}")
+        review_focus = "Check subtotal, tax, fees, and stated total for internal consistency."
+
+    # Priority 4: Match problem
+    elif explanation.match is not None and explanation.match.match_result != "MATCH":
+        primary_issue = f"Match result: {explanation.match.match_result}"
+        signals.append(f"Match result: {explanation.match.match_result}")
+        if explanation.match.source_flag:
+            signals.append(f"Match source: {explanation.match.source_flag}")
+        review_focus = "Review PO / 3-way match inputs and determine why the invoice did not cleanly match."
+
+    # Priority 5: Fallback
+    else:
+        primary_issue = f"Outcome: {explanation.outcome.category}"
+        if explanation.outcome.final_status:
+            signals.append(f"Status: {explanation.outcome.final_status}")
+
+    return {
+        "primary_issue": primary_issue,
+        "supporting_signals": signals[:4],
+        "review_focus": review_focus,
+    }
+
+
 
 # ---------------------------------------------------------------------------
 # Page config — must be the very first Streamlit call
@@ -568,6 +651,16 @@ elif _cat == "rejection":
         )
 else:
     st.info(f"**{inv_id}** — Status: **{status_val}**")
+
+# --- Operator review ---
+review = _build_operator_review(explanation)
+if review is not None:
+    _signals = "\n".join(f"- {s}" for s in review["supporting_signals"])
+    _body = f"**Primary issue:** {review['primary_issue']}\n\n"
+    if _signals:
+        _body += f"**Supporting signals:**\n{_signals}\n\n"
+    _body += f"**Review focus:** {review['review_focus']}"
+    st.warning(f"**Operator Review**\n\n{_body}")
 
 # --- Verifier summary ---
 if explanation.extraction is not None:

@@ -707,3 +707,183 @@ class TestHistorySummary:
 # Operator review panel
 # ===================================================================
 
+def _get_operator_review_fn():
+    """Extract _build_operator_review from app.py via AST."""
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "app.py"
+    source_text = src.read_text(encoding="utf-8")
+    tree = ast.parse(source_text)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_build_operator_review":
+            func_src = ast.get_source_segment(source_text, node)
+            break
+    else:
+        raise RuntimeError("_build_operator_review not found in app.py")
+    ns: dict = {}
+    exec(compile(func_src, str(src), "exec"), ns)
+    return ns["_build_operator_review"]
+
+
+def _make_report(*, outcome_category="exception", final_status="EXCEPTION_NO_PO",
+                 exception=None, extraction=None, arithmetic=None,
+                 match=None, retry=None):
+    """Build a minimal ExplanationReport for operator review tests."""
+    from src.explanation import (
+        ExplanationReport,
+        OutcomeClassification,
+    )
+    return ExplanationReport(
+        schema_version="v1",
+        extraction=extraction,
+        routing=None,
+        match=match,
+        exception=exception,
+        retry=retry,
+        amount=None,
+        arithmetic=arithmetic,
+        outcome=OutcomeClassification(
+            final_status=final_status,
+            is_terminal=True,
+            is_exception=outcome_category == "exception",
+            category=outcome_category,
+        ),
+    )
+
+
+class TestOperatorReview:
+
+    _fn = staticmethod(_get_operator_review_fn())
+
+    def test_success_returns_none(self):
+        report = _make_report(outcome_category="success", final_status="APPROVED")
+        assert self._fn(report) is None
+
+    def test_exception_no_po(self):
+        from src.explanation import ExceptionExplanation
+        report = _make_report(exception=ExceptionExplanation(
+            reason="NO_PO", triggering_gateway="n8",
+            node="n_exc_no_po", expected_status="EXCEPTION_NO_PO",
+        ))
+        result = self._fn(report)
+        assert result["primary_issue"] == "Exception: NO_PO"
+        assert "non-PO workflow" in result["review_focus"]
+
+    def test_exception_bad_extraction(self):
+        from src.explanation import ExceptionExplanation
+        report = _make_report(
+            final_status="EXCEPTION_BAD_EXTRACTION",
+            exception=ExceptionExplanation(
+                reason="BAD_EXTRACTION", triggering_gateway="n3",
+                node="n_exc_bad", expected_status="EXCEPTION_BAD_EXTRACTION",
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Exception: BAD_EXTRACTION"
+        assert "source text quality" in result["review_focus"]
+
+    def test_extraction_failure(self):
+        from src.explanation import ExtractionExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH", "PO_PATTERN_MISSING"),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Extraction verification failed"
+        assert any("AMOUNT_MISMATCH" in s for s in result["supporting_signals"])
+        assert "evidence anchors" in result["review_focus"]
+
+    def test_arithmetic_failure(self):
+        from src.explanation import ArithmeticExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Invoice arithmetic inconsistency"
+        assert any("300.0" in s for s in result["supporting_signals"])
+        assert "subtotal" in result["review_focus"]
+
+    def test_match_no_match(self):
+        from src.explanation import MatchExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="REJECTED",
+            match=MatchExplanation(
+                match_result="NO_MATCH", source_flag="po_match",
+                po_match_input=False, match_3_way_input=None,
+                resolved_from="po_match",
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Match result: NO_MATCH"
+        assert "3-way match" in result["review_focus"]
+
+    def test_priority_exception_over_arithmetic(self):
+        from src.explanation import ArithmeticExplanation, ExceptionExplanation
+        report = _make_report(
+            exception=ExceptionExplanation(
+                reason="NO_PO", triggering_gateway="n8",
+                node="n_exc_no_po", expected_status="EXCEPTION_NO_PO",
+            ),
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Exception: NO_PO"
+
+    def test_priority_extraction_over_arithmetic(self):
+        from src.explanation import ArithmeticExplanation, ExtractionExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH",),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Extraction verification failed"
+
+    def test_fallback_outcome(self):
+        report = _make_report(
+            outcome_category="in_progress", final_status="NEW",
+        )
+        result = self._fn(report)
+        assert result["primary_issue"] == "Outcome: in_progress"
+        assert "structured audit sections" in result["review_focus"]
+
+    def test_output_shape(self):
+        from src.explanation import ExceptionExplanation
+        report = _make_report(exception=ExceptionExplanation(
+            reason="NO_PO", triggering_gateway="n8",
+            node="n_exc_no_po", expected_status="EXCEPTION_NO_PO",
+        ))
+        result = self._fn(report)
+        assert set(result.keys()) == {"primary_issue", "supporting_signals", "review_focus"}
+        assert isinstance(result["supporting_signals"], list)
+        assert len(result["supporting_signals"]) <= 4
+
+
+# ===================================================================
+# Failure drill-down panel
+# ===================================================================
+
