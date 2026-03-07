@@ -275,6 +275,90 @@ def _build_operator_review(explanation) -> dict | None:
     }
 
 
+def _build_failure_drilldown(explanation) -> dict | None:
+    """Return a compact structured drill-down for the dominant failure surface.
+
+    Returns None for success outcomes or when no meaningful rows exist.
+    Otherwise returns {"title": str, "rows": list[tuple[str, str]]}.
+    """
+    if explanation is None:
+        return None
+    if not hasattr(explanation, "outcome") or explanation.outcome is None:
+        return None
+    if explanation.outcome.category == "success":
+        return None
+
+    rows: list[tuple[str, str]] = []
+
+    # A. Exception
+    if explanation.exception is not None:
+        exc = explanation.exception
+        rows.append(("Reason", exc.reason))
+        if exc.node:
+            rows.append(("Node", exc.node))
+        if exc.triggering_gateway:
+            rows.append(("Gateway", exc.triggering_gateway))
+        if exc.expected_status:
+            rows.append(("Expected status", exc.expected_status))
+        if explanation.extraction is not None and not explanation.extraction.valid:
+            codes = explanation.extraction.failure_codes
+            if codes:
+                rows.append(("Extraction codes", ", ".join(codes)))
+        if explanation.arithmetic is not None and not explanation.arithmetic.passed:
+            codes = explanation.arithmetic.failure_codes
+            if codes:
+                rows.append(("Arithmetic codes", ", ".join(codes)))
+        return {"title": "Exception Details", "rows": rows[:6]} if rows else None
+
+    # B. Extraction failure
+    if explanation.extraction is not None and not explanation.extraction.valid:
+        ext = explanation.extraction
+        rows.append(("Variant", ext.variant))
+        if ext.failure_codes:
+            rows.append(("Failure codes", ", ".join(ext.failure_codes)))
+        if ext.status_before:
+            rows.append(("Status before", ext.status_before))
+        if ext.status_after:
+            rows.append(("Status after", ext.status_after))
+        if ext.extraction_count and ext.extraction_count > 0:
+            rows.append(("Extraction attempts", str(ext.extraction_count)))
+        return {"title": "Extraction Failure Details", "rows": rows[:5]} if rows else None
+
+    # C. Arithmetic failure
+    if explanation.arithmetic is not None and not explanation.arithmetic.passed:
+        arith = explanation.arithmetic
+        if arith.failure_codes:
+            rows.append(("Failure codes", ", ".join(arith.failure_codes)))
+        if arith.total_sum_delta is not None:
+            rows.append(("Total delta", str(arith.total_sum_delta)))
+        if arith.tax_rate_delta is not None:
+            rows.append(("Tax delta", str(arith.tax_rate_delta)))
+        if arith.checks_run:
+            rows.append(("Checks run", ", ".join(arith.checks_run)))
+        return {"title": "Arithmetic Failure Details", "rows": rows[:4]} if rows else None
+
+    # D. Match problem
+    if explanation.match is not None and explanation.match.match_result != "MATCH":
+        m = explanation.match
+        rows.append(("Match result", m.match_result))
+        if m.source_flag:
+            rows.append(("Source", m.source_flag))
+        if m.po_match_input is not None:
+            rows.append(("PO match input", str(m.po_match_input)))
+        if m.match_3_way_input is not None:
+            rows.append(("3-way input", str(m.match_3_way_input)))
+        if m.resolved_from:
+            rows.append(("Resolved from", m.resolved_from))
+        return {"title": "Match Details", "rows": rows[:5]} if rows else None
+
+    # E. Fallback
+    rows.append(("Outcome category", explanation.outcome.category))
+    if explanation.outcome.final_status:
+        rows.append(("Final status", explanation.outcome.final_status))
+    rows.append(("Terminal", str(explanation.outcome.is_terminal)))
+    rows.append(("Exception outcome", str(explanation.outcome.is_exception)))
+    return {"title": "Outcome Details", "rows": rows}
+
 
 # ---------------------------------------------------------------------------
 # Page config — must be the very first Streamlit call
@@ -661,6 +745,12 @@ if review is not None:
         _body += f"**Supporting signals:**\n{_signals}\n\n"
     _body += f"**Review focus:** {review['review_focus']}"
     st.warning(f"**Operator Review**\n\n{_body}")
+
+# --- Failure drill-down ---
+drill = _build_failure_drilldown(explanation)
+if drill is not None:
+    _lines = [f"**{label}:** {value}" for label, value in drill["rows"]]
+    st.info(f"**{drill['title']}**\n\n" + "\n\n".join(_lines))
 
 # --- Verifier summary ---
 if explanation.extraction is not None:
