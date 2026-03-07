@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_arithmetic_check_v1.json",
+  "title": "AuditEvent: arithmetic_check",
+  "description": "Emitted by ENTER_RECORD and CRITIC_RETRY handlers in nodes.py when at least one arithmetic consistency check runs. Surfaces subtotal/tax/fee validation results.",
+  "type": "object",
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "arithmetic_check"
+    },
+    "checks_run": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["total_sum", "tax_rate"]
+      },
+      "description": "Which arithmetic checks were executed."
+    },
+    "passed": {
+      "type": "boolean",
+      "description": "True when all checks passed (codes is empty)."
+    },
+    "codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["ARITH_TOTAL_MISMATCH", "ARITH_TAX_RATE_MISMATCH"]
+      },
+      "description": "Failure codes for checks that did not pass. Empty on success."
+    },
+    "total_sum": {
+      "type": ["object", "null"],
+      "properties": {
+        "subtotal": { "type": "number" },
+        "taxes": { "type": "number" },
+        "fees": { "type": "number" },
+        "expected": { "type": "number" },
+        "actual": { "type": "number" },
+        "delta": { "type": "number" }
+      },
+      "required": ["subtotal", "taxes", "fees", "expected", "actual", "delta"],
+      "additionalProperties": false,
+      "description": "Subtotal + taxes + fees vs stated total. Null when total_sum check did not run."
+    },
+    "tax_rate": {
+      "type": ["object", "null"],
+      "properties": {
+        "rate_pct": { "type": "number" },
+        "computed": { "type": "number" },
+        "stated": { "type": "number" },
+        "delta": { "type": "number" }
+      },
+      "required": ["rate_pct", "computed", "stated", "delta"],
+      "additionalProperties": false,
+      "description": "Tax-rate consistency check. Null when tax_rate check did not run."
+    }
+  },
+  "required": ["event", "checks_run", "passed", "codes"],
+  "additionalProperties": false
+}
