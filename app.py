@@ -16,9 +16,182 @@ import streamlit as st
 
 from src.agent.compiler import build_ap_graph
 from src.agent.state import APState, make_initial_state
-from src.audit_parser import parse_audit_log
+from src.audit_parser import (
+    AmountCandidatesEvent,
+    ArithmeticCheckEvent,
+    CriticRetryEvent,
+    ExceptionStationEvent,
+    ExtractionEvent,
+    MatchInputsEvent,
+    MatchResultSetEvent,
+    PlainTextEntry,
+    RouteDecisionEvent,
+    RouteRecordEvent,
+    RouteStepEntry,
+    SequentialDispatchEvent,
+    UnknownJsonEntry,
+    VerifierSummaryEvent,
+    parse_audit_log,
+)
 from src.explanation import build_explanation
-from src.ui_audit import extract_router_events
+
+
+# ---------------------------------------------------------------------------
+# Audit trail entry formatter
+# ---------------------------------------------------------------------------
+
+def _format_audit_entry(entry) -> tuple[str, str, str]:
+    """Return (icon, tag, summary) for a single typed audit entry."""
+    if isinstance(entry, ExtractionEvent):
+        icon = "✅" if entry.valid else "❌"
+        codes = entry.reasons or entry.failure_codes or ()
+        suffix = f": {', '.join(codes)}" if codes else ""
+        return icon, "EXTRACT", f"Extraction {'valid' if entry.valid else 'failed'} ({entry.variant}){suffix}"
+
+    if isinstance(entry, VerifierSummaryEvent):
+        icon = "✅" if entry.valid else "❌"
+        v = "✓" if entry.vendor.get("ok") else "✗"
+        a = "✓" if entry.amount.get("ok") else "✗"
+        p = "✓" if entry.has_po.get("ok") else "✗"
+        return icon, "VERIFY", f"Verified {entry.status_before}→{entry.status_after} (vendor{v} / amount{a} / has_po{p})"
+
+    if isinstance(entry, ExceptionStationEvent):
+        return "⚠️", "EXCEPTION", f"Exception: {entry.reason} at {entry.node} (gate {entry.gateway})"
+
+    if isinstance(entry, MatchResultSetEvent):
+        return "🔗", "MATCH", f"Match: {entry.match_result} (source: {entry.source_flag or 'none'})"
+
+    if isinstance(entry, ArithmeticCheckEvent):
+        icon = "✅" if entry.passed else "❌"
+        suffix = f": {', '.join(entry.codes)}" if entry.codes else ""
+        return icon, "ARITHMETIC", f"Arithmetic {'passed' if entry.passed else 'failed'}{suffix}"
+
+    if isinstance(entry, CriticRetryEvent):
+        suffix = f": {', '.join(entry.failure_codes)}" if entry.failure_codes else ""
+        return "🔄", "RETRY", f"Retry #{entry.attempt}: {'valid' if entry.valid else 'failed'}{suffix} → {entry.status}"
+
+    if isinstance(entry, RouteDecisionEvent):
+        return "▶", "ROUTE", f"Route {entry.from_node}→{entry.selected or '?'} ({entry.reason}, {len(entry.candidates)} candidates)"
+
+    if isinstance(entry, RouteStepEntry):
+        actor_part = f" [{entry.actor}]" if entry.actor else ""
+        return "👤", "STEP", f"{entry.intent}{actor_part} at {entry.node_id}"
+
+    if isinstance(entry, MatchInputsEvent):
+        return "🔍", "INPUTS", f"Match inputs: po_match={entry.po_match}, match_3_way={entry.match_3_way}"
+
+    if isinstance(entry, SequentialDispatchEvent):
+        return "⛓️", "DISPATCH", f"Sequential from {entry.node}: {'→'.join(entry.chain)}"
+
+    if isinstance(entry, AmountCandidatesEvent):
+        summary = f"{len(entry.candidates)} candidates, selected {entry.selected if entry.selected is not None else 'none'}"
+        if entry.winning_keyword:
+            summary += f" ({entry.winning_keyword})"
+        return "💰", "AMOUNT", summary
+
+    if isinstance(entry, RouteRecordEvent):
+        rr = entry.route_record
+        gw = rr.get("gateway_id", "")
+        reason = rr.get("reason", "")
+        if gw or reason:
+            return "📋", "RECORD", f"RouteRecord: {gw} {reason}".strip()
+        return "📋", "RECORD", "RouteRecord"
+
+    if isinstance(entry, PlainTextEntry):
+        raw = entry.raw
+        if len(raw) > 200:
+            raw = raw[:200] + "…"
+        return "📝", "TEXT", raw
+
+    if isinstance(entry, UnknownJsonEntry):
+        return "❓", "UNKNOWN", f"Unknown event: {entry.event or 'no event key'}"
+
+    return "❓", "UNKNOWN", str(entry)
+
+
+def _get_outcome_category(item: dict) -> str:
+    """Extract outcome category from a history item, with fallback.
+
+    Fallback categories mirror active-view outcome semantics:
+    success / rejection / exception / in_progress / unknown.
+    """
+    expl = item.get("explanation")
+    if expl and isinstance(expl, dict):
+        outcome = expl.get("outcome")
+        if outcome and isinstance(outcome, dict):
+            cat = outcome.get("category")
+            if cat:
+                return cat
+    # Fallback for old items: derive from status
+    status = item.get("status", "")
+    if status in ("APPROVED", "PAID", "CLOSED"):
+        return "success"
+    if status.startswith("EXCEPTION_"):
+        return "exception"
+    if status in ("REJECTED", "ESCALATED", "BAD_EXTRACTION", "MISSING_DATA"):
+        return "rejection"
+    if status in ("NEW", "DATA_EXTRACTED", "NEEDS_RETRY", "VALIDATED", "PENDING_INFO"):
+        return "in_progress"
+    return "unknown"
+
+
+def _get_history_summary(item: dict) -> str:
+    """Derive a compact summary string from a history item's explanation dict.
+
+    Priority chain (first match wins):
+    exception > extraction failure > arithmetic failure > match > clean pass > fallback.
+    Only emits "Clean pass" when an explanation dict is present.
+    """
+    expl = item.get("explanation")
+    if not expl or not isinstance(expl, dict):
+        status = item.get("status")
+        return f"Status: {status}" if status else "No structured summary"
+
+    # 1. Exception
+    exc = expl.get("exception")
+    if exc and isinstance(exc, dict):
+        reason = exc.get("reason")
+        if reason:
+            return f"Exception: {reason}"
+
+    # 2. Extraction failure
+    ext = expl.get("extraction")
+    if ext and isinstance(ext, dict):
+        if ext.get("valid") is False:
+            codes = ext.get("failure_codes")
+            if codes and isinstance(codes, (list, tuple)):
+                return f"Extraction failed: {', '.join(str(c) for c in codes)}"
+            return "Extraction failed"
+
+    # 3. Arithmetic failure
+    arith = expl.get("arithmetic")
+    if arith and isinstance(arith, dict):
+        if arith.get("passed") is False:
+            codes = arith.get("failure_codes")
+            code_str = ", ".join(str(c) for c in codes) if codes and isinstance(codes, (list, tuple)) else ""
+            delta = arith.get("total_sum_delta")
+            if delta is None:
+                delta = arith.get("tax_rate_delta")
+            suffix = f" (Δ {delta})" if delta is not None else ""
+            return f"Arithmetic failed: {code_str}{suffix}".rstrip(": ")
+
+    # 4. Match
+    match = expl.get("match")
+    if match and isinstance(match, dict):
+        result = match.get("match_result", "UNKNOWN")
+        source = match.get("source_flag")
+        via = f" via {source}" if source else ""
+        return f"Match: {result}{via}"
+
+    # 5. Clean pass (only when explanation exists)
+    if _get_outcome_category(item) == "success":
+        return "Clean pass"
+
+    # 6. Fallback
+    status = item.get("status")
+    return f"Status: {status}" if status else "No structured summary"
+
+
 
 # ---------------------------------------------------------------------------
 # Page config — must be the very first Streamlit call
@@ -177,7 +350,8 @@ with st.sidebar:
 
         col_tot, col_app = st.columns(2)
         col_tot.metric("Total",    len(history))
-        col_app.metric("Approved", counts.get("APPROVED", 0) + counts.get("PAID", 0))
+        success_count = sum(1 for r in history if _get_outcome_category(r) == "success")
+        col_app.metric("Successful", success_count)
 
         st.markdown("**Status Breakdown**")
         for s, n in sorted(counts.items()):
@@ -188,10 +362,12 @@ with st.sidebar:
         st.caption("Recent invoices (latest first):")
         df = pd.DataFrame([
             {
-                "ID":     r["invoice_id"],
-                "Vendor": str(r["vendor"])[:16],
-                "Amt":    f"${r['amount']:,.0f}" if r["amount"] else "N/A",
-                "Status": r["status"],
+                "ID":      r["invoice_id"],
+                "Vendor":  str(r["vendor"])[:16],
+                "Amt":     f"${r['amount']:,.0f}" if r["amount"] else "N/A",
+                "Status":  r["status"],
+                "Outcome": _get_outcome_category(r),
+                "Summary": _get_history_summary(r),
             }
             for r in reversed(history[-8:])
         ])
@@ -404,6 +580,21 @@ if explanation.extraction is not None:
             f"reasons: {', '.join(_codes) if _codes else 'unknown'}"
         )
 
+# --- Arithmetic consistency ---
+if explanation.arithmetic is not None:
+    if explanation.arithmetic.passed:
+        st.caption("Arithmetic checks passed ✅")
+    else:
+        _arith_msg = (
+            "Invoice arithmetic inconsistency detected ⚠️ — "
+            f"codes: {', '.join(explanation.arithmetic.failure_codes) or 'unknown'}"
+        )
+        if explanation.arithmetic.total_sum_delta:
+            _arith_msg += f"  |  total Δ {explanation.arithmetic.total_sum_delta}"
+        if explanation.arithmetic.tax_rate_delta:
+            _arith_msg += f"  |  tax rate Δ {explanation.arithmetic.tax_rate_delta}"
+        st.warning(_arith_msg)
+
 # --- Match result detail ---
 if explanation.match is not None:
     _mr = explanation.match.match_result
@@ -416,6 +607,7 @@ st.session_state.history.append({
     "vendor":     vendor_val,
     "amount":     amount_val,
     "status":     status_val,
+    "explanation": explanation.to_dict() if explanation is not None and hasattr(explanation, "to_dict") else None,
 })
 
 # ---------------------------------------------------------------------------
@@ -423,19 +615,29 @@ st.session_state.history.append({
 # ---------------------------------------------------------------------------
 st.divider()
 with st.expander("Determinism & Routing Flags"):
-    route_events = extract_router_events(audit_log)
-    if not route_events:
-        st.caption("No routing events recorded.")
-    else:
-        route_rows = []
-        for ev in route_events:
-            if "raw" in ev:
-                route_rows.append({"Step": ev["raw"], "Type": "Executed"})
-            else:
-                target = ev.get("target", ev.get("node", ""))
-                event  = ev.get("event", "")
-                route_rows.append({"Step": f"{event} → {target}" if target else event, "Type": "Route"})
+    route_rows: list[dict] = []
+    if explanation.routing is not None:
+        for d in explanation.routing.decisions:
+            route_rows.append({
+                "Type": "Gateway",
+                "Node": d.gateway_id,
+                "Target": d.selected or "—",
+                "Reason": d.reason,
+                "Candidates": d.candidate_count,
+            })
+    for e in parsed.entries:
+        if isinstance(e, RouteStepEntry):
+            route_rows.append({
+                "Type": "Step",
+                "Node": e.node_id,
+                "Target": "—",
+                "Reason": e.intent,
+                "Candidates": "—",
+            })
+    if route_rows:
         st.table(pd.DataFrame(route_rows))
+    else:
+        st.caption("No routing decisions recorded.")
 
     st.caption(f"Final node reached: `{current_node}`" if current_node else "Final node: unknown")
 
@@ -444,27 +646,9 @@ with st.expander("Determinism & Routing Flags"):
 # ---------------------------------------------------------------------------
 st.divider()
 with st.expander("View AI Audit Trail", expanded=True):
-    if not audit_log:
+    if not parsed.entries:
         st.caption("No audit entries recorded.")
     else:
-        for i, entry in enumerate(audit_log, 1):
-            entry_str = str(entry)
-            lower = entry_str.lower()
-
-            if "extracted" in lower or '"event": "extraction"' in lower:
-                icon, tag = "🔍", "`LLM EXTRACT`"
-            elif "validation" in lower or '"event": "verifier"' in lower:
-                icon = "✅" if "true" in lower else "❌"
-                tag  = "`LLM VALIDATE`"
-            elif any(k in lower for k in ("escalat", "reject", "exception", "flagged", "manual review")):
-                icon, tag = "⚠️", "`GUARDRAIL`"
-            elif "approve" in lower:
-                icon, tag = "✅", "`DECISION`"
-            elif "match_result" in lower:
-                icon, tag = "🔗", "`MATCH`"
-            elif "route" in lower or lower.startswith("executed "):
-                icon, tag = "▶", "`ROUTE`"
-            else:
-                icon, tag = "▶", "`ROUTE`"
-
-            st.markdown(f"{icon} &nbsp; **Step {i}** &nbsp; {tag} &nbsp; — &nbsp; {entry_str}")
+        for i, entry in enumerate(parsed.entries, 1):
+            icon, tag, summary = _format_audit_entry(entry)
+            st.markdown(f"{icon} &nbsp; **Step {i}** &nbsp; `{tag}` &nbsp; — &nbsp; {summary}")
