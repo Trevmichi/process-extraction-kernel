@@ -887,3 +887,206 @@ class TestOperatorReview:
 # Failure drill-down panel
 # ===================================================================
 
+def _get_drilldown_fn():
+    """Extract _build_failure_drilldown from app.py via AST."""
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parent.parent / "app.py"
+    source_text = src.read_text(encoding="utf-8")
+    tree = ast.parse(source_text)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_build_failure_drilldown":
+            func_src = ast.get_source_segment(source_text, node)
+            break
+    else:
+        raise RuntimeError("_build_failure_drilldown not found in app.py")
+    ns: dict = {}
+    exec(compile(func_src, str(src), "exec"), ns)
+    return ns["_build_failure_drilldown"]
+
+
+class TestFailureDrilldown:
+
+    _fn = staticmethod(_get_drilldown_fn())
+
+    def test_success_returns_none(self):
+        report = _make_report(outcome_category="success", final_status="APPROVED")
+        assert self._fn(report) is None
+
+    def test_exception_drilldown_core_fields(self):
+        from src.explanation import ExceptionExplanation
+        report = _make_report(exception=ExceptionExplanation(
+            reason="NO_PO", triggering_gateway="n8",
+            node="n_exc_no_po", expected_status="EXCEPTION_NO_PO",
+        ))
+        result = self._fn(report)
+        assert result["title"] == "Exception Details"
+        labels = [r[0] for r in result["rows"]]
+        assert "Reason" in labels
+        assert "Node" in labels
+        assert "Gateway" in labels
+        assert "Expected status" in labels
+        assert dict(result["rows"])["Reason"] == "NO_PO"
+
+    def test_exception_drilldown_caps_rows(self):
+        from src.explanation import (
+            ArithmeticExplanation, ExceptionExplanation, ExtractionExplanation,
+        )
+        report = _make_report(
+            exception=ExceptionExplanation(
+                reason="BAD_EXTRACTION", triggering_gateway="n3",
+                node="n_exc_bad", expected_status="EXCEPTION_BAD_EXTRACTION",
+            ),
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH", "PO_PATTERN_MISSING"),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Exception Details"
+        assert len(result["rows"]) <= 6
+
+    def test_extraction_failure_drilldown(self):
+        from src.explanation import ExtractionExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH",),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Extraction Failure Details"
+        labels = [r[0] for r in result["rows"]]
+        assert "Variant" in labels
+        assert "Failure codes" in labels
+
+    def test_extraction_failure_attempts(self):
+        from src.explanation import ExtractionExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH",),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=2,
+            ),
+        )
+        result = self._fn(report)
+        row_dict = dict(result["rows"])
+        assert row_dict.get("Extraction attempts") == "2"
+
+    def test_arithmetic_failure_total_delta(self):
+        from src.explanation import ArithmeticExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Arithmetic Failure Details"
+        row_dict = dict(result["rows"])
+        assert "300.0" in row_dict.get("Total delta", "")
+
+    def test_arithmetic_failure_tax_delta_only(self):
+        from src.explanation import ArithmeticExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            arithmetic=ArithmeticExplanation(
+                checks_run=("tax_rate",), passed=False,
+                failure_codes=("ARITH_TAX_RATE_MISMATCH",),
+                total_sum_delta=None, tax_rate_delta=0.05, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        row_dict = dict(result["rows"])
+        assert "Total delta" not in row_dict
+        assert "0.05" in row_dict.get("Tax delta", "")
+
+    def test_match_problem_drilldown(self):
+        from src.explanation import MatchExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="REJECTED",
+            match=MatchExplanation(
+                match_result="NO_MATCH", source_flag="po_match",
+                po_match_input=False, match_3_way_input=None,
+                resolved_from="po_match",
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Match Details"
+        row_dict = dict(result["rows"])
+        assert row_dict["Match result"] == "NO_MATCH"
+        assert row_dict["Source"] == "po_match"
+
+    def test_priority_exception_over_extraction(self):
+        from src.explanation import ExceptionExplanation, ExtractionExplanation
+        report = _make_report(
+            exception=ExceptionExplanation(
+                reason="BAD_EXTRACTION", triggering_gateway="n3",
+                node="n_exc_bad", expected_status="EXCEPTION_BAD_EXTRACTION",
+            ),
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH",),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Exception Details"
+
+    def test_priority_extraction_over_arithmetic(self):
+        from src.explanation import ArithmeticExplanation, ExtractionExplanation
+        report = _make_report(
+            outcome_category="rejection", final_status="BAD_EXTRACTION",
+            extraction=ExtractionExplanation(
+                variant="verifier", valid=False,
+                failure_codes=("AMOUNT_MISMATCH",),
+                status_before="NEW", status_after="BAD_EXTRACTION",
+                field_results=None, extraction_count=1,
+            ),
+            arithmetic=ArithmeticExplanation(
+                checks_run=("total_sum",), passed=False,
+                failure_codes=("ARITH_TOTAL_MISMATCH",),
+                total_sum_delta=300.0, tax_rate_delta=None, check_count=1,
+            ),
+        )
+        result = self._fn(report)
+        assert result["title"] == "Extraction Failure Details"
+
+    def test_fallback_drilldown(self):
+        report = _make_report(
+            outcome_category="in_progress", final_status="NEW",
+        )
+        result = self._fn(report)
+        assert result["title"] == "Outcome Details"
+        row_dict = dict(result["rows"])
+        assert row_dict["Outcome category"] == "in_progress"
+        assert row_dict["Final status"] == "NEW"
+
+    def test_output_shape(self):
+        from src.explanation import ExceptionExplanation
+        report = _make_report(exception=ExceptionExplanation(
+            reason="NO_PO", triggering_gateway="n8",
+            node="n_exc_no_po", expected_status="EXCEPTION_NO_PO",
+        ))
+        result = self._fn(report)
+        assert set(result.keys()) == {"title", "rows"}
+        assert isinstance(result["rows"], list)
+        for row in result["rows"]:
+            assert isinstance(row, tuple)
+            assert len(row) == 2
