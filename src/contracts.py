@@ -89,6 +89,18 @@ class TaxAmountProvenance(TypedDict):
     delta: float | None
 
 
+class ArithmeticProvenance(TypedDict, total=False):
+    """Provenance from arithmetic consistency checks (Phase 8).
+
+    Present in ProvenanceReport only when at least one check ran.
+    """
+    checks_run: list[str]
+    passed: bool
+    codes: list[str]
+    total_sum: dict      # {subtotal, taxes, fees, expected, actual, delta}
+    tax_rate: dict       # {rate_pct, computed, stated, delta}
+
+
 class ProvenanceReport(TypedDict, total=False):
     """Per-field provenance from verify_extraction().
 
@@ -100,6 +112,7 @@ class ProvenanceReport(TypedDict, total=False):
     has_po: HasPoProvenance
     invoice_date: InvoiceDateProvenance
     tax_amount: TaxAmountProvenance
+    arithmetic: ArithmeticProvenance
 
 
 # ---------------------------------------------------------------------------

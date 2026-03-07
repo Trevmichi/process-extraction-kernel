@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "failure_codes_v1.json",
   "title": "FailureCode",
-  "description": "Verifier failure code enum. Grounded in src/verifier.py FailureCode Literal type (24 codes).",
+  "description": "Verifier failure code enum. Grounded in src/verifier.py FailureCode Literal type (26 codes).",
   "type": "string",
   "enum": [
     "EVIDENCE_NOT_FOUND",
@@ -27,6 +27,8 @@
     "TAX_PARSE_FAILED",
     "TAX_ANCHOR_MISSING",
     "TAX_AMBIGUOUS_EVIDENCE",
-    "TAX_AMOUNT_MISMATCH"
+    "TAX_AMOUNT_MISMATCH",
+    "ARITH_TOTAL_MISMATCH",
+    "ARITH_TAX_RATE_MISMATCH"
   ]
 }

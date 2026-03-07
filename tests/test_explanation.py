@@ -10,6 +10,7 @@ import pytest
 from src.audit_parser import parse_audit_log
 from src.explanation import (
     AmountExplanation,
+    ArithmeticExplanation,
     ExceptionExplanation,
     ExplanationReport,
     ExtractionExplanation,
@@ -612,3 +613,71 @@ class TestIntegration:
         assert report.outcome.final_status == "EXCEPTION_BAD_EXTRACTION"
         assert report.outcome.category == "exception"
         assert report.retry is None
+
+
+# ===================================================================
+# Group 11: ArithmeticExplanation
+# ===================================================================
+
+class TestArithmeticExplanation:
+
+    def test_build_from_passing_event(self):
+        log = _parsed(_j({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum", "tax_rate"],
+            "passed": True,
+            "codes": [],
+            "total_sum": {"subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                          "expected": 447.0, "actual": 447.0, "delta": 0.0},
+            "tax_rate": {"rate_pct": 8.0, "computed": 32.0, "stated": 32.0, "delta": 0.0},
+        }))
+        report = build_explanation(log, final_status="DATA_EXTRACTED")
+        assert report.arithmetic is not None
+        assert report.arithmetic.passed is True
+        assert report.arithmetic.failure_codes == ()
+        assert report.arithmetic.check_count == 2
+        assert report.arithmetic.total_sum_delta == 0.0
+        assert report.arithmetic.tax_rate_delta == 0.0
+
+    def test_build_from_failing_event(self):
+        log = _parsed(_j({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum"],
+            "passed": False,
+            "codes": ["ARITH_TOTAL_MISMATCH"],
+            "total_sum": {"subtotal": 200.0, "taxes": 0.0, "fees": 0.0,
+                          "expected": 200.0, "actual": 500.0, "delta": 300.0},
+        }))
+        report = build_explanation(log, final_status="BAD_EXTRACTION")
+        assert report.arithmetic is not None
+        assert report.arithmetic.passed is False
+        assert report.arithmetic.failure_codes == ("ARITH_TOTAL_MISMATCH",)
+        assert report.arithmetic.total_sum_delta == 300.0
+        assert report.arithmetic.tax_rate_delta is None
+        assert report.arithmetic.check_count == 1
+
+    def test_no_event_returns_none(self):
+        report = build_explanation(_parsed(), final_status="NEW")
+        assert report.arithmetic is None
+
+    def test_to_dict_serialization(self):
+        log = _parsed(_j({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum"],
+            "passed": True,
+            "codes": [],
+            "total_sum": {"delta": 0.0},
+        }))
+        report = build_explanation(log, final_status="DATA_EXTRACTED")
+        d = report.to_dict()
+        assert d["arithmetic"] is not None
+        assert d["arithmetic"]["passed"] is True
+        assert d["arithmetic"]["checks_run"] == ["total_sum"]
+        assert d["arithmetic"]["check_count"] == 1
+        # JSON-serializable
+        json.dumps(d)
+
+    def test_sparse_report_arithmetic_none(self):
+        report = build_explanation(_parsed(), final_status="NEW")
+        d = report.to_dict()
+        assert d["arithmetic"] is None

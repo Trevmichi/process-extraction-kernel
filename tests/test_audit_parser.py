@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.audit_parser import (
     AmountCandidatesEvent,
+    ArithmeticCheckEvent,
     CriticRetryEvent,
     ExceptionStationEvent,
     ExtractionEvent,
@@ -672,3 +673,72 @@ class TestRealisticIntegration:
         # No unknowns
         assert len(parsed.unknown_json) == 0
         assert len(parsed.plain_text) == 0
+
+
+# ===================================================================
+# ArithmeticCheckEvent
+# ===================================================================
+
+class TestArithmeticCheckEvent:
+
+    def test_parse_passing_event(self):
+        log = [_j({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum", "tax_rate"],
+            "passed": True,
+            "codes": [],
+            "total_sum": {"subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                          "expected": 447.0, "actual": 447.0, "delta": 0.0},
+            "tax_rate": {"rate_pct": 8.0, "computed": 32.0, "stated": 32.0, "delta": 0.0},
+        })]
+        parsed = parse_audit_log(log)
+        assert len(parsed.arithmetic_checks) == 1
+        ac = parsed.arithmetic_checks[0]
+        assert isinstance(ac, ArithmeticCheckEvent)
+        assert ac.passed is True
+        assert ac.codes == ()
+        assert ac.checks_run == ("total_sum", "tax_rate")
+        assert ac.total_sum["delta"] == 0.0
+        assert ac.tax_rate["rate_pct"] == 8.0
+
+    def test_parse_failing_event(self):
+        log = [_j({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum"],
+            "passed": False,
+            "codes": ["ARITH_TOTAL_MISMATCH"],
+            "total_sum": {"subtotal": 200.0, "taxes": 0.0, "fees": 0.0,
+                          "expected": 200.0, "actual": 500.0, "delta": 300.0},
+        })]
+        parsed = parse_audit_log(log)
+        ac = parsed.arithmetic_checks[0]
+        assert ac.passed is False
+        assert ac.codes == ("ARITH_TOTAL_MISMATCH",)
+        assert ac.tax_rate is None
+
+    def test_no_arithmetic_event(self):
+        parsed = parse_audit_log([_j({"event": "extraction", "node": "ENTER_RECORD",
+                                       "valid": True, "reasons": []})])
+        assert parsed.arithmetic_checks == ()
+        assert parsed.last_arithmetic_check is None
+
+    def test_last_arithmetic_check_property(self):
+        log = [
+            _j({"event": "arithmetic_check", "checks_run": ["total_sum"],
+                "passed": False, "codes": ["ARITH_TOTAL_MISMATCH"],
+                "total_sum": {"delta": 300.0}}),
+            _j({"event": "arithmetic_check", "checks_run": ["total_sum"],
+                "passed": True, "codes": [],
+                "total_sum": {"delta": 0.0}}),
+        ]
+        parsed = parse_audit_log(log)
+        assert len(parsed.arithmetic_checks) == 2
+        assert parsed.last_arithmetic_check.passed is True
+
+    def test_not_unknown_json(self):
+        """arithmetic_check should be typed, not fall into UnknownJsonEntry."""
+        log = [_j({"event": "arithmetic_check", "checks_run": ["total_sum"],
+                    "passed": True, "codes": []})]
+        parsed = parse_audit_log(log)
+        assert len(parsed.unknown_json) == 0
+        assert len(parsed.arithmetic_checks) == 1

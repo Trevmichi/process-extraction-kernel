@@ -13,6 +13,7 @@ from typing import Union
 
 from .audit_parser import (
     AmountCandidatesEvent,
+    ArithmeticCheckEvent,
     ExtractionEvent,
     MatchInputsEvent,
     ParsedAuditLog,
@@ -232,6 +233,31 @@ class AmountExplanation:
 
 
 # ===================================================================
+# Arithmetic explanation
+# ===================================================================
+
+@dataclass(frozen=True)
+class ArithmeticExplanation:
+    """Arithmetic consistency check summary."""
+    checks_run: tuple[str, ...]
+    passed: bool
+    failure_codes: tuple[str, ...]
+    total_sum_delta: float | None
+    tax_rate_delta: float | None
+    check_count: int
+
+    def to_dict(self) -> dict:
+        return {
+            "checks_run": list(self.checks_run),
+            "passed": self.passed,
+            "failure_codes": list(self.failure_codes),
+            "total_sum_delta": self.total_sum_delta,
+            "tax_rate_delta": self.tax_rate_delta,
+            "check_count": self.check_count,
+        }
+
+
+# ===================================================================
 # Top-level report
 # ===================================================================
 
@@ -249,6 +275,7 @@ class ExplanationReport:
     exception: ExceptionExplanation | None
     retry: RetryExplanation | None
     amount: AmountExplanation | None
+    arithmetic: ArithmeticExplanation | None
     outcome: OutcomeClassification
 
     def to_dict(self) -> dict:
@@ -260,6 +287,7 @@ class ExplanationReport:
             "exception": self.exception.to_dict() if self.exception else None,
             "retry": self.retry.to_dict() if self.retry else None,
             "amount": self.amount.to_dict() if self.amount else None,
+            "arithmetic": self.arithmetic.to_dict() if self.arithmetic else None,
             "outcome": self.outcome.to_dict(),
         }
 
@@ -417,6 +445,29 @@ def _build_amount(parsed: ParsedAuditLog) -> AmountExplanation | None:
     )
 
 
+def _build_arithmetic(parsed: ParsedAuditLog) -> ArithmeticExplanation | None:
+    ac = parsed.last_arithmetic_check
+    if ac is None:
+        return None
+
+    total_sum_delta: float | None = None
+    if ac.total_sum is not None:
+        total_sum_delta = ac.total_sum.get("delta")
+
+    tax_rate_delta: float | None = None
+    if ac.tax_rate is not None:
+        tax_rate_delta = ac.tax_rate.get("delta")
+
+    return ArithmeticExplanation(
+        checks_run=ac.checks_run,
+        passed=ac.passed,
+        failure_codes=ac.codes,
+        total_sum_delta=total_sum_delta,
+        tax_rate_delta=tax_rate_delta,
+        check_count=len(ac.checks_run),
+    )
+
+
 def _infer_status(parsed: ParsedAuditLog) -> str:
     """Infer final status from audit events.
 
@@ -483,5 +534,6 @@ def build_explanation(
         exception=_build_exception(parsed),
         retry=_build_retry(parsed),
         amount=_build_amount(parsed),
+        arithmetic=_build_arithmetic(parsed),
         outcome=outcome,
     )
