@@ -161,8 +161,8 @@ class TestFailureCodesSchema:
             jsonschema.validate("STRUCT_MISSING_VENDOR", self.schema)
 
     def test_enum_count(self):
-        """Sanity: enum has exactly 23 codes (matching FailureCode Literal)."""
-        assert len(self.schema["enum"]) == 23
+        """Sanity: enum has exactly 25 codes (matching FailureCode Literal)."""
+        assert len(self.schema["enum"]) == 25
 
 
 # -----------------------------------------------------------------------
@@ -1121,6 +1121,277 @@ class TestAuditEventCriticRetrySchema:
                 "failure_codes": [],
                 "status": "DATA_EXTRACTED",
             })
+
+
+# -----------------------------------------------------------------------
+# Audit Event: arithmetic_check
+# -----------------------------------------------------------------------
+
+class TestAuditEventArithmeticCheckSchema:
+    """Validate audit_event_arithmetic_check_v1.json."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_arithmetic_check_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_pass_total_sum_only(self):
+        self._validate({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum"],
+            "passed": True,
+            "codes": [],
+            "total_sum": {
+                "subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                "expected": 447.0, "actual": 447.0, "delta": 0.0,
+            },
+            "tax_rate": None,
+        })
+
+    def test_pass_tax_rate_only(self):
+        self._validate({
+            "event": "arithmetic_check",
+            "checks_run": ["tax_rate"],
+            "passed": True,
+            "codes": [],
+            "total_sum": None,
+            "tax_rate": {
+                "rate_pct": 8.0, "computed": 32.0, "stated": 32.0, "delta": 0.0,
+            },
+        })
+
+    def test_pass_both_checks(self):
+        self._validate({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum", "tax_rate"],
+            "passed": True,
+            "codes": [],
+            "total_sum": {
+                "subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                "expected": 447.0, "actual": 447.0, "delta": 0.0,
+            },
+            "tax_rate": {
+                "rate_pct": 8.0, "computed": 32.0, "stated": 32.0, "delta": 0.0,
+            },
+        })
+
+    def test_fail_total_mismatch(self):
+        self._validate({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum"],
+            "passed": False,
+            "codes": ["ARITH_TOTAL_MISMATCH"],
+            "total_sum": {
+                "subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                "expected": 447.0, "actual": 747.0, "delta": 300.0,
+            },
+            "tax_rate": None,
+        })
+
+    def test_fail_tax_rate_mismatch(self):
+        self._validate({
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum", "tax_rate"],
+            "passed": False,
+            "codes": ["ARITH_TAX_RATE_MISMATCH"],
+            "total_sum": {
+                "subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                "expected": 447.0, "actual": 447.0, "delta": 0.0,
+            },
+            "tax_rate": {
+                "rate_pct": 10.0, "computed": 40.0, "stated": 32.0, "delta": 8.0,
+            },
+        })
+
+    def test_rejects_unknown_code(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "arithmetic_check",
+                "checks_run": ["total_sum"],
+                "passed": False,
+                "codes": ["ARITH_FAKE"],
+                "total_sum": None,
+            })
+
+    def test_rejects_unknown_check_name(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "arithmetic_check",
+                "checks_run": ["unknown"],
+                "passed": True,
+                "codes": [],
+            })
+
+    def test_rejects_missing_required_field(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "arithmetic_check",
+                "checks_run": ["total_sum"],
+                "codes": [],
+            })
+
+    def test_rejects_extra_top_level_key(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({
+                "event": "arithmetic_check",
+                "checks_run": ["total_sum"],
+                "passed": True,
+                "codes": [],
+                "unexpected": 123,
+            })
+
+    def test_cross_layer_schema_parser_explanation(self):
+        """Full pipeline: schema-valid payload -> parse_audit_log -> build_explanation."""
+        from src.audit_parser import parse_audit_log
+        from src.explanation import build_explanation
+
+        payload = {
+            "event": "arithmetic_check",
+            "checks_run": ["total_sum", "tax_rate"],
+            "passed": False,
+            "codes": ["ARITH_TOTAL_MISMATCH"],
+            "total_sum": {
+                "subtotal": 400.0, "taxes": 32.0, "fees": 15.0,
+                "expected": 447.0, "actual": 747.0, "delta": 300.0,
+            },
+            "tax_rate": {
+                "rate_pct": 8.0, "computed": 32.0, "stated": 32.0, "delta": 0.0,
+            },
+        }
+        # Schema validates
+        self._validate(payload)
+
+        # Parser round-trip
+        parsed = parse_audit_log([json.dumps(payload)])
+        assert parsed.last_arithmetic_check is not None
+        ac = parsed.last_arithmetic_check
+        assert ac.passed is False
+        assert "ARITH_TOTAL_MISMATCH" in ac.codes
+        assert ac.total_sum["delta"] == 300.0
+
+        # Explanation round-trip
+        report = build_explanation(parsed, final_status="BAD_EXTRACTION")
+        assert report.arithmetic is not None
+        assert report.arithmetic.passed is False
+        assert "ARITH_TOTAL_MISMATCH" in report.arithmetic.failure_codes
+        assert report.arithmetic.total_sum_delta == 300.0
+        assert report.arithmetic.tax_rate_delta == 0.0
+
+
+# -----------------------------------------------------------------------
+# Audit Event: route_record wrapper
+# -----------------------------------------------------------------------
+
+def _make_route_record_wrapper(*, reason="condition_match", selected_edge=None,
+                                exception_mapping=None, edges=None):
+    """Build a representative route_record audit event wrapper payload."""
+    if edges is None:
+        edges = [
+            {"to": "n4", "raw_condition": "has_po == true"},
+            {"to": "n5", "raw_condition": "has_po == false"},
+        ]
+    if selected_edge is None and reason not in ("ambiguous_route", "no_route"):
+        selected_edge = {"to": edges[0]["to"], "condition": edges[0]["raw_condition"]}
+    return {
+        "event": "route_record",
+        "route_record": {
+            "gateway_id": "n3",
+            "outgoing_edge_set": edges,
+            "normalized_conditions": [
+                {**e, "normalized_condition": e["raw_condition"]} for e in edges
+            ],
+            "predicate_results": [
+                {"to": e["to"], "normalized_condition": e["raw_condition"],
+                 "matched": i == 0, "phase": "conditional"}
+                for i, e in enumerate(edges)
+            ],
+            "selected_edge": selected_edge,
+            "reason": reason,
+            "exception_mapping": exception_mapping,
+            "schema_version": "route_record_v1",
+        },
+    }
+
+
+class TestAuditEventRouteRecordWrapperSchema:
+    """Validate audit_event_route_record_v1.json — wrapper around RouteRecord."""
+
+    @pytest.fixture(autouse=True)
+    def _load(self):
+        self.schema = _load_schema("audit_event_route_record_v1.json")
+
+    def _validate(self, instance):
+        jsonschema.validate(instance, self.schema)
+
+    def test_schema_is_valid_json_schema(self):
+        jsonschema.Draft202012Validator.check_schema(self.schema)
+
+    def test_valid_condition_match(self):
+        self._validate(_make_route_record_wrapper(reason="condition_match"))
+
+    def test_valid_single_edge(self):
+        edge = [{"to": "n5", "raw_condition": None}]
+        self._validate(_make_route_record_wrapper(
+            reason="single_edge",
+            edges=edge,
+            selected_edge={"to": "n5", "condition": None},
+        ))
+
+    def test_valid_exception_mapping(self):
+        self._validate(_make_route_record_wrapper(
+            reason="ambiguous_route",
+            selected_edge=None,
+            exception_mapping={"intent_key": "AMBIGUOUS_ROUTE", "sink_node": "n_exc_ambiguous"},
+        ))
+
+    def test_rejects_wrong_event_name(self):
+        payload = _make_route_record_wrapper()
+        payload["event"] = "route_decision"
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(payload)
+
+    def test_rejects_missing_route_record(self):
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate({"event": "route_record"})
+
+    def test_rejects_invalid_nested_reason(self):
+        payload = _make_route_record_wrapper()
+        payload["route_record"]["reason"] = "fake_reason"
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(payload)
+
+    def test_rejects_extra_top_level_key(self):
+        payload = _make_route_record_wrapper()
+        payload["extra"] = 1
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(payload)
+
+    def test_rejects_nested_extra_key(self):
+        payload = _make_route_record_wrapper()
+        payload["route_record"]["bonus"] = True
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(payload)
+
+    def test_cross_layer_schema_parser(self):
+        """Full pipeline: schema-valid wrapper -> parse_audit_log -> RouteRecordEvent."""
+        from src.audit_parser import RouteRecordEvent, parse_audit_log
+
+        payload = _make_route_record_wrapper(reason="condition_match")
+        self._validate(payload)
+
+        parsed = parse_audit_log([json.dumps(payload)])
+        assert len(parsed.route_records) == 1
+        rr = parsed.route_records[0]
+        assert isinstance(rr, RouteRecordEvent)
+        assert rr.route_record["gateway_id"] == "n3"
+        assert rr.route_record["reason"] == "condition_match"
+        assert rr.route_record["selected_edge"]["to"] == "n4"
+        assert rr.route_record["schema_version"] == "route_record_v1"
 
 
 # -----------------------------------------------------------------------
