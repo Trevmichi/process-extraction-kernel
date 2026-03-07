@@ -37,6 +37,7 @@ from langchain_ollama import ChatOllama
 from .state import APState
 from ..contracts import validate_extraction_structure
 from ..ontology import VALID_STATUSES
+from ..arithmetic import check_arithmetic
 from ..verifier import (
     verify_extraction,
     MONEY_RE, CURRENCY_RE, AMOUNT_KEYWORDS, KEYWORD_WINDOW, normalize_text,
@@ -251,6 +252,14 @@ def execute_node(state: APState, node_data: dict,
             else:
                 # Run deterministic evidence verifier
                 valid, codes, prov = verify_extraction(raw_text, parsed)
+
+                # Phase 8: arithmetic consistency check
+                arith_codes, arith_prov = check_arithmetic(raw_text)
+                codes.extend(arith_codes)
+                if arith_prov is not None:
+                    prov["arithmetic"] = arith_prov
+                valid = valid and len(arith_codes) == 0
+
                 updates["provenance"] = prov
 
                 # Build per-field evidence presence flags
@@ -321,6 +330,13 @@ def execute_node(state: APState, node_data: dict,
                     "selected": prov.get("amount", {}).get("parsed_evidence"),
                     "winning_keyword": _winning_keyword,
                 }))
+
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
+                    updates["audit_log"].append(json.dumps({
+                        "event": "arithmetic_check",
+                        **arith_prov,
+                    }))
 
                 if valid:
                     # Map nested values to core state fields
@@ -404,6 +420,14 @@ Text:
                 ]
             else:
                 valid, codes, prov = verify_extraction(raw_text, parsed)
+
+                # Phase 8: arithmetic consistency check
+                arith_codes, arith_prov = check_arithmetic(raw_text)
+                codes.extend(arith_codes)
+                if arith_prov is not None:
+                    prov["arithmetic"] = arith_prov
+                valid = valid and len(arith_codes) == 0
+
                 updates["provenance"] = prov
 
                 cr_status = "DATA_EXTRACTED" if valid else "BAD_EXTRACTION"
@@ -472,6 +496,13 @@ Text:
                     "selected": prov.get("amount", {}).get("parsed_evidence"),
                     "winning_keyword": _winning_keyword,
                 }))
+
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
+                    updates["audit_log"].append(json.dumps({
+                        "event": "arithmetic_check",
+                        **arith_prov,
+                    }))
 
                 if valid:
                     updates["vendor"] = str(parsed["vendor"]["value"])

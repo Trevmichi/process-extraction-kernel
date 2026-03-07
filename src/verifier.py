@@ -46,6 +46,9 @@ FailureCode = Literal[
     "TAX_ANCHOR_MISSING",
     "TAX_AMBIGUOUS_EVIDENCE",
     "TAX_AMOUNT_MISMATCH",
+    # Arithmetic consistency (Phase 8) — source-text cross-checks
+    "ARITH_TOTAL_MISMATCH",
+    "ARITH_TAX_RATE_MISMATCH",
 ]
 
 

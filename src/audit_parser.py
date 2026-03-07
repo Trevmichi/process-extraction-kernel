@@ -151,6 +151,17 @@ class SequentialDispatchEvent:
     chain: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ArithmeticCheckEvent:
+    """Arithmetic consistency check results (Phase 8)."""
+    event: str
+    checks_run: tuple[str, ...]
+    passed: bool
+    codes: tuple[str, ...]
+    total_sum: dict | None
+    tax_rate: dict | None
+
+
 # ===================================================================
 # Non-JSON entry types
 # ===================================================================
@@ -192,6 +203,7 @@ AuditEntry = Union[
     MatchInputsEvent,
     AmountCandidatesEvent,
     SequentialDispatchEvent,
+    ArithmeticCheckEvent,
     RouteStepEntry,
     PlainTextEntry,
     UnknownJsonEntry,
@@ -216,6 +228,7 @@ class ParsedAuditLog:
     match_events: tuple[MatchResultSetEvent, ...] = ()
     critic_retries: tuple[CriticRetryEvent, ...] = ()
     route_records: tuple[RouteRecordEvent, ...] = ()
+    arithmetic_checks: tuple[ArithmeticCheckEvent, ...] = ()
     plain_text: tuple[PlainTextEntry, ...] = ()
     unknown_json: tuple[UnknownJsonEntry, ...] = ()
 
@@ -236,6 +249,10 @@ class ParsedAuditLog:
     @property
     def last_verifier_summary(self) -> VerifierSummaryEvent | None:
         return self.verifier_summaries[-1] if self.verifier_summaries else None
+
+    @property
+    def last_arithmetic_check(self) -> ArithmeticCheckEvent | None:
+        return self.arithmetic_checks[-1] if self.arithmetic_checks else None
 
 
 # ===================================================================
@@ -338,6 +355,17 @@ def _make_sequential_dispatch(obj: dict) -> SequentialDispatchEvent:
     )
 
 
+def _make_arithmetic_check(obj: dict) -> ArithmeticCheckEvent:
+    return ArithmeticCheckEvent(
+        event="arithmetic_check",
+        checks_run=tuple(obj.get("checks_run") or ()),
+        passed=obj.get("passed", False),
+        codes=tuple(obj.get("codes") or ()),
+        total_sum=obj.get("total_sum"),
+        tax_rate=obj.get("tax_rate"),
+    )
+
+
 # ===================================================================
 # Dispatch table
 # ===================================================================
@@ -353,6 +381,7 @@ _DISPATCH: dict[str, object] = {
     "match_inputs": _make_match_inputs,
     "amount_candidates": _make_amount_candidates,
     "sequential_dispatch": _make_sequential_dispatch,
+    "arithmetic_check": _make_arithmetic_check,
 }
 
 
@@ -391,6 +420,7 @@ def parse_audit_log(audit_log: list[str]) -> ParsedAuditLog:
     match_events: list[MatchResultSetEvent] = []
     critic_retries: list[CriticRetryEvent] = []
     route_records: list[RouteRecordEvent] = []
+    arithmetic_checks: list[ArithmeticCheckEvent] = []
     plain_text: list[PlainTextEntry] = []
     unknown_json: list[UnknownJsonEntry] = []
 
@@ -432,6 +462,8 @@ def parse_audit_log(audit_log: list[str]) -> ParsedAuditLog:
                 critic_retries.append(typed)
             elif isinstance(typed, RouteRecordEvent):
                 route_records.append(typed)
+            elif isinstance(typed, ArithmeticCheckEvent):
+                arithmetic_checks.append(typed)
             elif isinstance(typed, UnknownJsonEntry):
                 unknown_json.append(typed)
             continue
@@ -455,6 +487,7 @@ def parse_audit_log(audit_log: list[str]) -> ParsedAuditLog:
         match_events=tuple(match_events),
         critic_retries=tuple(critic_retries),
         route_records=tuple(route_records),
+        arithmetic_checks=tuple(arithmetic_checks),
         plain_text=tuple(plain_text),
         unknown_json=tuple(unknown_json),
     )
