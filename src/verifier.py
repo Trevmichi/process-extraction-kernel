@@ -16,6 +16,7 @@ from datetime import date
 from typing import Literal
 
 from .contracts import ProvenanceReport
+from .policy import DEFAULT_POLICY
 from .verifier_registry import build_legacy_validator_registry
 
 # ---------------------------------------------------------------------------
@@ -182,9 +183,9 @@ def _default_provenance() -> ProvenanceReport:
       dict: Canonical provenance object for vendor, amount, and has_po fields.
     """
     return {
-        "vendor": {"grounded": False, "evidence_found_at": -1},
-        "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
-        "has_po": {"grounded": False, "po_pattern_found": None},
+        "vendor": {"grounded": False, "evidence_found_at": -1, "match_tier": "not_found"},
+        "amount": {"grounded": False, "parsed_evidence": None, "delta": None, "match_tier": "not_found"},
+        "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
     }
 
 
@@ -235,6 +236,9 @@ def verify_extraction(
     registry = build_legacy_validator_registry()
     for spec in registry.ordered_specs():
         if spec.optional and spec.field_name not in extraction:
+            continue
+        # Policy: skip has_po verification entirely when PO is not applicable.
+        if spec.field_name == "has_po" and DEFAULT_POLICY.po_mode == "not_applicable":
             continue
         spec.validator(extraction, norm_raw, codes, prov)
 
@@ -310,6 +314,12 @@ def _verify_vendor(
         norm_ev = _normalize_text(evidence)
         if norm_val not in norm_ev:
             codes.append("VENDOR_EVIDENCE_MISMATCH")
+        else:
+            # Classify tier: raw substring (exact) vs normalized-only
+            if value in evidence:
+                prov["vendor"]["match_tier"] = "exact_match"
+            else:
+                prov["vendor"]["match_tier"] = "normalized_match"
 
 
 def _verify_amount(
@@ -396,6 +406,12 @@ def _verify_amount(
     delta = abs(parsed - float(value))
     prov["amount"]["delta"] = delta
 
+    # Classify tier based on numeric proximity
+    if delta == 0.0:
+        prov["amount"]["match_tier"] = "exact_match"
+    elif delta <= 0.01:
+        prov["amount"]["match_tier"] = "normalized_match"
+
     if delta > 0.01:
         codes.append("AMOUNT_MISMATCH")
 
@@ -441,6 +457,9 @@ def _verify_has_po(
     ):
         prov["has_po"]["grounded"] = True
         prov["has_po"]["po_pattern_found"] = False
+        # exact_match: strong deterministic non-PO conclusion (not a literal
+        # positive pattern match — reflects verifier confidence in the boolean).
+        prov["has_po"]["match_tier"] = "exact_match"
         return
 
     if evidence is not None and not isinstance(evidence, str):
@@ -465,20 +484,25 @@ def _verify_has_po(
 
     # PO pattern check (only when has_po is True)
     if value is True:
-        pattern_found = bool(_PO_RE.search(evidence))
-        
+        direct_found = bool(_PO_RE.search(evidence))
+        pattern_found = direct_found
+
         # If the direct evidence lacks a PO keyword, check the surrounding text context
         if not pattern_found:
             norm_ev = _normalize_text(evidence)
             window_start = max(0, idx - 50)
             window_end = min(len(norm_raw), idx + len(norm_ev) + 50)
             pattern_found = bool(_PO_RE.search(norm_raw[window_start:window_end]))
-            
+
         prov["has_po"]["po_pattern_found"] = pattern_found
         if not pattern_found:
             codes.append("PO_PATTERN_MISSING")
+        else:
+            prov["has_po"]["match_tier"] = "exact_match" if direct_found else "normalized_match"
     else:
         prov["has_po"]["po_pattern_found"] = False
+        # value=False with grounded evidence: strong deterministic non-PO conclusion.
+        prov["has_po"]["match_tier"] = "exact_match"
 
 
 # ---------------------------------------------------------------------------
@@ -567,6 +591,7 @@ def _verify_invoice_date(
             "evidence_found_at": -1,
             "normalized_value": None,
             "normalized_evidence": None,
+            "match_tier": "not_found",
         },
     )
 
@@ -621,6 +646,11 @@ def _verify_invoice_date(
 
     if value_iso != evidence_iso:
         codes.append("DATE_VALUE_MISMATCH")
+    else:
+        # All successful date matches are normalized_match — the verifier
+        # always canonicalizes through a date parsing pipeline.  exact_match
+        # for dates is deferred to a future phase.
+        prov["invoice_date"]["match_tier"] = "normalized_match"
 
 
 # ---------------------------------------------------------------------------
@@ -662,6 +692,7 @@ def _verify_tax_amount(
             "anchor_found": None,
             "parsed_evidence": None,
             "delta": None,
+            "match_tier": "not_found",
         },
     )
 
@@ -715,5 +746,12 @@ def _verify_tax_amount(
     prov["tax_amount"]["parsed_evidence"] = parsed
     delta = abs(float(value) - float(parsed))
     prov["tax_amount"]["delta"] = delta
+
+    # Classify tier based on numeric proximity
+    if delta == 0.0:
+        prov["tax_amount"]["match_tier"] = "exact_match"
+    elif delta <= 0.01:
+        prov["tax_amount"]["match_tier"] = "normalized_match"
+
     if delta > 0.01:
         codes.append("TAX_AMOUNT_MISMATCH")

@@ -28,6 +28,7 @@ from unittest.mock import patch
 
 from src.agent.compiler import build_ap_graph
 from src.agent.state import APState, make_initial_state
+from src.policy import DEFAULT_POLICY
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -48,7 +49,7 @@ _REQUIRED_RECORD_KEYS = frozenset({
     "expected_fields", "mock_extraction", "tags",
 })
 
-_REQUIRED_EXTRACTION_FIELDS = frozenset({"vendor", "amount", "has_po"})
+_REQUIRED_EXTRACTION_FIELDS = frozenset(DEFAULT_POLICY.required_fields)
 
 
 def _validate_gold_record(rec: dict) -> None:

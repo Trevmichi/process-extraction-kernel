@@ -9,7 +9,14 @@ runtime enforcement (the verifier handles that).
 """
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
+
+from .policy import DEFAULT_POLICY
+
+# Evidence match quality tier — purely additive metadata, does not affect
+# verifier pass/fail decisions.  Classifies how the evidence match was
+# achieved for each field.
+MatchTier = Literal["exact_match", "normalized_match", "not_found"]
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +66,7 @@ class ExtractionPayload(TypedDict, total=False):
 class VendorProvenance(TypedDict):
     grounded: bool
     evidence_found_at: int
+    match_tier: MatchTier
 
 
 class AmountProvenance(TypedDict, total=False):
@@ -67,11 +75,13 @@ class AmountProvenance(TypedDict, total=False):
     parsed_evidence: float | None
     delta: float | None
     evidence_found_at: int
+    match_tier: MatchTier
 
 
 class HasPoProvenance(TypedDict):
     grounded: bool
     po_pattern_found: bool | None
+    match_tier: MatchTier
 
 
 class InvoiceDateProvenance(TypedDict):
@@ -79,6 +89,7 @@ class InvoiceDateProvenance(TypedDict):
     evidence_found_at: int
     normalized_value: str | None
     normalized_evidence: str | None
+    match_tier: MatchTier
 
 
 class TaxAmountProvenance(TypedDict):
@@ -87,6 +98,7 @@ class TaxAmountProvenance(TypedDict):
     anchor_found: bool | None
     parsed_evidence: float | None
     delta: float | None
+    match_tier: MatchTier
 
 
 class ArithmeticProvenance(TypedDict, total=False):
@@ -119,7 +131,7 @@ class ProvenanceReport(TypedDict, total=False):
 # Structural validation (LLM output → shape check before verifier)
 # ---------------------------------------------------------------------------
 
-_REQUIRED_EXTRACTION_FIELDS: tuple[str, ...] = ("vendor", "amount", "has_po")
+_REQUIRED_EXTRACTION_FIELDS: tuple[str, ...] = DEFAULT_POLICY.required_fields
 
 
 def validate_extraction_structure(
@@ -151,4 +163,50 @@ def validate_extraction_structure(
             issues.append(f"STRUCT_NO_VALUE_{field.upper()}")
         if "evidence" not in entry:
             issues.append(f"STRUCT_NO_EVIDENCE_{field.upper()}")
+    return len(issues) == 0, issues
+
+
+# ---------------------------------------------------------------------------
+# Semantic validation (value plausibility check before verifier)
+# ---------------------------------------------------------------------------
+
+def validate_extraction_semantics(
+    parsed: dict,
+) -> tuple[bool, list[str]]:
+    """Value plausibility checks after structural validation passes.
+
+    Returns (is_valid, issues).  Uses ``SEM_*`` codes — a third family
+    distinct from ``STRUCT_*`` (structural shape) and verifier ``FailureCode``
+    (evidence grounding).
+
+    A given invocation produces codes from exactly one family, never a mix.
+    ``None`` values pass through — the verifier handles missing values.
+
+    Vendor check is intentionally minimal (non-empty after strip).  It does
+    NOT reject ultra-trivial strings like "N/A" or "-"; future phases may
+    add vendor plausibility heuristics.
+    """
+    issues: list[str] = []
+
+    # --- vendor: must be a non-empty string ---
+    vendor_val = parsed["vendor"]["value"]
+    if vendor_val is not None:
+        if not isinstance(vendor_val, str) or not vendor_val.strip():
+            issues.append("SEM_VENDOR_EMPTY")
+
+    # --- amount: must be numeric (not bool) and non-negative ---
+    amount_val = parsed["amount"]["value"]
+    if amount_val is not None:
+        # bool check first: bool is a subclass of int in Python
+        if isinstance(amount_val, bool) or not isinstance(amount_val, (int, float)):
+            issues.append("SEM_AMOUNT_NOT_NUMERIC")
+        elif amount_val < 0:
+            issues.append("SEM_AMOUNT_NEGATIVE")
+
+    # --- has_po: must be exactly bool ---
+    haspo_val = parsed["has_po"]["value"]
+    if haspo_val is not None:
+        if not isinstance(haspo_val, bool):
+            issues.append("SEM_HAS_PO_NOT_BOOL")
+
     return len(issues) == 0, issues
