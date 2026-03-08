@@ -57,6 +57,7 @@ from dataclasses import dataclass, field
 
 from .state import APState
 from ..conditions import get_predicate, normalize_condition
+from ..schema_validator import assert_valid
 from ..unmodeled import record_event
 
 
@@ -219,7 +220,10 @@ def build_route_record(
         reason=result.reason,
         exception_mapping=_exception_mapping(result.reason, station_map),
     )
-    return record.to_dict()
+    record_dict = record.to_dict()
+    # Runtime route-record schema enforcement (internal code — hard crash)
+    assert_valid(record_dict, "route_record_v1.json")
+    return record_dict
 
 
 # ---------------------------------------------------------------------------
@@ -342,8 +346,10 @@ def analyze_routing(
 # ---------------------------------------------------------------------------
 # Intent keys for exception stations
 # ---------------------------------------------------------------------------
-_AMBIGUOUS_INTENT = "task:MANUAL_REVIEW_AMBIGUOUS_ROUTE"
-_NO_ROUTE_INTENT = "task:MANUAL_REVIEW_NO_ROUTE"
+from ..policy import DEFAULT_POLICY
+
+_AMBIGUOUS_INTENT = DEFAULT_POLICY.ambiguous_route_intent
+_NO_ROUTE_INTENT = DEFAULT_POLICY.no_route_intent
 
 
 # ---------------------------------------------------------------------------

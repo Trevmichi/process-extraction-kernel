@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Literal, Set
 
+from .policy import DEFAULT_POLICY
+
 # ---------------------------------------------------------------------------
 # ACTIONS (Tasks) — core AP action verbs
 # ---------------------------------------------------------------------------
@@ -189,6 +191,12 @@ KNOWN_STRUCTURED_GATEWAY_TYPES: frozenset[str] = frozenset({
     "MATCH_3_WAY", "MATCH_DECISION", "HAS_PO",
     "APPROVE_OR_REJECT", "THRESHOLD_AMOUNT_10K",
 })
+
+# Approval threshold — delegated to policy layer (src/policy.py).
+# Pre-built condition strings avoid f-string assembly at consumer sites.
+APPROVAL_THRESHOLD: int = DEFAULT_POLICY.approval_threshold
+CONDITION_AMOUNT_ABOVE_THRESHOLD: str = DEFAULT_POLICY.approval_condition_above
+CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD: str = DEFAULT_POLICY.approval_condition_at_or_below
 
 VALID_ACTORS: Set[str] = {"role_ap_clerk", "role_manager", "role_director", "sys_erp"}
 VALID_ARTIFACTS: Set[str] = {

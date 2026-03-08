@@ -191,19 +191,21 @@ class TestProvenanceReportSchema:
     def test_full_provenance_with_optional_fields(self):
         """Provenance with all 5 fields (including invoice_date, tax_amount)."""
         prov = {
-            "vendor": {"grounded": True, "evidence_found_at": 10},
+            "vendor": {"grounded": True, "evidence_found_at": 10, "match_tier": "exact_match"},
             "amount": {
                 "grounded": True,
                 "parsed_evidence": 100.0,
                 "delta": 0.0,
                 "evidence_found_at": 25,
+                "match_tier": "exact_match",
             },
-            "has_po": {"grounded": True, "po_pattern_found": True},
+            "has_po": {"grounded": True, "po_pattern_found": True, "match_tier": "exact_match"},
             "invoice_date": {
                 "grounded": True,
                 "evidence_found_at": 50,
                 "normalized_value": "2024-01-15",
                 "normalized_evidence": "2024-01-15",
+                "match_tier": "normalized_match",
             },
             "tax_amount": {
                 "grounded": True,
@@ -211,6 +213,7 @@ class TestProvenanceReportSchema:
                 "anchor_found": True,
                 "parsed_evidence": 8.50,
                 "delta": 0.0,
+                "match_tier": "exact_match",
             },
         }
         self._validate(prov)
@@ -218,32 +221,33 @@ class TestProvenanceReportSchema:
     def test_amount_without_evidence_found_at(self):
         """Amount from _default_provenance() lacks evidence_found_at — valid."""
         prov = {
-            "vendor": {"grounded": False, "evidence_found_at": -1},
-            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
-            "has_po": {"grounded": False, "po_pattern_found": None},
+            "vendor": {"grounded": False, "evidence_found_at": -1, "match_tier": "not_found"},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None, "match_tier": "not_found"},
+            "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
         }
         self._validate(prov)
 
     def test_amount_with_evidence_found_at(self):
         """Amount after _verify_amount() has evidence_found_at — valid."""
         prov = {
-            "vendor": {"grounded": False, "evidence_found_at": -1},
+            "vendor": {"grounded": False, "evidence_found_at": -1, "match_tier": "not_found"},
             "amount": {
                 "grounded": True,
                 "parsed_evidence": 100.0,
                 "delta": 0.0,
                 "evidence_found_at": 42,
+                "match_tier": "exact_match",
             },
-            "has_po": {"grounded": False, "po_pattern_found": None},
+            "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
         }
         self._validate(prov)
 
     def test_null_values_allowed(self):
         """Nullable fields (parsed_evidence, delta, po_pattern_found, etc.)."""
         prov = {
-            "vendor": {"grounded": False, "evidence_found_at": -1},
-            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
-            "has_po": {"grounded": False, "po_pattern_found": None},
+            "vendor": {"grounded": False, "evidence_found_at": -1, "match_tier": "not_found"},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None, "match_tier": "not_found"},
+            "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
         }
         self._validate(prov)
 
@@ -256,12 +260,67 @@ class TestProvenanceReportSchema:
         with pytest.raises(jsonschema.ValidationError):
             self._validate(prov)
 
+    def test_arithmetic_provenance_accepted(self):
+        """Provenance with arithmetic property (total_sum + tax_rate) validates."""
+        prov = {
+            "vendor": {"grounded": True, "evidence_found_at": 10, "match_tier": "exact_match"},
+            "amount": {"grounded": True, "parsed_evidence": 100.0, "delta": 0.0,
+                       "evidence_found_at": 25, "match_tier": "exact_match"},
+            "has_po": {"grounded": True, "po_pattern_found": True, "match_tier": "exact_match"},
+            "arithmetic": {
+                "checks_run": ["total_sum", "tax_rate"],
+                "passed": True,
+                "codes": [],
+                "total_sum": {
+                    "subtotal": 90.0, "taxes": 10.0, "fees": 0.0,
+                    "expected": 100.0, "actual": 100.0, "delta": 0.0,
+                },
+                "tax_rate": {
+                    "rate_pct": 10.0, "computed": 9.0, "stated": 10.0, "delta": 1.0,
+                },
+            },
+        }
+        self._validate(prov)
+
+    def test_arithmetic_provenance_partial_accepted(self):
+        """Arithmetic with only checks_run/passed/codes (no detail sub-objects)."""
+        prov = {
+            "vendor": {"grounded": True, "evidence_found_at": 10, "match_tier": "normalized_match"},
+            "amount": {"grounded": True, "parsed_evidence": 100.0, "delta": 0.0, "match_tier": "exact_match"},
+            "has_po": {"grounded": True, "po_pattern_found": True, "match_tier": "not_found"},
+            "arithmetic": {
+                "checks_run": [],
+                "passed": True,
+                "codes": [],
+            },
+        }
+        self._validate(prov)
+
+    def test_arithmetic_total_sum_missing_field_rejected(self):
+        """total_sum missing required field → rejected."""
+        prov = {
+            "vendor": {"grounded": True, "evidence_found_at": 10, "match_tier": "exact_match"},
+            "amount": {"grounded": True, "parsed_evidence": 100.0, "delta": 0.0, "match_tier": "exact_match"},
+            "has_po": {"grounded": True, "po_pattern_found": True, "match_tier": "exact_match"},
+            "arithmetic": {
+                "checks_run": ["total_sum"],
+                "passed": True,
+                "codes": [],
+                "total_sum": {
+                    "subtotal": 90.0, "taxes": 10.0,
+                    # missing fees, expected, actual, delta
+                },
+            },
+        }
+        with pytest.raises(jsonschema.ValidationError):
+            self._validate(prov)
+
     def test_extra_field_rejected(self):
         """Unknown top-level field rejected."""
         prov = {
-            "vendor": {"grounded": False, "evidence_found_at": -1},
-            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
-            "has_po": {"grounded": False, "po_pattern_found": None},
+            "vendor": {"grounded": False, "evidence_found_at": -1, "match_tier": "not_found"},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None, "match_tier": "not_found"},
+            "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
             "unknown": {"grounded": False},
         }
         with pytest.raises(jsonschema.ValidationError):
@@ -270,9 +329,9 @@ class TestProvenanceReportSchema:
     def test_vendor_missing_grounded_rejected(self):
         """VendorProvenance requires grounded."""
         prov = {
-            "vendor": {"evidence_found_at": -1},
-            "amount": {"grounded": False, "parsed_evidence": None, "delta": None},
-            "has_po": {"grounded": False, "po_pattern_found": None},
+            "vendor": {"evidence_found_at": -1, "match_tier": "not_found"},
+            "amount": {"grounded": False, "parsed_evidence": None, "delta": None, "match_tier": "not_found"},
+            "has_po": {"grounded": False, "po_pattern_found": None, "match_tier": "not_found"},
         }
         with pytest.raises(jsonschema.ValidationError):
             self._validate(prov)
