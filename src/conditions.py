@@ -30,6 +30,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Union
 
+from src.ontology import (
+    CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+)
+
 # ---------------------------------------------------------------------------
 # AST
 # ---------------------------------------------------------------------------
@@ -390,15 +395,15 @@ _SYNONYM_MAP: dict[str, str | None] = {
     "HAS_PO":           "has_po == true",
     "has_po":           "has_po == true",
     "no_po":            "has_po == false",
-    # Approval amount thresholds (legacy 5k)
-    "approve":          "amount <= 5000",
-    "reject":           "amount > 5000",
-    "amount<=thresh":   "amount <= 5000",
-    "amount>thresh":    "amount > 5000",
-    "approve_or_reject": "amount <= 5000",
-    "no_po_approve":    "amount <= 5000",
-    "no_po_reject":     "amount > 5000",
-    "threshold_amount": "amount <= 5000",
+    # Approval amount thresholds (canonical source: src/ontology.py)
+    "approve":          CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "reject":           CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "amount<=thresh":   CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "amount>thresh":    CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "approve_or_reject": CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "no_po_approve":    CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "no_po_reject":     CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "threshold_amount": CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
     # Duplicate detection
     "duplicate_detected": 'status == "DUPLICATE"',
     "not_duplicate":    'status != "DUPLICATE"',
