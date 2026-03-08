@@ -34,6 +34,7 @@ from src.audit_parser import (
     parse_audit_log,
 )
 from src.explanation import build_explanation
+from src.ontology import APPROVAL_THRESHOLD
 
 
 # ---------------------------------------------------------------------------
@@ -721,7 +722,7 @@ elif _cat == "rejection":
     if status_val == "ESCALATED":
         st.warning(
             f"**{inv_id}** — Escalated for director review ⚠️  "
-            "(Amount exceeds the \\$10,000 approval threshold)"
+            f"(Amount exceeds the \\${APPROVAL_THRESHOLD:,} approval threshold)"
         )
     elif status_val == "BAD_EXTRACTION":
         st.error(

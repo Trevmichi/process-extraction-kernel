@@ -205,3 +205,59 @@ class TestCodeFamilySeparation:
             result = execute_node(_make_state(), _ENTER_RECORD_NODE)
         for code in result.get("failure_codes", []):
             assert not code.startswith("STRUCT_"), f"Unexpected structural code: {code!r}"
+
+
+# ---------------------------------------------------------------------------
+# Semantic validation (SEM_* codes) integration through execute_node
+# ---------------------------------------------------------------------------
+
+class TestSemanticValidation:
+    """Semantic plausibility checks in ENTER_RECORD handler."""
+
+    def test_string_amount_produces_bad_extraction(self) -> None:
+        """Non-numeric amount → BAD_EXTRACTION with SEM_AMOUNT_NOT_NUMERIC."""
+        bad_payload = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": "banana", "evidence": "Total: banana"},
+            "has_po": {"value": True, "evidence": "PO: PO-1234"},
+        }
+        with patch("src.agent.nodes._call_llm_json", return_value=bad_payload):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        assert result["status"] == "BAD_EXTRACTION"
+        assert "SEM_AMOUNT_NOT_NUMERIC" in result["failure_codes"]
+
+    def test_empty_vendor_produces_bad_extraction(self) -> None:
+        """Empty vendor string → BAD_EXTRACTION with SEM_VENDOR_EMPTY."""
+        bad_payload = {
+            "vendor": {"value": "", "evidence": "Vendor: "},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1234"},
+        }
+        with patch("src.agent.nodes._call_llm_json", return_value=bad_payload):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        assert result["status"] == "BAD_EXTRACTION"
+        assert "SEM_VENDOR_EMPTY" in result["failure_codes"]
+
+    def test_semantic_codes_never_mixed_with_structural(self) -> None:
+        """SEM_* rejection produces only SEM_* codes, no STRUCT_* codes."""
+        bad_payload = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": "not_a_number", "evidence": "Total: not_a_number"},
+            "has_po": {"value": True, "evidence": "PO: PO-1234"},
+        }
+        with patch("src.agent.nodes._call_llm_json", return_value=bad_payload):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        for code in result["failure_codes"]:
+            assert code.startswith("SEM_"), f"Expected only SEM_* codes, got: {code!r}"
+
+    def test_semantic_failure_skips_verifier(self) -> None:
+        """Semantic failure → no provenance (verifier never runs)."""
+        bad_payload = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": True, "evidence": "Total: True"},
+            "has_po": {"value": False, "evidence": ""},
+        }
+        with patch("src.agent.nodes._call_llm_json", return_value=bad_payload):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        assert result["status"] == "BAD_EXTRACTION"
+        assert result["provenance"] == {}

@@ -58,10 +58,10 @@ class TestNormalizeCondition:
         assert normalize_condition("no_match") == 'match_result == "NO_MATCH"'
 
     def test_approve_synonym(self):
-        assert normalize_condition("approve") == "amount <= 5000"
+        assert normalize_condition("approve") == "amount <= 10000"
 
     def test_reject_synonym(self):
-        assert normalize_condition("reject") == "amount > 5000"
+        assert normalize_condition("reject") == "amount > 10000"
 
     def test_duplicate_detected_synonym(self):
         assert normalize_condition("duplicate_detected") == 'status == "DUPLICATE"'
@@ -633,3 +633,24 @@ class TestDiagnoseNormalizeConsistency:
     def test_inline_consistency(self, raw: str):
         d = diagnose_condition(raw)
         assert d.normalized == normalize_condition(raw)
+
+
+class TestThresholdConsistency:
+    """Verify all threshold synonyms use the canonical ontology constant."""
+
+    def test_threshold_synonyms_use_ontology_constant(self):
+        from src.ontology import (
+            CONDITION_AMOUNT_ABOVE_THRESHOLD,
+            CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+        )
+        threshold_keys = {
+            "approve", "reject", "amount<=thresh", "amount>thresh",
+            "approve_or_reject", "no_po_approve", "no_po_reject",
+            "threshold_amount",
+        }
+        for key in threshold_keys:
+            val = _SYNONYM_MAP[key]
+            assert val in (
+                CONDITION_AMOUNT_ABOVE_THRESHOLD,
+                CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+            ), f"Synonym {key!r} maps to {val!r}, expected one of the ontology constants"

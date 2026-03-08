@@ -22,6 +22,7 @@ from src.contracts import (
     ProvenanceReport,
     TaxAmountProvenance,
     VendorProvenance,
+    validate_extraction_semantics,
     validate_extraction_structure,
 )
 from src.verifier import _default_provenance, verify_extraction
@@ -317,3 +318,108 @@ class TestProvenanceContracts:
         raw = self.SAMPLE_RAW + "\nTax: $50.00"
         _valid, _codes, prov = verify_extraction(raw, extraction)
         assert "tax_amount" in prov
+
+
+# ---------------------------------------------------------------------------
+# Semantic validation (SEM_* codes)
+# ---------------------------------------------------------------------------
+
+def _make_extraction(*, vendor="Acme Corp", amount=500.0, has_po=True):
+    """Build a valid extraction payload for semantic tests."""
+    return {
+        "vendor": {"value": vendor, "evidence": "Vendor: Acme Corp"},
+        "amount": {"value": amount, "evidence": "Total: $500.00"},
+        "has_po": {"value": has_po, "evidence": "PO: PO-1234"},
+    }
+
+
+class TestValidateExtractionSemantics:
+    """Unit tests for validate_extraction_semantics()."""
+
+    def test_valid_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction())
+        assert ok is True
+        assert issues == []
+
+    # --- vendor ---
+    def test_vendor_empty(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(vendor=""))
+        assert not ok
+        assert "SEM_VENDOR_EMPTY" in issues
+
+    def test_vendor_whitespace(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(vendor="   "))
+        assert not ok
+        assert "SEM_VENDOR_EMPTY" in issues
+
+    def test_vendor_none_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(vendor=None))
+        assert ok is True
+
+    # --- amount ---
+    def test_amount_string(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount="abc"))
+        assert not ok
+        assert "SEM_AMOUNT_NOT_NUMERIC" in issues
+
+    def test_amount_bool(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount=True))
+        assert not ok
+        assert "SEM_AMOUNT_NOT_NUMERIC" in issues
+
+    def test_amount_negative(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount=-5.0))
+        assert not ok
+        assert "SEM_AMOUNT_NEGATIVE" in issues
+
+    def test_amount_zero_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount=0))
+        assert ok is True
+
+    def test_amount_none_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount=None))
+        assert ok is True
+
+    def test_amount_int_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(amount=100))
+        assert ok is True
+
+    # --- has_po ---
+    def test_has_po_string(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(has_po="true"))
+        assert not ok
+        assert "SEM_HAS_PO_NOT_BOOL" in issues
+
+    def test_has_po_int(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(has_po=1))
+        assert not ok
+        assert "SEM_HAS_PO_NOT_BOOL" in issues
+
+    def test_has_po_none_passes(self):
+        ok, issues = validate_extraction_semantics(_make_extraction(has_po=None))
+        assert ok is True
+
+    # --- multiple issues ---
+    def test_multiple_issues(self):
+        ok, issues = validate_extraction_semantics(
+            _make_extraction(vendor="", amount="bad", has_po=1)
+        )
+        assert not ok
+        assert len(issues) == 3
+        assert "SEM_VENDOR_EMPTY" in issues
+        assert "SEM_AMOUNT_NOT_NUMERIC" in issues
+        assert "SEM_HAS_PO_NOT_BOOL" in issues
+
+    # --- all codes are SEM_* prefixed ---
+    def test_all_codes_prefixed(self):
+        """Every code returned by semantic validation starts with SEM_."""
+        payloads = [
+            _make_extraction(vendor=""),
+            _make_extraction(amount="x"),
+            _make_extraction(amount=-1),
+            _make_extraction(has_po=0),
+        ]
+        for p in payloads:
+            _, issues = validate_extraction_semantics(p)
+            for code in issues:
+                assert code.startswith("SEM_"), f"Code {code!r} missing SEM_ prefix"
