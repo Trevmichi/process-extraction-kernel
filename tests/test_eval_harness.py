@@ -13,16 +13,19 @@ from pathlib import Path
 import pytest
 
 from eval_runner import (
+    _PRIMARY_BUCKETS,
     _validate_gold_record,
     build_mock_dispatch,
     check_trace,
     classify_failure,
+    classify_primary_bucket,
     compare_fields,
     compute_failure_groupings,
     compute_metrics,
     load_expected,
     load_invoice_text,
     should_exit_zero,
+    write_md_report,
 )
 from eval_audit import (
     build_diagnostic_snapshot,
@@ -924,3 +927,213 @@ class TestDateTaxTags:
             all_tags.update(r.get("tags", []))
         missing = required_tags - all_tags
         assert missing == set(), f"Missing date/tax tags: {missing}"
+
+
+# ===========================================================================
+# TestClassifyPrimaryBucket (Phase 11)
+# ===========================================================================
+
+class TestClassifyPrimaryBucket:
+    """Tests for classify_primary_bucket() — deterministic bucket assignment."""
+
+    def test_synthetic_yields_noisy_ocr_synthetic(self):
+        assert classify_primary_bucket(
+            ["synthetic", "happy_path"], {"vendor", "amount", "has_po"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_invoice_date_yields_extended_fields(self):
+        assert classify_primary_bucket(
+            ["happy_path"], {"vendor", "amount", "has_po", "invoice_date"},
+        ) == "extended_fields"
+
+    def test_tax_amount_yields_extended_fields(self):
+        assert classify_primary_bucket(
+            ["happy_path"], {"vendor", "amount", "has_po", "tax_amount"},
+        ) == "extended_fields"
+
+    def test_synthetic_beats_extended_fields(self):
+        assert classify_primary_bucket(
+            ["synthetic"], {"vendor", "amount", "invoice_date"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_match_fail_yields_match_path(self):
+        assert classify_primary_bucket(
+            ["match_fail"], {"vendor", "amount", "has_po"},
+        ) == "match_path"
+
+    def test_match_fail_beats_extended_fields(self):
+        assert classify_primary_bucket(
+            ["match_fail"], {"vendor", "amount", "has_po", "invoice_date"},
+        ) == "match_path"
+
+    def test_synthetic_beats_match_fail(self):
+        assert classify_primary_bucket(
+            ["synthetic", "match_fail"], {"vendor", "amount", "has_po"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_no_special_tags_yields_clean_standard(self):
+        assert classify_primary_bucket(
+            ["happy_path", "under_threshold"], {"vendor", "amount", "has_po"},
+        ) == "clean_standard"
+
+    def test_empty_tags_yields_clean_standard(self):
+        assert classify_primary_bucket(
+            [], {"vendor", "amount", "has_po"},
+        ) == "clean_standard"
+
+    def test_all_gold_records_classified(self):
+        """Every record in expected.jsonl gets exactly one valid bucket."""
+        records = load_expected(EXPECTED_PATH)
+        for rec in records:
+            b = classify_primary_bucket(
+                rec["tags"], set(rec["expected_fields"].keys()),
+            )
+            assert b in _PRIMARY_BUCKETS, f"{rec['invoice_id']}: got {b}"
+
+    def test_bucket_counts_match_expected(self):
+        """Bucket sizes match verified distribution (regression guard)."""
+        from collections import Counter
+        records = load_expected(EXPECTED_PATH)
+        counts = Counter(
+            classify_primary_bucket(r["tags"], set(r["expected_fields"].keys()))
+            for r in records
+        )
+        assert counts["noisy_ocr_synthetic"] == 50
+        assert counts["match_path"] == 10
+        assert counts["extended_fields"] == 8
+        assert counts["clean_standard"] == 58
+
+
+# ===========================================================================
+# TestBucketMetrics (Phase 11)
+# ===========================================================================
+
+def _make_bucket_result(invoice_id, bucket="pass", tags=None, extra_fields=None):
+    """_make_result + field_comparison keys for bucket classification."""
+    r = _make_result(invoice_id, bucket, tags)
+    if extra_fields:
+        for f in extra_fields:
+            r["field_comparison"][f] = {
+                "expected": "x", "actual": "x", "match": True,
+            }
+    return r
+
+
+class TestBucketMetrics:
+    """Tests for by_primary_bucket in compute_metrics output."""
+
+    def test_by_primary_bucket_present(self):
+        results = [_make_bucket_result("INV-0001", tags=["happy_path"])]
+        metrics = compute_metrics(results)
+        assert "by_primary_bucket" in metrics
+
+    def test_all_buckets_always_present(self):
+        results = [_make_bucket_result("INV-0001", tags=["happy_path"])]
+        metrics = compute_metrics(results)
+        assert set(metrics["by_primary_bucket"].keys()) == set(_PRIMARY_BUCKETS)
+
+    def test_synthetic_into_noisy_ocr(self):
+        results = [_make_bucket_result("INV-0001", tags=["synthetic", "noisy_ocr"])]
+        metrics = compute_metrics(results)
+        assert metrics["by_primary_bucket"]["noisy_ocr_synthetic"]["count"] == 1
+        assert metrics["by_primary_bucket"]["clean_standard"]["count"] == 0
+
+    def test_extended_fields_classified(self):
+        results = [_make_bucket_result(
+            "INV-0001", tags=["happy_path"],
+            extra_fields=["invoice_date", "tax_amount"],
+        )]
+        metrics = compute_metrics(results)
+        assert metrics["by_primary_bucket"]["extended_fields"]["count"] == 1
+
+    def test_failure_breakdown_populated(self):
+        results = [
+            _make_bucket_result(
+                "INV-0001", bucket="terminal_mismatch", tags=["happy_path"],
+            ),
+            _make_bucket_result("INV-0002", tags=["happy_path"]),
+        ]
+        metrics = compute_metrics(results)
+        fb = metrics["by_primary_bucket"]["clean_standard"]["failure_breakdown"]
+        assert "INV-0001" in fb["terminal_mismatch"]
+
+    def test_primary_bucket_on_per_invoice(self):
+        results = [_make_bucket_result("INV-0001", tags=["synthetic"])]
+        metrics = compute_metrics(results)
+        assert metrics["per_invoice"][0]["primary_bucket"] == "noisy_ocr_synthetic"
+
+
+# ===========================================================================
+# TestBucketDistributionRegression (Phase 11)
+# ===========================================================================
+
+class TestBucketDistributionRegression:
+    """Regression: bucket classification on full gold set matches expected."""
+
+    def test_full_gold_set_sums_to_total(self):
+        from collections import Counter
+        records = load_expected(EXPECTED_PATH)
+        counts = Counter(
+            classify_primary_bucket(r["tags"], set(r["expected_fields"].keys()))
+            for r in records
+        )
+        assert sum(counts.values()) == len(records)
+
+    def test_synthetic_equals_noisy_ocr(self):
+        """Verify 100% correlation between synthetic and noisy_ocr tags."""
+        records = load_expected(EXPECTED_PATH)
+        for r in records:
+            has_synthetic = "synthetic" in r["tags"]
+            has_noisy_ocr = "noisy_ocr" in r["tags"]
+            assert has_synthetic == has_noisy_ocr, (
+                f"{r['invoice_id']}: synthetic={has_synthetic}, "
+                f"noisy_ocr={has_noisy_ocr}"
+            )
+
+
+# ===========================================================================
+# TestReportOrdering (Phase 11)
+# ===========================================================================
+
+class TestReportOrdering:
+    """Stratified section must appear before aggregate in markdown output."""
+
+    def test_stratified_before_aggregate(self, tmp_path):
+        metrics = {
+            "terminal_accuracy": {"correct": 1, "total": 1, "accuracy": 1.0},
+            "field_accuracy": {
+                "overall": {"correct": 1, "total": 1, "accuracy": 1.0},
+            },
+            "unknown_rate": 0.0,
+            "confusion_matrix": {},
+            "by_tag": {},
+            "by_primary_bucket": {
+                b: {
+                    "count": 0,
+                    "terminal_accuracy": {"correct": 0, "total": 0, "accuracy": 0.0},
+                    "field_accuracy": {
+                        "overall": {"correct": 0, "total": 0, "accuracy": 0.0},
+                    },
+                    "failure_breakdown": {
+                        "terminal_mismatch": [],
+                        "field_mismatch": [],
+                        "both_terminal_and_field_mismatch": [],
+                    },
+                }
+                for b in _PRIMARY_BUCKETS
+            },
+            "failures_by_bucket": {
+                "terminal_mismatch": [],
+                "field_mismatch": [],
+                "both_terminal_and_field_mismatch": [],
+            },
+            "failures_by_tag": {},
+            "suspicious_passes": [],
+            "per_invoice": [],
+        }
+        outpath = tmp_path / "report.md"
+        write_md_report(metrics, outpath)
+        text = outpath.read_text(encoding="utf-8")
+        strat_pos = text.index("## Stratified Results")
+        agg_pos = text.index("## Aggregate Metrics")
+        assert strat_pos < agg_pos
