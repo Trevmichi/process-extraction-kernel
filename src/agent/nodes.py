@@ -164,6 +164,142 @@ Text:
 
 
 # ---------------------------------------------------------------------------
+# Shared extraction validation helpers
+# ---------------------------------------------------------------------------
+
+def _validate_extraction_pipeline(
+    raw_text: str, extraction: dict,
+) -> tuple[bool, list[str], dict, dict | None]:
+    """Run shared validation chain: structural → semantic → schema → verifier → arithmetic.
+
+    Called after LLM response with no ``_error`` key.
+
+    Returns ``(valid, codes, provenance, arith_provenance)``.
+
+    Early rejection (struct / sem / schema fail):
+        ``valid=False``, ``codes=<failure codes>``, ``provenance={}``,
+        ``arith_provenance=None``.
+
+    Verifier completed:
+        ``valid=<bool>``, ``codes=<all codes incl. arithmetic>``,
+        ``provenance=<populated dict>``, ``arith_provenance=<dict | None>``.
+
+    Callers use ``not provenance`` to distinguish early rejection from
+    the verifier path.
+    """
+    # Structural shape check
+    struct_ok, struct_issues = validate_extraction_structure(extraction)
+    if not struct_ok:
+        return False, struct_issues, {}, None
+
+    # Semantic plausibility check
+    sem_ok, sem_issues = validate_extraction_semantics(extraction)
+    if not sem_ok:
+        return False, sem_issues, {}, None
+
+    # Schema contract enforcement
+    schema_issues = validate_payload(extraction, "extraction_payload_v1.json")
+    if schema_issues:
+        return False, ["SCHEMA_EXTRACTION_INVALID"], {}, None
+
+    # Deterministic evidence verifier
+    valid, codes, prov = verify_extraction(raw_text, extraction)
+
+    # Arithmetic consistency check
+    arith_codes, arith_prov = check_arithmetic(raw_text)
+    codes.extend(arith_codes)
+    if arith_prov is not None:
+        prov["arithmetic"] = arith_prov
+    valid = valid and len(arith_codes) == 0
+
+    # Runtime provenance schema enforcement
+    assert_valid(prov, "provenance_report_v1.json")
+
+    return valid, codes, prov, arith_prov
+
+
+def _build_verifier_summary(
+    extraction: dict, codes: list[str], prov: dict,
+    *, valid: bool, status_before: str, status_after: str,
+) -> dict:
+    """Build the ``verifier_summary`` audit event dict.
+
+    Returns a plain dict (caller wraps with ``json.dumps``).
+    """
+    _vendor_ev = (extraction.get("vendor") or {}).get("evidence") or ""
+    _amount_ev = (extraction.get("amount") or {}).get("evidence") or ""
+    _haspo_ev = (extraction.get("has_po") or {}).get("evidence") or ""
+
+    return {
+        "event": "verifier_summary", "valid": valid,
+        "failure_codes": list(codes),
+        "status_before": status_before,
+        "status_after": status_after,
+        "vendor": {
+            "value": extraction.get("vendor", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_vendor_ev.strip()),
+            "match_tier": prov.get("vendor", {}).get("match_tier", "not_found"),
+        },
+        "amount": {
+            "value": extraction.get("amount", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_amount_ev.strip()),
+            "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
+            "delta": prov.get("amount", {}).get("delta"),
+            "match_tier": prov.get("amount", {}).get("match_tier", "not_found"),
+        },
+        "has_po": {
+            "value": extraction.get("has_po", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_haspo_ev.strip()),
+            "match_tier": prov.get("has_po", {}).get("match_tier", "not_found"),
+        },
+    }
+
+
+def _build_amount_candidates_audit(raw_text: str, prov: dict) -> dict:
+    """Build the ``amount_candidates`` audit event dict.
+
+    Returns a plain dict (caller wraps with ``json.dumps``).
+    """
+    _norm = normalize_text(raw_text)
+    _cleaned = CURRENCY_RE.sub("", _norm)
+    _amt_candidates = []
+    _winning_keyword = None
+    for _m in MONEY_RE.finditer(_cleaned):
+        _raw_num = _m.group()
+        _parsed_num = _raw_num.replace(",", "")
+        if not _parsed_num or _parsed_num == ".":
+            continue
+        try:
+            _val = float(_parsed_num)
+        except ValueError:
+            continue
+        _start = max(0, _m.start() - KEYWORD_WINDOW)
+        _window = _cleaned[_start:_m.start()]
+        _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
+        _amt_candidates.append({
+            "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
+        })
+        if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
+            _winning_keyword = _kw_hit
+
+    return {
+        "event": "amount_candidates",
+        "candidates": _amt_candidates,
+        "selected": prov.get("amount", {}).get("parsed_evidence"),
+        "winning_keyword": _winning_keyword,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Core executor
 # ---------------------------------------------------------------------------
 def execute_node(state: APState, node_data: dict,
@@ -238,161 +374,73 @@ def execute_node(state: APState, node_data: dict,
                             "valid": False, "reasons": ["LLM_ERROR"]})
             ]
         else:
-            # Structural shape check before verifier
-            struct_ok, struct_issues = validate_extraction_structure(parsed)
-            if not struct_ok:
+            valid, codes, prov, arith_prov = _validate_extraction_pipeline(raw_text, parsed)
+
+            if not prov:
+                # Early rejection (structural / semantic / schema)
                 updates["status"] = "BAD_EXTRACTION"
-                updates["failure_codes"] = struct_issues
+                updates["failure_codes"] = codes
                 updates["provenance"] = {}
                 updates["audit_log"] = [
                     json.dumps({"node": "ENTER_RECORD", "event": "extraction",
                                 "valid": False,
-                                "failure_codes": struct_issues,
-                                "status": "BAD_EXTRACTION"}),
-                ]
-            elif not (sem_ret := validate_extraction_semantics(parsed))[0]:
-                sem_issues = sem_ret[1]
-                updates["status"] = "BAD_EXTRACTION"
-                updates["failure_codes"] = sem_issues
-                updates["provenance"] = {}
-                updates["audit_log"] = [
-                    json.dumps({"node": "ENTER_RECORD", "event": "extraction",
-                                "valid": False,
-                                "failure_codes": sem_issues,
+                                "failure_codes": codes,
                                 "status": "BAD_EXTRACTION"}),
                 ]
             else:
-                # Schema contract enforcement (authoritative gate)
-                schema_issues = validate_payload(parsed, "extraction_payload_v1.json")
-                if schema_issues:
-                    updates["status"] = "BAD_EXTRACTION"
-                    updates["failure_codes"] = ["SCHEMA_EXTRACTION_INVALID"]
-                    updates["provenance"] = {}
-                    updates["audit_log"] = [
-                        json.dumps({"node": "ENTER_RECORD", "event": "extraction",
-                                    "valid": False,
-                                    "failure_codes": ["SCHEMA_EXTRACTION_INVALID"],
-                                    "status": "BAD_EXTRACTION"}),
-                    ]
+                # Verifier path
+                updates["provenance"] = prov
+
+                status_before = state.get("status", "NEW")
+                _retry_count = state.get("retry_count", 0)
+                if valid:
+                    status_after = "DATA_EXTRACTED"
                 else:
-                    # Run deterministic evidence verifier
-                    valid, codes, prov = verify_extraction(raw_text, parsed)
+                    status_after = "NEEDS_RETRY" if _retry_count == 0 else "BAD_EXTRACTION"
 
-                    # Phase 8: arithmetic consistency check
-                    arith_codes, arith_prov = check_arithmetic(raw_text)
-                    codes.extend(arith_codes)
-                    if arith_prov is not None:
-                        prov["arithmetic"] = arith_prov
-                    valid = valid and len(arith_codes) == 0
-
-                    # Runtime provenance schema enforcement (internal code — hard crash)
-                    assert_valid(prov, "provenance_report_v1.json")
-
-                    updates["provenance"] = prov
-
-                    # Build per-field evidence presence flags
-                    _vendor_ev = (parsed.get("vendor") or {}).get("evidence") or ""
-                    _amount_ev = (parsed.get("amount") or {}).get("evidence") or ""
-                    _haspo_ev = (parsed.get("has_po") or {}).get("evidence") or ""
-
-                    status_before = state.get("status", "NEW")
-                    _retry_count = state.get("retry_count", 0)
-                    if valid:
-                        status_after = "DATA_EXTRACTED"
-                    else:
-                        status_after = "NEEDS_RETRY" if _retry_count == 0 else "BAD_EXTRACTION"
-
-                    updates["audit_log"] = [
-                        json.dumps({"node": "ENTER_RECORD", "event": "extraction",
+                updates["audit_log"] = [
+                    json.dumps({"node": "ENTER_RECORD", "event": "extraction",
                                 "valid": valid, "reasons": list(codes)}),
-                    json.dumps({"event": "verifier_summary", "valid": valid,
-                                "failure_codes": list(codes),
-                                "status_before": status_before,
-                                "status_after": status_after,
-                                "vendor": {"value": parsed.get("vendor", {}).get("value"),
-                                           "ok": not any(c in codes for c in
-                                               ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
-                                                "EVIDENCE_NOT_FOUND")),
-                                           "has_evidence": bool(_vendor_ev.strip()),
-                                           "match_tier": prov.get("vendor", {}).get("match_tier", "not_found")},
-                                "amount": {"value": parsed.get("amount", {}).get("value"),
-                                           "ok": not any(c in codes for c in
-                                               ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
-                                                "EVIDENCE_NOT_FOUND")),
-                                           "has_evidence": bool(_amount_ev.strip()),
-                                           "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
-                                           "delta": prov.get("amount", {}).get("delta"),
-                                           "match_tier": prov.get("amount", {}).get("match_tier", "not_found")},
-                                "has_po": {"value": parsed.get("has_po", {}).get("value"),
-                                           "ok": not any(c in codes for c in
-                                               ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
-                                                "EVIDENCE_NOT_FOUND")),
-                                           "has_evidence": bool(_haspo_ev.strip()),
-                                           "match_tier": prov.get("has_po", {}).get("match_tier", "not_found")}}),
+                    json.dumps(_build_verifier_summary(
+                        parsed, codes, prov,
+                        valid=valid, status_before=status_before,
+                        status_after=status_after)),
                 ]
 
-                    # Emit amount_candidates for audit: all money-like values in raw text
-                    _norm = normalize_text(raw_text)
-                    _cleaned = CURRENCY_RE.sub("", _norm)
-                    _amt_candidates = []
-                    _winning_keyword = None
-                    for _m in MONEY_RE.finditer(_cleaned):
-                        _raw_num = _m.group()
-                        _parsed_num = _raw_num.replace(",", "")
-                        if not _parsed_num or _parsed_num == ".":
-                            continue
-                        try:
-                            _val = float(_parsed_num)
-                        except ValueError:
-                            continue
-                        # Check keyword window for this candidate
-                        _start = max(0, _m.start() - KEYWORD_WINDOW)
-                        _window = _cleaned[_start:_m.start()]
-                        _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
-                        _amt_candidates.append({
-                            "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
-                        })
-                        if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
-                            _winning_keyword = _kw_hit
+                updates["audit_log"].append(json.dumps(
+                    _build_amount_candidates_audit(raw_text, prov)))
 
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
                     updates["audit_log"].append(json.dumps({
-                        "event": "amount_candidates",
-                        "candidates": _amt_candidates,
-                        "selected": prov.get("amount", {}).get("parsed_evidence"),
-                        "winning_keyword": _winning_keyword,
+                        "event": "arithmetic_check",
+                        **arith_prov,
                     }))
 
-                    # Emit arithmetic_check only when at least one check ran
-                    if arith_prov is not None:
-                        updates["audit_log"].append(json.dumps({
-                            "event": "arithmetic_check",
-                            **arith_prov,
-                        }))
-
-                    if valid:
-                        # Map nested values to core state fields
-                        updates["vendor"] = str(parsed["vendor"]["value"])
-                        updates["amount"] = float(parsed["amount"]["value"])
-                        updates["has_po"] = bool(parsed["has_po"]["value"])
-                        updates["status"] = "DATA_EXTRACTED"
-                        updates["failure_codes"] = []
-                    else:
-                        # Verification failed — use NEEDS_RETRY on first attempt,
-                        # BAD_EXTRACTION if already retried (avoids compound DSL conditions)
-                        retry_count = state.get("retry_count", 0)
-                        updates["status"] = "NEEDS_RETRY" if retry_count == 0 else "BAD_EXTRACTION"
-                        updates["failure_codes"] = list(codes)
-                        if _allow_unverified():
-                            # Debug mode: still write values (status stays BAD_EXTRACTION)
-                            v = parsed.get("vendor", {})
-                            a = parsed.get("amount", {})
-                            p = parsed.get("has_po", {})
-                            if isinstance(v, dict) and v.get("value"):
-                                updates["vendor"] = str(v["value"])
-                            if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
-                                updates["amount"] = float(a["value"])
-                            if isinstance(p, dict) and isinstance(p.get("value"), bool):
-                                updates["has_po"] = p["value"]
+                if valid:
+                    # Map nested values to core state fields
+                    updates["vendor"] = str(parsed["vendor"]["value"])
+                    updates["amount"] = float(parsed["amount"]["value"])
+                    updates["has_po"] = bool(parsed["has_po"]["value"])
+                    updates["status"] = "DATA_EXTRACTED"
+                    updates["failure_codes"] = []
+                else:
+                    # Verification failed — use NEEDS_RETRY on first attempt,
+                    # BAD_EXTRACTION if already retried (avoids compound DSL conditions)
+                    retry_count = state.get("retry_count", 0)
+                    updates["status"] = "NEEDS_RETRY" if retry_count == 0 else "BAD_EXTRACTION"
+                    updates["failure_codes"] = list(codes)
+                    if _allow_unverified():
+                        # Debug mode: still write values (status stays BAD_EXTRACTION)
+                        v = parsed.get("vendor", {})
+                        a = parsed.get("amount", {})
+                        p = parsed.get("has_po", {})
+                        if isinstance(v, dict) and v.get("value"):
+                            updates["vendor"] = str(v["value"])
+                        if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
+                            updates["amount"] = float(a["value"])
+                        if isinstance(p, dict) and isinstance(p.get("value"), bool):
+                            updates["has_po"] = p["value"]
 
     # ---- Smart node: forensic critic retry -----------------------------------
     elif intent == "CRITIC_RETRY":
@@ -438,150 +486,64 @@ Text:
                             "failure_codes": ["LLM_ERROR"], "status": "BAD_EXTRACTION"})
             ]
         else:
-            # Structural shape check before verifier
-            struct_ok, struct_issues = validate_extraction_structure(parsed)
-            if not struct_ok:
+            valid, codes, prov, arith_prov = _validate_extraction_pipeline(raw_text, parsed)
+
+            if not prov:
+                # Early rejection (structural / semantic / schema)
                 updates["status"] = "BAD_EXTRACTION"
-                updates["failure_codes"] = struct_issues
+                updates["failure_codes"] = codes
                 updates["provenance"] = {}
                 updates["audit_log"] = [
                     json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
                                 "attempt": retry_count + 1, "valid": False,
-                                "failure_codes": struct_issues, "status": "BAD_EXTRACTION"}),
-                ]
-            elif not (sem_ret := validate_extraction_semantics(parsed))[0]:
-                sem_issues = sem_ret[1]
-                updates["status"] = "BAD_EXTRACTION"
-                updates["failure_codes"] = sem_issues
-                updates["provenance"] = {}
-                updates["audit_log"] = [
-                    json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
-                                "attempt": retry_count + 1, "valid": False,
-                                "failure_codes": sem_issues, "status": "BAD_EXTRACTION"}),
+                                "failure_codes": codes, "status": "BAD_EXTRACTION"}),
                 ]
             else:
-                # Schema contract enforcement (authoritative gate)
-                schema_issues = validate_payload(parsed, "extraction_payload_v1.json")
-                if schema_issues:
-                    updates["status"] = "BAD_EXTRACTION"
-                    updates["failure_codes"] = ["SCHEMA_EXTRACTION_INVALID"]
-                    updates["provenance"] = {}
-                    updates["audit_log"] = [
-                        json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
-                                    "attempt": retry_count + 1, "valid": False,
-                                    "failure_codes": ["SCHEMA_EXTRACTION_INVALID"],
-                                    "status": "BAD_EXTRACTION"}),
-                    ]
-                else:
-                    # Run deterministic evidence verifier
-                    valid, codes, prov = verify_extraction(raw_text, parsed)
+                # Verifier path
+                updates["provenance"] = prov
 
-                    # Phase 8: arithmetic consistency check
-                    arith_codes, arith_prov = check_arithmetic(raw_text)
-                    codes.extend(arith_codes)
-                    if arith_prov is not None:
-                        prov["arithmetic"] = arith_prov
-                    valid = valid and len(arith_codes) == 0
+                cr_status = "DATA_EXTRACTED" if valid else "BAD_EXTRACTION"
+                updates["failure_codes"] = [] if valid else list(codes)
 
-                    # Runtime provenance schema enforcement (internal code — hard crash)
-                    assert_valid(prov, "provenance_report_v1.json")
+                updates["audit_log"] = [
+                    # Critic-specific event
+                    json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
+                                "attempt": retry_count + 1, "valid": valid,
+                                "failure_codes": list(codes), "status": cr_status}),
+                    # verifier_summary (same structure as ENTER_RECORD)
+                    json.dumps(_build_verifier_summary(
+                        parsed, codes, prov,
+                        valid=valid, status_before=state.get("status", ""),
+                        status_after=cr_status)),
+                ]
 
-                    updates["provenance"] = prov
+                updates["audit_log"].append(json.dumps(
+                    _build_amount_candidates_audit(raw_text, prov)))
 
-                    cr_status = "DATA_EXTRACTED" if valid else "BAD_EXTRACTION"
-                    updates["failure_codes"] = [] if valid else list(codes)
-
-                    # Per-field evidence presence flags (mirrors ENTER_RECORD)
-                    _vendor_ev = (parsed.get("vendor") or {}).get("evidence") or ""
-                    _amount_ev = (parsed.get("amount") or {}).get("evidence") or ""
-                    _haspo_ev = (parsed.get("has_po") or {}).get("evidence") or ""
-
-                    updates["audit_log"] = [
-                        # Critic-specific event
-                        json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
-                                    "attempt": retry_count + 1, "valid": valid,
-                                    "failure_codes": list(codes), "status": cr_status}),
-                        # verifier_summary (same structure as ENTER_RECORD)
-                        json.dumps({"event": "verifier_summary", "valid": valid,
-                                    "failure_codes": list(codes),
-                                    "status_before": state.get("status", ""),
-                                    "status_after": cr_status,
-                                    "vendor": {"value": parsed.get("vendor", {}).get("value"),
-                                               "ok": not any(c in codes for c in
-                                                   ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
-                                                    "EVIDENCE_NOT_FOUND")),
-                                               "has_evidence": bool(_vendor_ev.strip()),
-                                               "match_tier": prov.get("vendor", {}).get("match_tier", "not_found")},
-                                    "amount": {"value": parsed.get("amount", {}).get("value"),
-                                               "ok": not any(c in codes for c in
-                                                   ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
-                                                    "EVIDENCE_NOT_FOUND")),
-                                               "has_evidence": bool(_amount_ev.strip()),
-                                               "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
-                                               "delta": prov.get("amount", {}).get("delta"),
-                                               "match_tier": prov.get("amount", {}).get("match_tier", "not_found")},
-                                    "has_po": {"value": parsed.get("has_po", {}).get("value"),
-                                               "ok": not any(c in codes for c in
-                                                   ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
-                                                    "EVIDENCE_NOT_FOUND")),
-                                               "has_evidence": bool(_haspo_ev.strip()),
-                                               "match_tier": prov.get("has_po", {}).get("match_tier", "not_found")}}),
-                    ]
-
-                    # amount_candidates (same structure as ENTER_RECORD)
-                    _norm = normalize_text(raw_text)
-                    _cleaned = CURRENCY_RE.sub("", _norm)
-                    _amt_candidates = []
-                    _winning_keyword = None
-                    for _m in MONEY_RE.finditer(_cleaned):
-                        _raw_num = _m.group()
-                        _parsed_num = _raw_num.replace(",", "")
-                        if not _parsed_num or _parsed_num == ".":
-                            continue
-                        try:
-                            _val = float(_parsed_num)
-                        except ValueError:
-                            continue
-                        _start = max(0, _m.start() - KEYWORD_WINDOW)
-                        _window = _cleaned[_start:_m.start()]
-                        _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
-                        _amt_candidates.append({
-                            "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
-                        })
-                        if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
-                            _winning_keyword = _kw_hit
-
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
                     updates["audit_log"].append(json.dumps({
-                        "event": "amount_candidates",
-                        "candidates": _amt_candidates,
-                        "selected": prov.get("amount", {}).get("parsed_evidence"),
-                        "winning_keyword": _winning_keyword,
+                        "event": "arithmetic_check",
+                        **arith_prov,
                     }))
 
-                    # Emit arithmetic_check only when at least one check ran
-                    if arith_prov is not None:
-                        updates["audit_log"].append(json.dumps({
-                            "event": "arithmetic_check",
-                            **arith_prov,
-                        }))
-
-                    if valid:
-                        updates["vendor"] = str(parsed["vendor"]["value"])
-                        updates["amount"] = float(parsed["amount"]["value"])
-                        updates["has_po"] = bool(parsed["has_po"]["value"])
-                        updates["status"] = "DATA_EXTRACTED"
-                    else:
-                        updates["status"] = "BAD_EXTRACTION"
-                        if _allow_unverified():
-                            v = parsed.get("vendor", {})
-                            a = parsed.get("amount", {})
-                            p = parsed.get("has_po", {})
-                            if isinstance(v, dict) and v.get("value"):
-                                updates["vendor"] = str(v["value"])
-                            if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
-                                updates["amount"] = float(a["value"])
-                            if isinstance(p, dict) and isinstance(p.get("value"), bool):
-                                updates["has_po"] = p["value"]
+                if valid:
+                    updates["vendor"] = str(parsed["vendor"]["value"])
+                    updates["amount"] = float(parsed["amount"]["value"])
+                    updates["has_po"] = bool(parsed["has_po"]["value"])
+                    updates["status"] = "DATA_EXTRACTED"
+                else:
+                    updates["status"] = "BAD_EXTRACTION"
+                    if _allow_unverified():
+                        v = parsed.get("vendor", {})
+                        a = parsed.get("amount", {})
+                        p = parsed.get("has_po", {})
+                        if isinstance(v, dict) and v.get("value"):
+                            updates["vendor"] = str(v["value"])
+                        if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
+                            updates["amount"] = float(a["value"])
+                        if isinstance(p, dict) and isinstance(p.get("value"), bool):
+                            updates["has_po"] = p["value"]
 
     # ---- Smart node: field validation ---------------------------------------
     elif intent == "VALIDATE_FIELDS":
