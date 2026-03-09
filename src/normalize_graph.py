@@ -1653,18 +1653,22 @@ def inject_match_result_unknown_guardrail(data: dict) -> tuple[dict, list[str]]:
             f"Gateways needing it: {gateways_needing_unknown}"
         )
 
+    # Build a set of (frm, condition) pairs for O(1) idempotency checks.
+    existing_edge_keys: set[tuple] = {
+        (e.get("frm"), e.get("condition"))
+        for e in data.get("edges", [])
+    }
+
     for gw_id in gateways_needing_unknown:
         condition = 'match_result == "UNKNOWN"'
         # Idempotency: skip if already present
-        if any(
-            e.get("frm") == gw_id and e.get("condition") == condition
-            for e in data.get("edges", [])
-        ):
+        if (gw_id, condition) in existing_edge_keys:
             continue
         data["edges"].append(
             _norm_edge(gw_id, unmodeled_id, condition,
                        "normalize_match_result_unknown")
         )
+        existing_edge_keys.add((gw_id, condition))
         log.append(
             f"  [UNKNOWN] Injected edge {gw_id}->{unmodeled_id} "
             f'(condition=match_result == "UNKNOWN")'

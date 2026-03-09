@@ -28,6 +28,8 @@ E_SYNTHETIC_INCOMPLETE           — a node with meta.synthetic=True is missing
 """
 from __future__ import annotations
 
+from collections import defaultdict
+
 from .conditions import normalize_condition
 from .linter import LintError
 
@@ -66,6 +68,17 @@ def check_match_split_invariants(data: dict) -> list[LintError]:
     errors: list[LintError] = []
     nodes_map: dict[str, dict] = {n["id"]: n for n in data.get("nodes", [])}
     edges = data.get("edges", [])
+
+    # Build edge indices once to avoid O(n) list scans inside the candidate loop.
+    edges_by_src: dict[str, list[dict]] = defaultdict(list)
+    edges_by_tgt: dict[str, list[dict]] = defaultdict(list)
+    for e in edges:
+        src = e.get("frm")
+        if src is not None:
+            edges_by_src[src].append(e)
+        tgt = e.get("to")
+        if tgt is not None:
+            edges_by_tgt[tgt].append(e)
 
     def _err(code: str, msg: str, **ctx: object) -> None:
         errors.append(LintError(code=code, severity="error", message=msg, context=ctx))
@@ -134,7 +147,7 @@ def check_match_split_invariants(data: dict) -> list[LintError]:
                 node_id=nid,
             )
         else:
-            out = [e for e in edges if e.get("frm") == nid]
+            out = edges_by_src.get(nid, [])
             unconditional_to_dec = [
                 e for e in out
                 if e.get("to") == decision_id and e.get("condition") is None
@@ -151,7 +164,7 @@ def check_match_split_invariants(data: dict) -> list[LintError]:
                 )
 
         # --- E_MATCH_SPLIT_NON_EXHAUSTIVE ---
-        dec_out = [e for e in edges if e.get("frm") == decision_id]
+        dec_out = edges_by_src.get(decision_id, [])
         dec_conds = {e.get("condition") for e in dec_out}
         if dec_conds != _MATCH_DECISION_CONDITIONS:
             missing = _MATCH_DECISION_CONDITIONS - dec_conds
@@ -171,7 +184,7 @@ def check_match_split_invariants(data: dict) -> list[LintError]:
             )
 
         # --- E_MATCH_SPLIT_BYPASS_INBOUND ---
-        inbound = [e for e in edges if e.get("to") == decision_id]
+        inbound = edges_by_tgt.get(decision_id, [])
         bypass = [e for e in inbound if e.get("frm") != nid]
         for e in bypass:
             _err(
@@ -374,6 +387,13 @@ def check_match_decision_truth_table(data: dict) -> list[LintError]:
     edges = data.get("edges", [])
     nodes_map: dict[str, dict] = {n["id"]: n for n in data.get("nodes", [])}
 
+    # Build an edges-by-source index once to avoid O(n) scans per gateway node.
+    edges_by_src: dict[str, list[dict]] = defaultdict(list)
+    for e in edges:
+        src = e.get("frm")
+        if src is not None:
+            edges_by_src[src].append(e)
+
     for node in data.get("nodes", []):
         if node.get("kind") != "gateway":
             continue
@@ -382,7 +402,7 @@ def check_match_decision_truth_table(data: dict) -> list[LintError]:
             continue
 
         nid = node["id"]
-        out_edges = [e for e in edges if e.get("frm") == nid]
+        out_edges = edges_by_src.get(nid, [])
         out_conds = {e.get("condition") for e in out_edges}
 
         # --- Exhaustive condition check ---
