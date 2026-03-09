@@ -9,13 +9,10 @@ the routing topology actually reaches the expected terminal nodes.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.agent.compiler import build_ap_graph
 from src.agent.router import analyze_routing

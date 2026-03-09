@@ -7,12 +7,9 @@ invoice dataset. Every case must produce zero-diff before cutover proceeds.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.verifier_shadow import run_verifier_shadow_comparison
 

@@ -12,13 +12,8 @@ from __future__ import annotations
 
 import json
 import copy
-from pathlib import Path
 
 import pytest
-
-# Import patch internals directly
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from patch_logic import _patch, NEW_NODES, ART_ACCOUNT_CODE
 

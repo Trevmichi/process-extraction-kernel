@@ -10,6 +10,20 @@ instead of scattered hardcoded constants.
 The default instance reproduces current behavior exactly.  Future phases
 may accept PolicyConfig as a parameter for multi-tenant support; for now,
 module-level DEFAULT_POLICY is the single source of truth.
+
+Import-time vs runtime
+~~~~~~~~~~~~~~~~~~~~~~
+Several consumers snapshot DEFAULT_POLICY fields at **import time**:
+
+- ``ontology.APPROVAL_THRESHOLD = DEFAULT_POLICY.approval_threshold``
+- ``contracts._REQUIRED_EXTRACTION_FIELDS = DEFAULT_POLICY.required_fields``
+- ``router._AMBIGUOUS_INTENT = DEFAULT_POLICY.ambiguous_route_intent``
+
+These are effectively frozen once the module is first imported.  In contrast,
+``verifier.py`` reads ``DEFAULT_POLICY.po_mode`` at **call time** (each
+invocation).  Tests that mock policy values must patch at the correct level:
+the consumer's module-level name, not ``DEFAULT_POLICY`` itself, for the
+import-time snapshots.
 """
 from __future__ import annotations
 

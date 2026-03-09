@@ -6,10 +6,6 @@ and shadow registry agreement.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.verifier import verify_extraction
 from src.verifier_shadow import run_verifier_shadow_comparison

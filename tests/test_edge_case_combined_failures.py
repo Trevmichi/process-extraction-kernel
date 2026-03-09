@@ -7,12 +7,7 @@ including a regression test reconstructing the exact INV-2024 scenario.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.verifier import verify_extraction
 
