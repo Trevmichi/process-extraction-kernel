@@ -4,13 +4,9 @@ Unit tests for eval_variance.py — variance (fragility) scoring.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from eval_variance import _flatten_extraction, run_variance_test
 

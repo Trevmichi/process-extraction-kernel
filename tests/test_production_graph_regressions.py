@@ -10,13 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.conditions import normalize_condition
 from src.linter import lint_process_graph

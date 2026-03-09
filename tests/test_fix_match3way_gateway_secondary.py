@@ -9,12 +9,8 @@ pass-ordering regressions are caught too.
 from __future__ import annotations
 
 import copy
-import sys
-from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.normalize_graph import normalize_all
 

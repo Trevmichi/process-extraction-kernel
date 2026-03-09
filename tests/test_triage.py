@@ -4,12 +4,7 @@ Unit tests for eval_triage: compute_invariant_signals and generate_action_plan.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from eval_triage import compute_invariant_signals, generate_action_plan
 

@@ -4,10 +4,6 @@ Scaffold tests for verifier modularization shadow-mode utilities.
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src import verifier as legacy_verifier
 from src.verifier_registry import (
