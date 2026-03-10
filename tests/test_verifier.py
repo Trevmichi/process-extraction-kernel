@@ -692,6 +692,49 @@ class TestMatchTier:
         valid, codes, prov = verify_extraction(raw, ext)
         assert prov["tax_amount"]["match_tier"] == "normalized_match"
 
+    # ---- 5-field integration (Phase 10d) ----
+
+    def test_five_field_payload_provenance_complete(self):
+        """verify_extraction with all 5 fields → provenance includes date/tax."""
+        raw = "INVOICE\nDate: 2024-01-15\nVendor: Acme\nSubtotal: $90.00\nTax: $10.00\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "invoice_date": {"value": "2024-01-15", "evidence": "Date: 2024-01-15"},
+            "tax_amount": {"value": 10.0, "evidence": "Tax: $10.00"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert "invoice_date" in prov
+        assert "tax_amount" in prov
+        assert prov["invoice_date"]["match_tier"] in ("exact_match", "normalized_match")
+        assert prov["tax_amount"]["match_tier"] in ("exact_match", "normalized_match")
+
+    def test_three_field_payload_no_optional_provenance(self):
+        """verify_extraction with 3 fields only → no invoice_date/tax_amount in prov."""
+        raw = "INVOICE\nVendor: Acme\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert "invoice_date" not in prov
+        assert "tax_amount" not in prov
+
+    def test_date_bad_evidence_produces_failure_code(self):
+        """invoice_date with fabricated evidence → DATE_* failure code."""
+        raw = "INVOICE\nDate: 2024-01-15\nVendor: Acme\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "invoice_date": {"value": "2024-01-15", "evidence": "FABRICATED_DATE"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert any(c.startswith("DATE_") for c in codes)
+        assert "invoice_date" in prov
+
     # ---- default tier ----
 
     def test_default_provenance_has_not_found(self):

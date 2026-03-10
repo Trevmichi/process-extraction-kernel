@@ -257,3 +257,91 @@ class TestSemanticValidation:
             result = execute_node(_make_state(), _ENTER_RECORD_NODE)
         assert result["status"] == "BAD_EXTRACTION"
         assert result["provenance"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Extended field activation (Phase 10d)
+# ---------------------------------------------------------------------------
+
+_RAW_TEXT_EXTENDED = (
+    "INVOICE\nDate: 01/15/2024\nVendor: Test Vendor\n"
+    "PO: PO-ABC\nSubtotal: $200.00\nTax: $50.00\nTotal: $250.00"
+)
+
+_FIVE_FIELD_PAYLOAD = {
+    "vendor": {"value": "Test Vendor", "evidence": "Vendor: Test Vendor"},
+    "amount": {"value": 250.0, "evidence": "Total: $250.00"},
+    "has_po": {"value": True, "evidence": "PO: PO-ABC"},
+    "invoice_date": {"value": "2024-01-15", "evidence": "Date: 01/15/2024"},
+    "tax_amount": {"value": 50.0, "evidence": "Tax: $50.00"},
+}
+
+
+class TestExtendedFieldActivation:
+    """Phase 10d: invoice_date and tax_amount in the live pipeline."""
+
+    def test_five_field_extraction_valid(self) -> None:
+        """5-field payload → DATA_EXTRACTED, state has date/tax."""
+        state = make_initial_state(
+            invoice_id="INV-EXT",
+            raw_text=_RAW_TEXT_EXTENDED,
+            po_match=True,
+        )
+        with patch("src.agent.nodes._call_llm_json", return_value=_FIVE_FIELD_PAYLOAD):
+            result = execute_node(state, _ENTER_RECORD_NODE)
+        assert result["status"] == "DATA_EXTRACTED"
+        assert result["invoice_date"] == "2024-01-15"
+        assert abs(result["tax_amount"] - 50.0) < 0.01
+
+    def test_three_field_extraction_still_valid(self) -> None:
+        """3-field payload (no date/tax) → DATA_EXTRACTED, optional fields at defaults."""
+        with patch("src.agent.nodes._call_llm_json", return_value=_WELL_FORMED):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        assert result["status"] == "DATA_EXTRACTED"
+        assert "invoice_date" not in result  # not promoted (absent from extraction)
+        assert "tax_amount" not in result
+
+    def test_omitted_optional_fields_still_valid(self) -> None:
+        """Omitted optional fields → verifier skips, core fields still valid."""
+        # LLM omits invoice_date/tax_amount when not found (per prompt instruction)
+        with patch("src.agent.nodes._call_llm_json", return_value=_WELL_FORMED):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        assert result["status"] == "DATA_EXTRACTED"
+        assert "invoice_date" not in result  # absent → not promoted
+        assert "tax_amount" not in result
+
+    def test_verifier_summary_includes_optional_fields(self) -> None:
+        """Verifier summary audit event includes date/tax when processed."""
+        state = make_initial_state(
+            invoice_id="INV-EXT",
+            raw_text=_RAW_TEXT_EXTENDED,
+            po_match=True,
+        )
+        with patch("src.agent.nodes._call_llm_json", return_value=_FIVE_FIELD_PAYLOAD):
+            result = execute_node(state, _ENTER_RECORD_NODE)
+        # Find verifier_summary in audit_log
+        vs = None
+        for entry in result["audit_log"]:
+            obj = json.loads(entry)
+            if obj.get("event") == "verifier_summary":
+                vs = obj
+                break
+        assert vs is not None, "verifier_summary not found in audit_log"
+        assert "invoice_date" in vs
+        assert vs["invoice_date"]["ok"] is True
+        assert "tax_amount" in vs
+        assert vs["tax_amount"]["ok"] is True
+
+    def test_verifier_summary_omits_absent_optional_fields(self) -> None:
+        """Verifier summary omits date/tax when not in extraction."""
+        with patch("src.agent.nodes._call_llm_json", return_value=_WELL_FORMED):
+            result = execute_node(_make_state(), _ENTER_RECORD_NODE)
+        vs = None
+        for entry in result["audit_log"]:
+            obj = json.loads(entry)
+            if obj.get("event") == "verifier_summary":
+                vs = obj
+                break
+        assert vs is not None
+        assert "invoice_date" not in vs
+        assert "tax_amount" not in vs

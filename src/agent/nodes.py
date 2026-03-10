@@ -149,15 +149,19 @@ For EACH field, return a nested object with "value" (the canonical value) and "e
 
 Schema:
 {{
-  "vendor":  {{"value": "<string>",  "evidence": "<exact substring>"}},
-  "amount":  {{"value": <float>,     "evidence": "<exact substring>"}},
-  "has_po":  {{"value": <boolean>,   "evidence": "<exact substring>"}}
+  "vendor":       {{"value": "<string>",     "evidence": "<exact substring>"}},
+  "amount":       {{"value": <float>,        "evidence": "<exact substring>"}},
+  "has_po":       {{"value": <boolean>,      "evidence": "<exact substring>"}},
+  "invoice_date": {{"value": "<YYYY-MM-DD>", "evidence": "<exact substring>"}},
+  "tax_amount":   {{"value": <float>,        "evidence": "<exact substring>"}}
 }}
 
 Rules:
-- "amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "amount.value" / "tax_amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "invoice_date.value": YYYY-MM-DD preferred (e.g. 2024-01-15)
 - "evidence" MUST be copied verbatim from the text — do NOT paraphrase or summarize
-- If a field cannot be found, set value to null and evidence to ""
+- If vendor, amount, or has_po cannot be found, set value to null and evidence to ""
+- If invoice_date or tax_amount cannot be found, omit the field entirely from the JSON
 
 Text:
 {raw_text}"""
@@ -230,7 +234,7 @@ def _build_verifier_summary(
     _amount_ev = (extraction.get("amount") or {}).get("evidence") or ""
     _haspo_ev = (extraction.get("has_po") or {}).get("evidence") or ""
 
-    return {
+    summary = {
         "event": "verifier_summary", "valid": valid,
         "failure_codes": list(codes),
         "status_before": status_before,
@@ -262,6 +266,28 @@ def _build_verifier_summary(
             "match_tier": prov.get("has_po", {}).get("match_tier", "not_found"),
         },
     }
+
+    # Optional fields — include when verifier processed them
+    if "invoice_date" in prov:
+        _date_ev = (extraction.get("invoice_date") or {}).get("evidence") or ""
+        summary["invoice_date"] = {
+            "value": extraction.get("invoice_date", {}).get("value"),
+            "ok": not any(c.startswith("DATE_") for c in codes),
+            "has_evidence": bool(_date_ev.strip()),
+            "match_tier": prov.get("invoice_date", {}).get("match_tier", "not_found"),
+        }
+    if "tax_amount" in prov:
+        _tax_ev = (extraction.get("tax_amount") or {}).get("evidence") or ""
+        summary["tax_amount"] = {
+            "value": extraction.get("tax_amount", {}).get("value"),
+            "ok": not any(c.startswith("TAX_") for c in codes),
+            "has_evidence": bool(_tax_ev.strip()),
+            "parsed_evidence": prov.get("tax_amount", {}).get("parsed_evidence"),
+            "delta": prov.get("tax_amount", {}).get("delta"),
+            "match_tier": prov.get("tax_amount", {}).get("match_tier", "not_found"),
+        }
+
+    return summary
 
 
 def _build_amount_candidates_audit(raw_text: str, prov: dict) -> dict:
@@ -422,6 +448,13 @@ def execute_node(state: APState, node_data: dict,
                     updates["vendor"] = str(parsed["vendor"]["value"])
                     updates["amount"] = float(parsed["amount"]["value"])
                     updates["has_po"] = bool(parsed["has_po"]["value"])
+                    # Optional fields — promote when present and non-null
+                    _inv_date = parsed.get("invoice_date", {})
+                    if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                        updates["invoice_date"] = str(_inv_date["value"])
+                    _tax_amt = parsed.get("tax_amount", {})
+                    if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                        updates["tax_amount"] = float(_tax_amt["value"])
                     updates["status"] = "DATA_EXTRACTED"
                     updates["failure_codes"] = []
                 else:
@@ -441,6 +474,12 @@ def execute_node(state: APState, node_data: dict,
                             updates["amount"] = float(a["value"])
                         if isinstance(p, dict) and isinstance(p.get("value"), bool):
                             updates["has_po"] = p["value"]
+                        _inv_date = parsed.get("invoice_date", {})
+                        if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                            updates["invoice_date"] = str(_inv_date["value"])
+                        _tax_amt = parsed.get("tax_amount", {})
+                        if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                            updates["tax_amount"] = float(_tax_amt["value"])
 
     # ---- Smart node: forensic critic retry -----------------------------------
     elif intent == "CRITIC_RETRY":
@@ -461,15 +500,19 @@ verbatim evidence. Return the corrected extraction as a complete JSON object usi
 exact schema:
 
 {{
-  "vendor":  {{"value": "<string>",  "evidence": "<exact substring>"}},
-  "amount":  {{"value": <float>,     "evidence": "<exact substring>"}},
-  "has_po":  {{"value": <boolean>,   "evidence": "<exact substring>"}}
+  "vendor":       {{"value": "<string>",     "evidence": "<exact substring>"}},
+  "amount":       {{"value": <float>,        "evidence": "<exact substring>"}},
+  "has_po":       {{"value": <boolean>,      "evidence": "<exact substring>"}},
+  "invoice_date": {{"value": "<YYYY-MM-DD>", "evidence": "<exact substring>"}},
+  "tax_amount":   {{"value": <float>,        "evidence": "<exact substring>"}}
 }}
 
 Rules:
-- "amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "amount.value" / "tax_amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "invoice_date.value": YYYY-MM-DD preferred (e.g. 2024-01-15)
 - "evidence" MUST be copied verbatim from the text — do NOT paraphrase or summarize
-- If you cannot fix a field, keep the original value and evidence
+- If you cannot fix a required field (vendor, amount, has_po), keep the original value and evidence
+- If you cannot fix an optional field (invoice_date, tax_amount), omit it from the JSON
 
 Text:
 {raw_text}"""
@@ -531,6 +574,12 @@ Text:
                     updates["vendor"] = str(parsed["vendor"]["value"])
                     updates["amount"] = float(parsed["amount"]["value"])
                     updates["has_po"] = bool(parsed["has_po"]["value"])
+                    _inv_date = parsed.get("invoice_date", {})
+                    if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                        updates["invoice_date"] = str(_inv_date["value"])
+                    _tax_amt = parsed.get("tax_amount", {})
+                    if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                        updates["tax_amount"] = float(_tax_amt["value"])
                     updates["status"] = "DATA_EXTRACTED"
                 else:
                     updates["status"] = "BAD_EXTRACTION"
@@ -544,6 +593,12 @@ Text:
                             updates["amount"] = float(a["value"])
                         if isinstance(p, dict) and isinstance(p.get("value"), bool):
                             updates["has_po"] = p["value"]
+                        _inv_date = parsed.get("invoice_date", {})
+                        if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                            updates["invoice_date"] = str(_inv_date["value"])
+                        _tax_amt = parsed.get("tax_amount", {})
+                        if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                            updates["tax_amount"] = float(_tax_amt["value"])
 
     # ---- Smart node: field validation ---------------------------------------
     elif intent == "VALIDATE_FIELDS":

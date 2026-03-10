@@ -54,7 +54,14 @@ def _format_audit_entry(entry) -> tuple[str, str, str]:
         v = "✓" if entry.vendor.get("ok") else "✗"
         a = "✓" if entry.amount.get("ok") else "✗"
         p = "✓" if entry.has_po.get("ok") else "✗"
-        return icon, "VERIFY", f"Verified {entry.status_before}→{entry.status_after} (vendor{v} / amount{a} / has_po{p})"
+        parts = [f"vendor{v}", f"amount{a}", f"has_po{p}"]
+        if entry.invoice_date is not None:
+            d = "✓" if entry.invoice_date.get("ok") else "✗"
+            parts.append(f"date{d}")
+        if entry.tax_amount is not None:
+            t = "✓" if entry.tax_amount.get("ok") else "✗"
+            parts.append(f"tax{t}")
+        return icon, "VERIFY", f"Verified {entry.status_before}→{entry.status_after} ({' / '.join(parts)})"
 
     if isinstance(entry, ExceptionStationEvent):
         return "⚠️", "EXCEPTION", f"Exception: {entry.reason} at {entry.node} (gate {entry.gateway})"

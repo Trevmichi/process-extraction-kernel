@@ -1090,6 +1090,53 @@ class TestAuditEventVerifierSummarySchema:
                 "bonus": "nope",
             })
 
+    # ---- Optional invoice_date / tax_amount (Phase 10d) ----
+
+    def test_with_optional_invoice_date(self):
+        """Verifier summary with optional invoice_date validates."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": True,
+            "failure_codes": [],
+            "status_before": "NEW",
+            "status_after": "DATA_EXTRACTED",
+            "vendor": {"value": "Acme", "ok": True, "has_evidence": True},
+            "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                       "parsed_evidence": 100.0, "delta": 0.0},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+            "invoice_date": {"value": "2024-01-15", "ok": True, "has_evidence": True},
+        })
+
+    def test_with_optional_tax_amount(self):
+        """Verifier summary with optional tax_amount validates."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": True,
+            "failure_codes": [],
+            "status_before": "NEW",
+            "status_after": "DATA_EXTRACTED",
+            "vendor": {"value": "Acme", "ok": True, "has_evidence": True},
+            "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                       "parsed_evidence": 100.0, "delta": 0.0},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+            "tax_amount": {"value": 10.0, "ok": True, "has_evidence": True,
+                          "parsed_evidence": 10.0, "delta": 0.0},
+        })
+
+    def test_without_optional_fields_still_valid(self):
+        """Verifier summary without optional fields validates (backward compat)."""
+        self._validate({
+            "event": "verifier_summary",
+            "valid": True,
+            "failure_codes": [],
+            "status_before": "NEW",
+            "status_after": "DATA_EXTRACTED",
+            "vendor": {"value": "X", "ok": True, "has_evidence": True},
+            "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                       "parsed_evidence": 100.0, "delta": 0.0},
+            "has_po": {"value": True, "ok": True, "has_evidence": True},
+        })
+
 
 # -----------------------------------------------------------------------
 # Audit Event: critic_retry_executed

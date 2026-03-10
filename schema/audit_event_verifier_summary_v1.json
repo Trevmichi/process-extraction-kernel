@@ -51,6 +51,40 @@
       },
       "required": ["value", "ok", "has_evidence"],
       "additionalProperties": false
+    },
+    "InvoiceDateSummary": {
+      "type": "object",
+      "description": "Optional — present only when verifier processed invoice_date.",
+      "properties": {
+        "value": { "description": "Claimed invoice_date value (string or null)." },
+        "ok": { "type": "boolean", "description": "True if no DATE_* failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["value", "ok", "has_evidence"],
+      "additionalProperties": false
+    },
+    "TaxAmountSummary": {
+      "type": "object",
+      "description": "Optional — present only when verifier processed tax_amount.",
+      "properties": {
+        "value": { "description": "Claimed tax_amount value (number or null)." },
+        "ok": { "type": "boolean", "description": "True if no TAX_* failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "parsed_evidence": { "type": ["number", "null"], "description": "Parsed numeric value from evidence, or null." },
+        "delta": { "type": ["number", "null"], "description": "Absolute difference between claimed and parsed, or null." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["value", "ok", "has_evidence", "parsed_evidence", "delta"],
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -77,7 +111,9 @@
     },
     "vendor": { "$ref": "#/$defs/VendorSummary" },
     "amount": { "$ref": "#/$defs/AmountSummary" },
-    "has_po": { "$ref": "#/$defs/HasPoSummary" }
+    "has_po": { "$ref": "#/$defs/HasPoSummary" },
+    "invoice_date": { "$ref": "#/$defs/InvoiceDateSummary" },
+    "tax_amount": { "$ref": "#/$defs/TaxAmountSummary" }
   },
   "required": ["event", "valid", "failure_codes", "status_before", "status_after", "vendor", "amount", "has_po"],
   "additionalProperties": false
