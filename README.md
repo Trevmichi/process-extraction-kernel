@@ -49,14 +49,17 @@ checks with a structured interpretation layer for operator-facing explanation.
 | **Graph Linter** | `src/linter.py` + `src/invariants.py` | Sections A-E: referential integrity, actor/artifact checks, gateway semantics, decision consistency, structural invariants |
 | **LangGraph Agent** | `src/agent/compiler.py` | Compiles patched JSON -> `StateGraph`; calls `assert_graph_valid`, builds station map for router |
 | **Deterministic Router** | `src/agent/router.py` | Strict 2-phase: conditional edges first, unconditional fallback; >1 match -> AMBIGUOUS_ROUTE station; 0 matches -> NO_ROUTE station |
-| **Node Executors** | `src/agent/nodes.py` | ENTER_RECORD (LLM extraction), VALIDATE_FIELDS (LLM validation), ROUTE_FOR_REVIEW (structured audit + exception status) |
-| **Evidence Verifier** | `src/verifier.py` | Cross-checks extracted fields against raw invoice text; returns failure codes + provenance metadata |
+| **Node Executors** | `src/agent/nodes.py` | ENTER_RECORD (LLM extraction), CRITIC_RETRY (forensic re-extraction), VALIDATE_FIELDS (LLM validation), ROUTE_FOR_REVIEW (structured audit + exception status) |
+| **Evidence Verifier** | `src/verifier.py` | Cross-checks extracted fields (vendor, amount, has_po, invoice_date, tax_amount) against raw invoice text; returns failure codes + provenance metadata |
 | **Arithmetic Checks** | `src/arithmetic.py` | Pure source-text cross-checks: subtotal + tax + fees = total, tax rate * subtotal = tax |
 | **Exception Stations** | `patch_logic.py` | 4 fail-closed ROUTE_FOR_REVIEW nodes: bad_extraction, unmodeled_gate, ambiguous_route, no_route |
 | **Unmodeled Logger** | `src/unmodeled.py` | JSONL logger for unmodeled routing events (never logs raw_text for privacy) |
 | **Audit Parser** | `src/audit_parser.py` | Single-pass typed parser: 14 frozen dataclass entry types -> immutable `ParsedAuditLog` |
 | **Explanation Layer** | `src/explanation.py` | `build_explanation(parsed) -> ExplanationReport` with optional structured components + `OutcomeClassification` |
-| **Data Contracts** | `src/contracts.py` | TypedDict shape definitions for extraction payloads, provenance reports, failure code schemas |
+| **Verifier Registry** | `src/verifier_registry.py` | Registry-backed field validation; marks invoice_date and tax_amount as optional (skipped when absent) |
+| **Schema Validator** | `src/schema_validator.py` | Runtime JSON Schema gates at extraction emission points; rejects payloads with unexpected fields |
+| **Policy Layer** | `src/policy.py` | Frozen `PolicyConfig` centralizing approval threshold, PO mode, required fields, and exception station intents |
+| **Data Contracts** | `src/contracts.py` | TypedDict shape definitions for extraction payloads, provenance reports, evidence quality tiers |
 
 ### Architecture Flow
 
@@ -96,11 +99,14 @@ process-extraction-kernel/
 |   +-- linter.py           # Graph linter (sections A-E)
 |   +-- invariants.py       # Structural invariant checks
 |   +-- normalize_graph.py  # 15 idempotent repair passes
-|   +-- verifier.py         # Evidence-backed extraction verifier
+|   +-- verifier.py         # Evidence-backed extraction verifier (5 fields)
+|   +-- verifier_registry.py # Registry-backed field validation (optional field support)
+|   +-- schema_validator.py # Runtime JSON Schema gates for extraction payloads
 |   +-- arithmetic.py       # Source-text arithmetic consistency checks
 |   +-- audit_parser.py     # Canonical typed audit log parser
 |   +-- explanation.py      # Structured explanation builder (ExplanationReport)
-|   +-- contracts.py        # TypedDict shape definitions for data contracts
+|   +-- contracts.py        # TypedDict shape definitions + evidence quality tiers
+|   +-- policy.py           # Frozen PolicyConfig (thresholds, modes, required fields)
 |   +-- ontology.py         # Literal types, status sets, action/decision ontology
 |   +-- unmodeled.py        # JSONL logger for unmodeled routing events
 |   +-- extract.py          # LLM extraction pipeline
@@ -117,7 +123,7 @@ process-extraction-kernel/
 |   +-- fix_graph.py             # Graph repair utility
 |   +-- qa_eval.sh / qa_eval.ps1 # QA runner (tests + eval)
 |   +-- run_all.ps1              # Full system runner
-+-- tests/                  # 1,477 passing tests (pytest, no LLM needed)
++-- tests/                  # 1,589 passing tests (pytest, no LLM needed)
 +-- datasets/
 |   +-- expected.jsonl      # 126 gold records
 |   +-- schema.md           # JSONL schema + evidence grounding rules
@@ -427,29 +433,41 @@ on Ubuntu with Python 3.11.
 These are a **current local eval snapshot**, not immutable guarantees. They reflect
 the latest `eval_report.md` and test suite output.
 
-- **1,477** passing tests
-- **107/126** terminal accuracy (eval harness, mock mode -- 84.9%)
-- **323/394** field accuracy (82.0% overall)
+- **1,589** passing tests
+- **102/126** terminal accuracy (eval harness, mock mode -- 81.0%)
+- **322/399** field accuracy (80.7% overall)
 - **0** linter errors on production graph
 
 | Field | Correct | Total | Accuracy |
 |-------|---------|-------|----------|
 | vendor | 107 | 126 | 84.9% |
 | amount | 107 | 126 | 84.9% |
-| has_po | 109 | 126 | 86.5% |
-| invoice_date | 0 | 8 | 0.0% |
-| tax_amount | 0 | 8 | 0.0% |
+| has_po | 104 | 126 | 82.5% |
+| invoice_date | 2 | 8 | 25.0% |
+| tax_amount | 2 | 8 | 25.0% |
+
+**Stratified by scenario bucket:**
+
+| Bucket | Records | Terminal | Field |
+|--------|---------|----------|-------|
+| clean_standard | 58 | 86.2% | 86.8% |
+| noisy_ocr_synthetic | 50 | 76.0% | 76.0% |
+| match_path | 10 | 80.0% | 76.7% |
+| extended_fields | 8 | 75.0% | 27.5% |
 
 ---
 
 ## Limitations / Intentionally Deferred
 
-- **invoice_date and tax_amount extraction currently measure at 0% accuracy**
-  (0/8 on the gold invoices that include these fields). The extraction prompts
-  do not yet target them.
-- **No runtime schema enforcement.** JSON Schemas in `schema/` are artifact
-  definitions validated by tests (`tests/test_schemas.py`). The processing
-  pipeline does not validate audit events against schemas at runtime.
+- **invoice_date and tax_amount are active-but-optional.** The LLM prompt
+  requests all 5 fields, but `policy.required_fields` stays at
+  `("vendor", "amount", "has_po")`. Structural validation only enforces
+  required fields; optional fields pass when absent. Currently measuring
+  25% accuracy on the 8 gold records that include these fields.
+- **No runtime schema enforcement for audit events.** JSON Schemas in `schema/`
+  are artifact definitions validated by tests (`tests/test_schemas.py`).
+  Extraction payloads are validated at runtime via `src/schema_validator.py`,
+  but audit events are not schema-gated at runtime.
 - **Operator surfaces are synthesized summaries, not adjudication tools.** The
   Operator Review and Failure Drill-Down panels present structured context derived
   from deterministic audit data. They do not perform independent validation or
