@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,6 +9,7 @@ dist/
 
 # Local Environment
 .env
+.env.*
 **/secret_key.txt
 
 # Generated eval outputs
@@ -25,3 +26,11 @@ bin/
 
 # Generated runtime logs & build outputs
 outputs/
+
+# Local backup / checkpoint files
+*.bak
+*.checkpoint
+
+# Large local forensic / git dump artifacts
+docs/_git_log_patch.txt
+docs/_git_log_stat.txt
