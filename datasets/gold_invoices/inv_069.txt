@@ -1,0 +1,13 @@
+Acme Industrial Supply
+742 Commerce Dr, Houston, TX 77001
+
+Date: 01/15/2026
+Invoice Number: INV-1069
+PO Number: PO-AIS-301
+
+Industrial shelving units (qty 4)    $1,200.00
+Warehouse safety equipment            $350.00
+
+Subtotal: $1,550.00
+Tax: $124.00
+Total: $1,674.00

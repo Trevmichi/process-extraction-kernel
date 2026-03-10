@@ -1,0 +1,11 @@
+MetroTech   Services
+555   Tech  Blvd,  San  Jose,   CA   95101
+
+Date:   2026-11-05
+Invoice  Number:   INV-1064
+
+Server    rack   installation      900.00
+Cable    management               350.00
+
+Total   Due:   1250.00
+PO:  None

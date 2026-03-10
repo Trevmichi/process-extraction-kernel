@@ -15,11 +15,13 @@ match_3_way : bool
     Gateway conditions ``match_3_way == true / false`` read this field.
 
 extraction : dict
-    Raw nested LLM payload from ENTER_RECORD.  Stores the evidence-backed
-    extraction before verification.  Always written (even on failure).
+    Raw nested LLM payload from ENTER_RECORD.  When well-formed, conforms to
+    ``ExtractionPayload`` (see ``src/contracts.py``).  Always written (even
+    on failure — may contain ``_error`` key on LLM invocation failure).
 
 provenance : dict
-    Validation metadata from the deterministic verifier.  Per-field
+    Validation metadata from the deterministic verifier.  When populated,
+    conforms to ``ProvenanceReport`` (see ``src/contracts.py``).  Per-field
     grounding results with consistent sub-keys.
 
 raw_text : str
@@ -43,24 +45,30 @@ failure_codes : list[str]
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict, cast
+
+from ..ontology import StatusType
 
 # Strict Literal type for 3-way match outcomes
 MatchResult = Literal["MATCH", "NO_MATCH", "VARIANCE", "UNKNOWN"]
 
 
 class APState(TypedDict):
+    """Canonical LangGraph state payload for AP process execution."""
     invoice_id:       str
     vendor:           str
     amount:           float
     has_po:           bool
+    invoice_date:     str
+    tax_amount:       float
     po_match:         bool
     match_3_way:      bool           # legacy flag (mirrors po_match)
     match_result:     MatchResult    # strict outcome of 3-way match step
-    status:           str
+    status:           StatusType
     current_node:     str
     last_gateway:     str
     audit_log:        Annotated[list[str], operator.add]
+    route_records:    Annotated[list[dict], operator.add]
     raw_text:         str
     extraction:       dict
     provenance:       dict
@@ -74,11 +82,13 @@ class APState(TypedDict):
 # annotations.
 # ---------------------------------------------------------------------------
 
-DEFAULT_STATE_TEMPLATE: dict = {
+DEFAULT_STATE_TEMPLATE: APState = {
     "invoice_id":   "",
     "vendor":       "",
     "amount":       0.0,
     "has_po":       False,
+    "invoice_date": "",
+    "tax_amount":   0.0,
     "po_match":     False,
     "match_3_way":  False,
     "match_result": "UNKNOWN",
@@ -86,6 +96,7 @@ DEFAULT_STATE_TEMPLATE: dict = {
     "current_node": "",
     "last_gateway": "",
     "audit_log":    [],
+    "route_records": [],
     "raw_text":     "",
     "extraction":   {},
     "provenance":   {},
@@ -103,22 +114,29 @@ def make_initial_state(
     po_match: bool = False,
     match_3_way: bool | None = None,
 ) -> APState:
-    """
-    Create a fresh APState with safe defaults from ``DEFAULT_STATE_TEMPLATE``.
+    """Create a fresh APState with safe defaults from ``DEFAULT_STATE_TEMPLATE``.
 
-    Parameters
-    ----------
-    invoice_id : unique identifier for this invoice run
-    raw_text   : original invoice text for extraction
-    po_match   : whether the PO matches (default False)
-    match_3_way : mirrors po_match if None (default)
+    Args:
+      *: 
+      invoice_id: str:
+      raw_text: str:
+      po_match: bool:  (Default value = False)
+      match_3_way: bool | None:  (Default value = None)
+      invoice_id: str: 
+      raw_text: str: 
+      po_match: bool:  (Default value = False)
+      match_3_way: bool | None:  (Default value = None)
+
+    Returns:
+
     """
     if match_3_way is None:
         match_3_way = po_match
 
-    state: APState = {**DEFAULT_STATE_TEMPLATE}   # shallow copy
+    state = cast(APState, DEFAULT_STATE_TEMPLATE.copy())   # shallow copy
     # Refresh mutable defaults so callers don't share state
     state["audit_log"] = []
+    state["route_records"] = []
     state["extraction"] = {}
     state["provenance"] = {}
     state["failure_codes"] = []

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_critic_retry_v1.json",
+  "title": "AuditEvent: critic_retry_executed",
+  "description": "Emitted by CRITIC_RETRY handler in nodes.py. Has 3 variants mirroring extraction event, but consistently uses 'failure_codes' (not 'reasons'). All variants include 'attempt' counter.",
+  "type": "object",
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "critic_retry_executed"
+    },
+    "node": {
+      "type": "string",
+      "const": "CRITIC_RETRY"
+    }
+  },
+  "required": ["event", "node", "attempt", "valid", "failure_codes", "status"],
+  "oneOf": [
+    {
+      "description": "Variant 1: LLM error during retry. failure_codes=['LLM_ERROR'], status='BAD_EXTRACTION'.",
+      "properties": {
+        "event": { "const": "critic_retry_executed" },
+        "node": { "const": "CRITIC_RETRY" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "valid": { "type": "boolean", "const": false },
+        "failure_codes": {
+          "type": "array",
+          "items": { "const": "LLM_ERROR" },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "status": { "type": "string", "const": "BAD_EXTRACTION" }
+      },
+      "required": ["event", "node", "attempt", "valid", "failure_codes", "status"],
+      "additionalProperties": false
+    },
+    {
+      "description": "Variant 2: Structural validation failure. failure_codes have STRUCT_ prefix, status='BAD_EXTRACTION'.",
+      "properties": {
+        "event": { "const": "critic_retry_executed" },
+        "node": { "const": "CRITIC_RETRY" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "valid": { "type": "boolean", "const": false },
+        "failure_codes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^STRUCT_" },
+          "minItems": 1
+        },
+        "status": { "type": "string", "const": "BAD_EXTRACTION" }
+      },
+      "required": ["event", "node", "attempt", "valid", "failure_codes", "status"],
+      "additionalProperties": false
+    },
+    {
+      "description": "Variant 3: Verifier result (success or failure). failure_codes are FailureCode values, status is DATA_EXTRACTED or BAD_EXTRACTION.",
+      "properties": {
+        "event": { "const": "critic_retry_executed" },
+        "node": { "const": "CRITIC_RETRY" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "valid": { "type": "boolean" },
+        "failure_codes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": { "type": "string" }
+      },
+      "required": ["event", "node", "attempt", "valid", "failure_codes", "status"],
+      "not": {
+        "anyOf": [
+          {
+            "properties": {
+              "failure_codes": { "contains": { "const": "LLM_ERROR" } }
+            }
+          },
+          {
+            "properties": {
+              "failure_codes": {
+                "minItems": 1,
+                "items": { "pattern": "^STRUCT_" }
+              }
+            }
+          }
+        ]
+      },
+      "additionalProperties": false
+    }
+  ]
+}

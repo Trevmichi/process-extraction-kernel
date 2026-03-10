@@ -8,24 +8,24 @@ routing (that's test_batch_smoke.py).
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from eval_runner import (
+    _PRIMARY_BUCKETS,
     _validate_gold_record,
     build_mock_dispatch,
     check_trace,
     classify_failure,
+    classify_primary_bucket,
     compare_fields,
     compute_failure_groupings,
     compute_metrics,
     load_expected,
     load_invoice_text,
     should_exit_zero,
+    write_md_report,
 )
 from eval_audit import (
     build_diagnostic_snapshot,
@@ -703,3 +703,437 @@ class TestAuditReportStructure:
         assert audit["summary"]["audited_count"] == 1
         assert audit["summary"]["failures_audited"] == 1
         assert audit["summary"]["passes_audited"] == 0
+
+
+# ===========================================================================
+# TestTagConventions
+# ===========================================================================
+
+class TestTagConventions:
+    """Validate all tags across expected.jsonl are lowercase snake_case."""
+
+    def test_all_tags_are_lowercase_snake_case(self):
+        """Every tag in expected.jsonl must match [a-z][a-z0-9_]* pattern."""
+        import re
+        tag_re = re.compile(r"^[a-z][a-z0-9_]*$")
+        records = load_expected(EXPECTED_PATH)
+        bad = []
+        for rec in records:
+            for tag in rec.get("tags", []):
+                if not tag_re.match(tag):
+                    bad.append((rec["invoice_id"], tag))
+        assert bad == [], f"Non-snake_case tags found: {bad}"
+
+    def test_no_empty_tags_list(self):
+        """Every record should have at least one tag."""
+        records = load_expected(EXPECTED_PATH)
+        empty = [r["invoice_id"] for r in records if not r.get("tags")]
+        assert empty == [], f"Records with no tags: {empty}"
+
+
+# ===========================================================================
+# TestAdversarialFixturePresence
+# ===========================================================================
+
+class TestAdversarialFixturePresence:
+    """Assert all adversarial fixture files exist and are referenced."""
+
+    ADVERSARIAL_FILES = [f"inv_{n:03d}.txt" for n in range(57, 69)]
+    ADVERSARIAL_IDS = [f"INV-{n}" for n in range(1057, 1069)]
+
+    def test_fixture_files_exist(self):
+        """All adversarial invoice text files must exist on disk."""
+        for fname in self.ADVERSARIAL_FILES:
+            path = DATASETS_DIR / "gold_invoices" / fname
+            assert path.exists(), f"Missing fixture: {path}"
+
+    def test_fixture_ids_in_expected(self):
+        """All adversarial invoice IDs must appear in expected.jsonl."""
+        records = load_expected(EXPECTED_PATH)
+        ids = {r["invoice_id"] for r in records}
+        for inv_id in self.ADVERSARIAL_IDS:
+            assert inv_id in ids, f"Missing from expected.jsonl: {inv_id}"
+
+    def test_adversarial_tags_present(self):
+        """Each adversarial scenario tag must appear in at least one record."""
+        required_tags = {
+            "threshold_edge_exact", "po_false_positive_prose",
+            "duplicate_total_lines", "ocr_spacing",
+            "vendor_alias_variation", "footer_total_vs_amount_due_conflict",
+            "multi_currency_symbol_noise",
+        }
+        records = load_expected(EXPECTED_PATH)
+        all_tags = set()
+        for r in records:
+            all_tags.update(r.get("tags", []))
+        missing = required_tags - all_tags
+        assert missing == set(), f"Missing adversarial tags: {missing}"
+
+
+# ===========================================================================
+# TestPairedFixtureContrast
+# ===========================================================================
+
+class TestPairedFixtureContrast:
+    """Lightweight assertions that paired fixtures share vendor but differ
+    in the targeted variable."""
+
+    def _load_by_id(self):
+        records = load_expected(EXPECTED_PATH)
+        return {r["invoice_id"]: r for r in records}
+
+    def test_threshold_pair_same_amount(self):
+        """INV-1057 and INV-1058 should have the same amount but differ in has_po."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1057"], by_id["INV-1058"]
+        assert a["expected_fields"]["amount"] == b["expected_fields"]["amount"]
+        assert a["expected_fields"]["has_po"] != b["expected_fields"]["has_po"]
+
+    def test_po_prose_pair_same_vendor(self):
+        """INV-1059 and INV-1060 should share vendor and both be no_po."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1059"], by_id["INV-1060"]
+        assert a["expected_fields"]["vendor"] == b["expected_fields"]["vendor"]
+        assert a["expected_fields"]["has_po"] is False
+        assert b["expected_fields"]["has_po"] is False
+
+    def test_vendor_alias_pair_different_suffix(self):
+        """INV-1065 and INV-1066 should have different vendor names (alias variation)."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1065"], by_id["INV-1066"]
+        assert a["expected_fields"]["vendor"] != b["expected_fields"]["vendor"]
+        # Both should contain the base vendor name
+        assert "Acme Industrial Supply" in a["expected_fields"]["vendor"]
+        assert "Acme Industrial Supply" in b["expected_fields"]["vendor"]
+
+    def test_duplicate_totals_pair_same_vendor(self):
+        """INV-1061 and INV-1062 should share vendor but differ in amount."""
+        by_id = self._load_by_id()
+        a, b = by_id["INV-1061"], by_id["INV-1062"]
+        assert a["expected_fields"]["vendor"] == b["expected_fields"]["vendor"]
+        assert a["expected_fields"]["amount"] != b["expected_fields"]["amount"]
+
+
+# ===========================================================================
+# TestDateTaxFixturePresence
+# ===========================================================================
+
+class TestDateTaxFixturePresence:
+    """Assert all date/tax fixture files exist and are referenced."""
+
+    DATE_TAX_FILES = [f"inv_{n:03d}.txt" for n in range(69, 77)]
+    DATE_TAX_IDS = [f"INV-{n}" for n in range(1069, 1077)]
+
+    def test_fixture_files_exist(self):
+        """All date/tax invoice text files must exist on disk."""
+        for fname in self.DATE_TAX_FILES:
+            path = DATASETS_DIR / "gold_invoices" / fname
+            assert path.exists(), f"Missing fixture: {path}"
+
+    def test_fixture_ids_in_expected(self):
+        """All date/tax invoice IDs must appear in expected.jsonl."""
+        records = load_expected(EXPECTED_PATH)
+        ids = {r["invoice_id"] for r in records}
+        for inv_id in self.DATE_TAX_IDS:
+            assert inv_id in ids, f"Missing from expected.jsonl: {inv_id}"
+
+    def test_new_fields_present_in_expected(self):
+        """All date/tax records must have invoice_date and tax_amount in expected_fields."""
+        records = load_expected(EXPECTED_PATH)
+        by_id = {r["invoice_id"]: r for r in records}
+        for inv_id in self.DATE_TAX_IDS:
+            rec = by_id[inv_id]
+            assert "invoice_date" in rec["expected_fields"], \
+                f"{inv_id}: missing invoice_date in expected_fields"
+            assert "tax_amount" in rec["expected_fields"], \
+                f"{inv_id}: missing tax_amount in expected_fields"
+            assert "invoice_date" in rec["mock_extraction"], \
+                f"{inv_id}: missing invoice_date in mock_extraction"
+            assert "tax_amount" in rec["mock_extraction"], \
+                f"{inv_id}: missing tax_amount in mock_extraction"
+
+
+# ===========================================================================
+# TestDateTaxFieldComparison
+# ===========================================================================
+
+class TestDateTaxFieldComparison:
+    """Test compare_fields handles invoice_date and tax_amount correctly."""
+
+    def test_invoice_date_exact_match(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {"invoice_date": "2026-01-15"})
+        assert result["invoice_date"]["match"] is True
+
+    def test_invoice_date_mismatch(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {"invoice_date": "2026-15-01"})
+        assert result["invoice_date"]["match"] is False
+
+    def test_invoice_date_missing_actual(self):
+        expected = {"invoice_date": "2026-01-15"}
+        result = compare_fields(expected, {})
+        assert result["invoice_date"]["match"] is False
+
+    def test_tax_amount_exact_match(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.00})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_within_tolerance(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.005})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_beyond_tolerance(self):
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {"tax_amount": 124.02})
+        assert result["tax_amount"]["match"] is False
+
+    def test_tax_amount_zero(self):
+        expected = {"tax_amount": 0.0}
+        result = compare_fields(expected, {"tax_amount": 0.0})
+        assert result["tax_amount"]["match"] is True
+
+    def test_tax_amount_missing_actual_zero(self):
+        """Missing actual should NOT match even when expected is 0.0."""
+        expected = {"tax_amount": 0.0}
+        result = compare_fields(expected, {})
+        assert result["tax_amount"]["match"] is False
+
+    def test_tax_amount_missing_actual_nonzero(self):
+        """Missing actual must not silently match a nonzero expected."""
+        expected = {"tax_amount": 124.00}
+        result = compare_fields(expected, {})
+        assert result["tax_amount"]["match"] is False
+
+
+# ===========================================================================
+# TestDateTaxTags
+# ===========================================================================
+
+class TestDateTaxTags:
+    """Assert new date/tax tags appear in at least one record."""
+
+    def test_date_tax_tags_present(self):
+        """Each date/tax scenario tag must appear in at least one record."""
+        required_tags = {
+            "date_us_format", "date_eu_format",
+            "tax_standard", "tax_complex_lines", "tax_zero_explicit",
+        }
+        records = load_expected(EXPECTED_PATH)
+        all_tags = set()
+        for r in records:
+            all_tags.update(r.get("tags", []))
+        missing = required_tags - all_tags
+        assert missing == set(), f"Missing date/tax tags: {missing}"
+
+
+# ===========================================================================
+# TestClassifyPrimaryBucket (Phase 11)
+# ===========================================================================
+
+class TestClassifyPrimaryBucket:
+    """Tests for classify_primary_bucket() — deterministic bucket assignment."""
+
+    def test_synthetic_yields_noisy_ocr_synthetic(self):
+        assert classify_primary_bucket(
+            ["synthetic", "happy_path"], {"vendor", "amount", "has_po"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_invoice_date_yields_extended_fields(self):
+        assert classify_primary_bucket(
+            ["happy_path"], {"vendor", "amount", "has_po", "invoice_date"},
+        ) == "extended_fields"
+
+    def test_tax_amount_yields_extended_fields(self):
+        assert classify_primary_bucket(
+            ["happy_path"], {"vendor", "amount", "has_po", "tax_amount"},
+        ) == "extended_fields"
+
+    def test_synthetic_beats_extended_fields(self):
+        assert classify_primary_bucket(
+            ["synthetic"], {"vendor", "amount", "invoice_date"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_match_fail_yields_match_path(self):
+        assert classify_primary_bucket(
+            ["match_fail"], {"vendor", "amount", "has_po"},
+        ) == "match_path"
+
+    def test_match_fail_beats_extended_fields(self):
+        assert classify_primary_bucket(
+            ["match_fail"], {"vendor", "amount", "has_po", "invoice_date"},
+        ) == "match_path"
+
+    def test_synthetic_beats_match_fail(self):
+        assert classify_primary_bucket(
+            ["synthetic", "match_fail"], {"vendor", "amount", "has_po"},
+        ) == "noisy_ocr_synthetic"
+
+    def test_no_special_tags_yields_clean_standard(self):
+        assert classify_primary_bucket(
+            ["happy_path", "under_threshold"], {"vendor", "amount", "has_po"},
+        ) == "clean_standard"
+
+    def test_empty_tags_yields_clean_standard(self):
+        assert classify_primary_bucket(
+            [], {"vendor", "amount", "has_po"},
+        ) == "clean_standard"
+
+    def test_all_gold_records_classified(self):
+        """Every record in expected.jsonl gets exactly one valid bucket."""
+        records = load_expected(EXPECTED_PATH)
+        for rec in records:
+            b = classify_primary_bucket(
+                rec["tags"], set(rec["expected_fields"].keys()),
+            )
+            assert b in _PRIMARY_BUCKETS, f"{rec['invoice_id']}: got {b}"
+
+    def test_bucket_counts_match_expected(self):
+        """Bucket sizes match verified distribution (regression guard)."""
+        from collections import Counter
+        records = load_expected(EXPECTED_PATH)
+        counts = Counter(
+            classify_primary_bucket(r["tags"], set(r["expected_fields"].keys()))
+            for r in records
+        )
+        assert counts["noisy_ocr_synthetic"] == 50
+        assert counts["match_path"] == 10
+        assert counts["extended_fields"] == 8
+        assert counts["clean_standard"] == 58
+
+
+# ===========================================================================
+# TestBucketMetrics (Phase 11)
+# ===========================================================================
+
+def _make_bucket_result(invoice_id, bucket="pass", tags=None, extra_fields=None):
+    """_make_result + field_comparison keys for bucket classification."""
+    r = _make_result(invoice_id, bucket, tags)
+    if extra_fields:
+        for f in extra_fields:
+            r["field_comparison"][f] = {
+                "expected": "x", "actual": "x", "match": True,
+            }
+    return r
+
+
+class TestBucketMetrics:
+    """Tests for by_primary_bucket in compute_metrics output."""
+
+    def test_by_primary_bucket_present(self):
+        results = [_make_bucket_result("INV-0001", tags=["happy_path"])]
+        metrics = compute_metrics(results)
+        assert "by_primary_bucket" in metrics
+
+    def test_all_buckets_always_present(self):
+        results = [_make_bucket_result("INV-0001", tags=["happy_path"])]
+        metrics = compute_metrics(results)
+        assert set(metrics["by_primary_bucket"].keys()) == set(_PRIMARY_BUCKETS)
+
+    def test_synthetic_into_noisy_ocr(self):
+        results = [_make_bucket_result("INV-0001", tags=["synthetic", "noisy_ocr"])]
+        metrics = compute_metrics(results)
+        assert metrics["by_primary_bucket"]["noisy_ocr_synthetic"]["count"] == 1
+        assert metrics["by_primary_bucket"]["clean_standard"]["count"] == 0
+
+    def test_extended_fields_classified(self):
+        results = [_make_bucket_result(
+            "INV-0001", tags=["happy_path"],
+            extra_fields=["invoice_date", "tax_amount"],
+        )]
+        metrics = compute_metrics(results)
+        assert metrics["by_primary_bucket"]["extended_fields"]["count"] == 1
+
+    def test_failure_breakdown_populated(self):
+        results = [
+            _make_bucket_result(
+                "INV-0001", bucket="terminal_mismatch", tags=["happy_path"],
+            ),
+            _make_bucket_result("INV-0002", tags=["happy_path"]),
+        ]
+        metrics = compute_metrics(results)
+        fb = metrics["by_primary_bucket"]["clean_standard"]["failure_breakdown"]
+        assert "INV-0001" in fb["terminal_mismatch"]
+
+    def test_primary_bucket_on_per_invoice(self):
+        results = [_make_bucket_result("INV-0001", tags=["synthetic"])]
+        metrics = compute_metrics(results)
+        assert metrics["per_invoice"][0]["primary_bucket"] == "noisy_ocr_synthetic"
+
+
+# ===========================================================================
+# TestBucketDistributionRegression (Phase 11)
+# ===========================================================================
+
+class TestBucketDistributionRegression:
+    """Regression: bucket classification on full gold set matches expected."""
+
+    def test_full_gold_set_sums_to_total(self):
+        from collections import Counter
+        records = load_expected(EXPECTED_PATH)
+        counts = Counter(
+            classify_primary_bucket(r["tags"], set(r["expected_fields"].keys()))
+            for r in records
+        )
+        assert sum(counts.values()) == len(records)
+
+    def test_synthetic_equals_noisy_ocr(self):
+        """Verify 100% correlation between synthetic and noisy_ocr tags."""
+        records = load_expected(EXPECTED_PATH)
+        for r in records:
+            has_synthetic = "synthetic" in r["tags"]
+            has_noisy_ocr = "noisy_ocr" in r["tags"]
+            assert has_synthetic == has_noisy_ocr, (
+                f"{r['invoice_id']}: synthetic={has_synthetic}, "
+                f"noisy_ocr={has_noisy_ocr}"
+            )
+
+
+# ===========================================================================
+# TestReportOrdering (Phase 11)
+# ===========================================================================
+
+class TestReportOrdering:
+    """Stratified section must appear before aggregate in markdown output."""
+
+    def test_stratified_before_aggregate(self, tmp_path):
+        metrics = {
+            "terminal_accuracy": {"correct": 1, "total": 1, "accuracy": 1.0},
+            "field_accuracy": {
+                "overall": {"correct": 1, "total": 1, "accuracy": 1.0},
+            },
+            "unknown_rate": 0.0,
+            "confusion_matrix": {},
+            "by_tag": {},
+            "by_primary_bucket": {
+                b: {
+                    "count": 0,
+                    "terminal_accuracy": {"correct": 0, "total": 0, "accuracy": 0.0},
+                    "field_accuracy": {
+                        "overall": {"correct": 0, "total": 0, "accuracy": 0.0},
+                    },
+                    "failure_breakdown": {
+                        "terminal_mismatch": [],
+                        "field_mismatch": [],
+                        "both_terminal_and_field_mismatch": [],
+                    },
+                }
+                for b in _PRIMARY_BUCKETS
+            },
+            "failures_by_bucket": {
+                "terminal_mismatch": [],
+                "field_mismatch": [],
+                "both_terminal_and_field_mismatch": [],
+            },
+            "failures_by_tag": {},
+            "suspicious_passes": [],
+            "per_invoice": [],
+        }
+        outpath = tmp_path / "report.md"
+        write_md_report(metrics, outpath)
+        text = outpath.read_text(encoding="utf-8")
+        strat_pos = text.index("## Stratified Results")
+        agg_pos = text.index("## Aggregate Metrics")
+        assert strat_pos < agg_pos

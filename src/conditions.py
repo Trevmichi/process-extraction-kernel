@@ -30,6 +30,11 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Union
 
+from src.ontology import (
+    CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+)
+
 # ---------------------------------------------------------------------------
 # AST
 # ---------------------------------------------------------------------------
@@ -45,14 +50,56 @@ class Comparison:
 @dataclass(frozen=True)
 class Conjunction:
     """Two or more comparisons joined by AND.
-
+    
     ``children`` is always a flat tuple of ``Comparison`` instances —
     the parser never produces nested ``Conjunction`` nodes.
+
+    Args:
+
+    Returns:
+
     """
     children: tuple[Comparison, ...]
 
 
 ConditionAST = Union[Comparison, Conjunction]
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic / provenance types
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class NormalizationProvenance:
+    """Records what normalization did to produce the canonical form."""
+    kind: str
+    # "identity" | "synonym" | "inline_canonicalization"
+    # | "compound" | "unparseable" | "null_input"
+    synonym_key: str | None = None
+    segments: tuple[NormalizationProvenance, ...] | None = None
+
+
+@dataclass(frozen=True)
+class TypeWarning:
+    """A type mismatch found during static validation of a condition AST."""
+    field: str
+    expected_types: tuple[type, ...]
+    actual_rhs_type: type
+    rhs_value: Any
+    message: str
+
+
+@dataclass(frozen=True)
+class ConditionDiagnostic:
+    """Structured result of diagnosing a condition expression."""
+    raw: str | None
+    normalized: str | None
+    parsed: bool
+    ast: ConditionAST | None
+    error: str | None
+    provenance: NormalizationProvenance | None
+    type_warnings: tuple[TypeWarning, ...] = ()
+
 
 _VALID_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
 
@@ -62,7 +109,7 @@ _VALID_OPS = frozenset({"==", "!=", ">", ">=", "<", "<="})
 # ---------------------------------------------------------------------------
 
 class ConditionParseError(ValueError):
-    """Raised when a condition expression cannot be parsed under the DSL."""
+    """Raised when a condition expression cannot be parsed."""
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +133,16 @@ _BOOL_KEYWORDS = frozenset({"true", "false"})
 
 
 def _tokenize(expr: str) -> list[tuple[str, str]]:
-    """
-    Split *expr* into (kind, value) token pairs (whitespace excluded).
-
+    """Split *expr* into (kind, value) token pairs (whitespace excluded).
+    
     Raises ``ConditionParseError`` on any unrecognised character.
+
+    Args:
+      expr: str:
+      expr: str: 
+
+    Returns:
+
     """
     tokens: list[tuple[str, str]] = []
     pos = 0
@@ -100,6 +153,10 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
                 f"Unexpected character at position {pos} in condition: {expr!r}"
             )
         kind = m.lastgroup
+        if kind is None:
+            raise ConditionParseError(
+                f"Tokenizer produced an unknown token at position {pos} in: {expr!r}"
+            )
         val  = m.group()
         pos  = m.end()
         if kind == "WS":
@@ -122,8 +179,20 @@ def _parse_comparison(
     tokens: list[tuple[str, str]], pos: int, expr: str,
 ) -> tuple[Comparison, int]:
     """Parse a single ``identifier op literal`` starting at *pos*.
-
+    
     Returns ``(Comparison, new_pos)``.
+
+    Args:
+      tokens: list[tuple[str:
+      str]]: 
+      pos: int:
+      expr: str:
+      tokens: list[tuple[str: 
+      pos: int: 
+      expr: str: 
+
+    Returns:
+
     """
     if pos + 3 > len(tokens):
         raise ConditionParseError(
@@ -170,16 +239,22 @@ def _parse_comparison(
 
 
 def parse_condition(expr: str) -> ConditionAST:
-    """
-    Parse a canonical DSL expression into a ``ConditionAST``.
-
+    """Parse a canonical DSL expression into a ``ConditionAST``.
+    
     Supports single comparisons and AND-chains::
-
+    
         has_po == false
         status != "BAD_EXTRACTION" AND has_po == false
-
+    
     Returns ``Comparison`` for a single comparison, ``Conjunction`` for AND-chains.
     Raises ``ConditionParseError`` for anything that doesn't conform.
+
+    Args:
+      expr: str:
+      expr: str: 
+
+    Returns:
+
     """
     if not expr or not expr.strip():
         raise ConditionParseError("Empty condition expression")
@@ -223,12 +298,29 @@ _OP_FNS: dict[str, Callable[[Any, Any], bool]] = {
 
 
 def _make_comparison_pred(comp: Comparison) -> Callable[[dict], bool]:
-    """Build a predicate for a single ``Comparison`` AST node."""
+    """Build a predicate for a single ``Comparison`` AST node.
+
+    Args:
+      comp: Comparison:
+      comp: Comparison: 
+
+    Returns:
+
+    """
     key    = comp.left
     op_fn  = _OP_FNS[comp.op]
     target = comp.right
 
     def predicate(state: dict) -> bool:
+        """
+
+        Args:
+          state: dict:
+          state: dict: 
+
+        Returns:
+
+        """
         val = state.get(key)
         if val is None:
             return False
@@ -244,13 +336,19 @@ def _make_comparison_pred(comp: Comparison) -> Callable[[dict], bool]:
 
 
 def compile_condition(expr: str) -> Callable[[dict], bool]:
-    """
-    Compile a canonical DSL expression to a predicate ``(state: dict) -> bool``.
-
+    """Compile a canonical DSL expression to a predicate ``(state: dict) -> bool``.
+    
     Supports single comparisons and AND-chains.  Returns False (rather than
     raising) if a key is absent in *state* or if the comparison raises TypeError.
-
+    
     Raises ``ConditionParseError`` if *expr* does not parse.
+
+    Args:
+      expr: str:
+      expr: str: 
+
+    Returns:
+
     """
     ast = parse_condition(expr)
 
@@ -261,6 +359,15 @@ def compile_condition(expr: str) -> Callable[[dict], bool]:
     sub_preds = [_make_comparison_pred(child) for child in ast.children]
 
     def conjunction_predicate(state: dict) -> bool:
+        """
+
+        Args:
+          state: dict:
+          state: dict: 
+
+        Returns:
+
+        """
         return all(p(state) for p in sub_preds)
 
     conjunction_predicate.__name__ = "cond_conjunction"
@@ -288,15 +395,15 @@ _SYNONYM_MAP: dict[str, str | None] = {
     "HAS_PO":           "has_po == true",
     "has_po":           "has_po == true",
     "no_po":            "has_po == false",
-    # Approval amount thresholds (legacy 5k)
-    "approve":          "amount <= 5000",
-    "reject":           "amount > 5000",
-    "amount<=thresh":   "amount <= 5000",
-    "amount>thresh":    "amount > 5000",
-    "approve_or_reject": "amount <= 5000",
-    "no_po_approve":    "amount <= 5000",
-    "no_po_reject":     "amount > 5000",
-    "threshold_amount": "amount <= 5000",
+    # Approval amount thresholds (canonical source: src/ontology.py)
+    "approve":          CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "reject":           CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "amount<=thresh":   CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "amount>thresh":    CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "approve_or_reject": CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "no_po_approve":    CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+    "no_po_reject":     CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    "threshold_amount": CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
     # Duplicate detection
     "duplicate_detected": 'status == "DUPLICATE"',
     "not_duplicate":    'status != "DUPLICATE"',
@@ -322,16 +429,36 @@ _INLINE_SPLIT = re.compile(
 # and upper-cased (e.g. status == MISSING_DATA → status == "MISSING_DATA")
 _STRING_FIELDS: frozenset[str] = frozenset({"status", "match_result"})
 
+# Known field → expected Python type(s) for static type-checking of condition ASTs.
+# Kept as a plain dict here (no import of state.py) to avoid circular imports.
+_FIELD_TYPES: dict[str, type | tuple[type, ...]] = {
+    "has_po":       bool,
+    "po_match":     bool,
+    "match_3_way":  bool,
+    "amount":       (int, float),
+    "status":       str,
+    "match_result": str,
+    "retry_count":  int,
+}
+
 
 def _normalize_rhs(field: str, raw: str) -> str:
-    """
-    Normalise a raw right-hand side token into a DSL-valid literal string.
-
+    """Normalise a raw right-hand side token into a DSL-valid literal string.
+    
     Priority:
     1. boolean keywords → lowercase
     2. numeric → keep as-is
     3. already-quoted string → uppercase inner if field is a string field
     4. bare identifier → wrap in quotes; uppercase if field is a string field
+
+    Args:
+      field: str:
+      raw: str:
+      field: str: 
+      raw: str: 
+
+    Returns:
+
     """
     stripped = raw.strip()
 
@@ -370,8 +497,15 @@ def _normalize_rhs(field: str, raw: str) -> str:
 
 def _normalize_single(expr: str) -> str | None:
     """Normalise a single comparison expression (no AND).
-
+    
     Returns canonical DSL string or ``None`` if unrecognised.
+
+    Args:
+      expr: str:
+      expr: str: 
+
+    Returns:
+
     """
     stripped = expr.strip()
 
@@ -401,9 +535,17 @@ def _split_tokens_on_and(
     tokens: list[tuple[str, str]],
 ) -> list[list[tuple[str, str]]]:
     """Split a token list on AND tokens.
-
+    
     Returns a list of token-segments (each segment is the tokens for one
     comparison).  AND tokens are consumed and not included in any segment.
+
+    Args:
+      tokens: list[tuple[str:
+      str]]: 
+      tokens: list[tuple[str: 
+
+    Returns:
+
     """
     segments: list[list[tuple[str, str]]] = []
     current: list[tuple[str, str]] = []
@@ -419,10 +561,18 @@ def _split_tokens_on_and(
 
 def _tokens_to_string(tokens: list[tuple[str, str]]) -> str:
     """Reconstruct a DSL sub-expression string from tokens.
-
+    
     Round-trips correctly for ``_normalize_single()``:
     identifiers/operators verbatim, string literals re-quoted with double
     quotes, bool literals lowercase, numerics verbatim.
+
+    Args:
+      tokens: list[tuple[str:
+      str]]: 
+      tokens: list[tuple[str: 
+
+    Returns:
+
     """
     parts: list[str] = []
     for kind, val in tokens:
@@ -436,14 +586,20 @@ def _tokens_to_string(tokens: list[tuple[str, str]]) -> str:
 
 
 def normalize_condition(raw: str | None) -> str | None:
-    """
-    Normalise a raw edge-condition string to a canonical DSL expression.
-
+    """Normalise a raw edge-condition string to a canonical DSL expression.
+    
     Returns ``None`` if *raw* is ``None`` (no condition) or if the string
     cannot be mapped to a valid DSL expression (ambiguous legacy labels).
-
+    
     Supports compound AND expressions by tokenizing first, splitting on
     AND tokens, and normalizing each sub-expression independently.
+
+    Args:
+      raw: str | None:
+      raw: str | None: 
+
+    Returns:
+
     """
     if raw is None:
         return None
@@ -478,6 +634,95 @@ def normalize_condition(raw: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Normalization with provenance (mirrors normalize logic, adds metadata)
+# ---------------------------------------------------------------------------
+
+def _normalize_single_with_provenance(
+    expr: str,
+) -> tuple[str | None, NormalizationProvenance]:
+    """Like ``_normalize_single`` but also returns provenance metadata."""
+    stripped = expr.strip()
+
+    # 1a. Case-sensitive exact match
+    if stripped in _SYNONYM_MAP:
+        return (
+            _SYNONYM_MAP[stripped],
+            NormalizationProvenance(kind="synonym", synonym_key=stripped),
+        )
+
+    # 1b. Case-insensitive exact match
+    lower = stripped.lower()
+    if lower in _SYNONYM_MAP_LOWER:
+        return (
+            _SYNONYM_MAP_LOWER[lower],
+            NormalizationProvenance(kind="synonym", synonym_key=lower),
+        )
+
+    # 2. Inline expression parsing
+    m = _INLINE_SPLIT.match(stripped)
+    if m:
+        field   = m.group(1)
+        op      = m.group(2)
+        rhs_raw = m.group(3).strip()
+        rhs     = _normalize_rhs(field, rhs_raw)
+        result  = f"{field} {op} {rhs}"
+        if result == stripped:
+            kind = "identity"
+        else:
+            kind = "inline_canonicalization"
+        return (result, NormalizationProvenance(kind=kind))
+
+    # 3. Unknown
+    return (None, NormalizationProvenance(kind="unparseable"))
+
+
+def _normalize_with_provenance(
+    raw: str | None,
+) -> tuple[str | None, NormalizationProvenance]:
+    """Like ``normalize_condition`` but also returns provenance metadata."""
+    if raw is None:
+        return (None, NormalizationProvenance(kind="null_input"))
+
+    stripped = raw.strip()
+
+    # Try tokenizing to detect AND compounds
+    try:
+        tokens = _tokenize(stripped)
+    except ConditionParseError:
+        result, prov = _normalize_single_with_provenance(stripped)
+        return (result, prov)
+
+    # Split on AND tokens
+    segments = _split_tokens_on_and(tokens)
+
+    if len(segments) == 1:
+        return _normalize_single_with_provenance(stripped)
+
+    # Compound: normalize each sub-expression independently
+    parts: list[str] = []
+    seg_provenances: list[NormalizationProvenance] = []
+    for seg_tokens in segments:
+        sub_expr = _tokens_to_string(seg_tokens)
+        norm, prov = _normalize_single_with_provenance(sub_expr)
+        seg_provenances.append(prov)
+        if norm is None:
+            return (
+                None,
+                NormalizationProvenance(
+                    kind="compound", segments=tuple(seg_provenances),
+                ),
+            )
+        parts.append(norm)
+
+    return (
+        " AND ".join(parts),
+        NormalizationProvenance(
+            kind="compound", segments=tuple(seg_provenances),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Module-level predicate cache
 # ---------------------------------------------------------------------------
 
@@ -486,9 +731,14 @@ _PREDICATE_CACHE: dict[str, Callable[[dict], bool] | None] = {}
 
 def get_predicate(raw: str | None) -> Callable[[dict], bool] | None:
     """
-    Return a compiled predicate for *raw*, or ``None`` if it cannot be compiled.
 
-    Results are cached by raw string for performance.
+    Args:
+      raw: str | None:
+      raw: str | None: 
+
+    Returns:
+      : Results are cached by raw string for performance.
+
     """
     if raw is None:
         return None
@@ -505,3 +755,110 @@ def get_predicate(raw: str | None) -> Callable[[dict], bool] | None:
 
     _PREDICATE_CACHE[raw] = predicate
     return predicate
+
+
+# ---------------------------------------------------------------------------
+# Static type validation
+# ---------------------------------------------------------------------------
+
+_ORDINAL_OPS = frozenset({">", ">=", "<", "<="})
+
+
+def validate_condition_types(
+    ast: ConditionAST,
+    field_types: dict[str, type | tuple[type, ...]] | None = None,
+) -> list[TypeWarning]:
+    """Statically validate RHS literal types against known field types.
+
+    Unknown fields (not in the registry) are silently skipped.
+    Returns an empty list if all checks pass.
+    """
+    if field_types is None:
+        field_types = _FIELD_TYPES
+
+    comparisons: list[Comparison]
+    if isinstance(ast, Comparison):
+        comparisons = [ast]
+    else:
+        comparisons = list(ast.children)
+
+    warnings: list[TypeWarning] = []
+    for comp in comparisons:
+        expected = field_types.get(comp.left)
+        if expected is None:
+            continue
+
+        expected_tuple = expected if isinstance(expected, tuple) else (expected,)
+        rhs_type = type(comp.right)
+
+        if rhs_type not in expected_tuple:
+            warnings.append(TypeWarning(
+                field=comp.left,
+                expected_types=expected_tuple,
+                actual_rhs_type=rhs_type,
+                rhs_value=comp.right,
+                message=(
+                    f"Field {comp.left!r} expects {expected_tuple}, "
+                    f"got {rhs_type.__name__}({comp.right!r})"
+                ),
+            ))
+
+        if comp.left in _STRING_FIELDS and comp.op in _ORDINAL_OPS:
+            warnings.append(TypeWarning(
+                field=comp.left,
+                expected_types=expected_tuple,
+                actual_rhs_type=rhs_type,
+                rhs_value=comp.right,
+                message=(
+                    f"Ordinal operator {comp.op!r} on string field "
+                    f"{comp.left!r} is likely unintended"
+                ),
+            ))
+
+    return warnings
+
+
+# ---------------------------------------------------------------------------
+# Structured diagnostics
+# ---------------------------------------------------------------------------
+
+def diagnose_condition(raw: str | None) -> ConditionDiagnostic:
+    """Produce a structured diagnostic for a condition expression.
+
+    This is a non-destructive analysis function.  It does not affect
+    caching, routing, or any existing behavior.
+    """
+    normalized, provenance = _normalize_with_provenance(raw)
+
+    if normalized is None:
+        return ConditionDiagnostic(
+            raw=raw,
+            normalized=None,
+            parsed=False,
+            ast=None,
+            error=None if raw is None else "normalization_failed",
+            provenance=provenance,
+        )
+
+    try:
+        ast = parse_condition(normalized)
+    except ConditionParseError as exc:
+        return ConditionDiagnostic(
+            raw=raw,
+            normalized=normalized,
+            parsed=False,
+            ast=None,
+            error=str(exc),
+            provenance=provenance,
+        )
+
+    tw = validate_condition_types(ast)
+    return ConditionDiagnostic(
+        raw=raw,
+        normalized=normalized,
+        parsed=True,
+        ast=ast,
+        error=None,
+        provenance=provenance,
+        type_warnings=tuple(tw),
+    )

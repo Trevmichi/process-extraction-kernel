@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "provenance_report_v1.json",
+  "title": "ProvenanceReport",
+  "description": "Per-field provenance from verify_extraction(). Grounded in src/contracts.py ProvenanceReport TypedDict and src/verifier.py _default_provenance() runtime output.",
+  "type": "object",
+  "$defs": {
+    "VendorProvenance": {
+      "type": "object",
+      "description": "Vendor field provenance. Always has grounded + evidence_found_at.",
+      "properties": {
+        "grounded": { "type": "boolean" },
+        "evidence_found_at": { "type": "integer" },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["grounded", "evidence_found_at", "match_tier"],
+      "additionalProperties": false
+    },
+    "AmountProvenance": {
+      "type": "object",
+      "description": "Amount field provenance. grounded + parsed_evidence + delta always present from _default_provenance(). evidence_found_at added dynamically by _verify_amount().",
+      "properties": {
+        "grounded": { "type": "boolean" },
+        "parsed_evidence": {
+          "type": ["number", "null"],
+          "description": "Parsed numeric value from evidence text, or null if not yet parsed."
+        },
+        "delta": {
+          "type": ["number", "null"],
+          "description": "Absolute difference between claimed value and parsed evidence, or null."
+        },
+        "evidence_found_at": {
+          "type": "integer",
+          "description": "Character offset where evidence was found. Added dynamically; not present in _default_provenance()."
+        },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["grounded", "parsed_evidence", "delta", "match_tier"],
+      "additionalProperties": false
+    },
+    "HasPoProvenance": {
+      "type": "object",
+      "description": "has_po field provenance.",
+      "properties": {
+        "grounded": { "type": "boolean" },
+        "po_pattern_found": {
+          "type": ["boolean", "null"],
+          "description": "Whether a PO pattern was found in evidence, or null if not checked."
+        },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["grounded", "po_pattern_found", "match_tier"],
+      "additionalProperties": false
+    },
+    "InvoiceDateProvenance": {
+      "type": "object",
+      "description": "invoice_date field provenance. Present only when invoice_date validator runs.",
+      "properties": {
+        "grounded": { "type": "boolean" },
+        "evidence_found_at": { "type": "integer" },
+        "normalized_value": {
+          "type": ["string", "null"],
+          "description": "ISO-formatted date string, or null."
+        },
+        "normalized_evidence": {
+          "type": ["string", "null"],
+          "description": "Normalized evidence date string, or null."
+        },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier. Always normalized_match for dates (canonicalization pipeline always runs)."
+        }
+      },
+      "required": ["grounded", "evidence_found_at", "normalized_value", "normalized_evidence", "match_tier"],
+      "additionalProperties": false
+    },
+    "TaxAmountProvenance": {
+      "type": "object",
+      "description": "tax_amount field provenance. Present only when tax_amount validator runs.",
+      "properties": {
+        "grounded": { "type": "boolean" },
+        "evidence_found_at": { "type": "integer" },
+        "anchor_found": {
+          "type": ["boolean", "null"],
+          "description": "Whether a tax-related anchor keyword was found."
+        },
+        "parsed_evidence": {
+          "type": ["number", "null"]
+        },
+        "delta": {
+          "type": ["number", "null"]
+        },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["grounded", "evidence_found_at", "anchor_found", "parsed_evidence", "delta", "match_tier"],
+      "additionalProperties": false
+    },
+    "TotalSumDetail": {
+      "type": "object",
+      "description": "Provenance from arithmetic total_sum check (subtotal+tax+fees=total).",
+      "properties": {
+        "subtotal": { "type": "number" },
+        "taxes": { "type": "number" },
+        "fees": { "type": "number" },
+        "expected": { "type": "number" },
+        "actual": { "type": "number" },
+        "delta": { "type": "number" }
+      },
+      "required": ["subtotal", "taxes", "fees", "expected", "actual", "delta"],
+      "additionalProperties": false
+    },
+    "TaxRateDetail": {
+      "type": "object",
+      "description": "Provenance from arithmetic tax_rate check (rate*subtotal=tax).",
+      "properties": {
+        "rate_pct": { "type": "number" },
+        "computed": { "type": "number" },
+        "stated": { "type": "number" },
+        "delta": { "type": "number" }
+      },
+      "required": ["rate_pct", "computed", "stated", "delta"],
+      "additionalProperties": false
+    },
+    "ArithmeticProvenance": {
+      "type": "object",
+      "description": "Provenance from arithmetic consistency checks. Present only when at least one check ran.",
+      "properties": {
+        "checks_run": { "type": "array", "items": { "type": "string" } },
+        "passed": { "type": "boolean" },
+        "codes": { "type": "array", "items": { "type": "string" } },
+        "total_sum": { "$ref": "#/$defs/TotalSumDetail" },
+        "tax_rate": { "$ref": "#/$defs/TaxRateDetail" }
+      },
+      "required": ["checks_run", "passed", "codes"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "vendor": { "$ref": "#/$defs/VendorProvenance" },
+    "amount": { "$ref": "#/$defs/AmountProvenance" },
+    "has_po": { "$ref": "#/$defs/HasPoProvenance" },
+    "invoice_date": { "$ref": "#/$defs/InvoiceDateProvenance" },
+    "tax_amount": { "$ref": "#/$defs/TaxAmountProvenance" },
+    "arithmetic": { "$ref": "#/$defs/ArithmeticProvenance" }
+  },
+  "required": ["vendor", "amount", "has_po"],
+  "additionalProperties": false
+}

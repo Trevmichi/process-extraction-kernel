@@ -47,12 +47,14 @@ from .conditions import normalize_condition, parse_condition, ConditionParseErro
 
 @dataclass
 class LintError:
+    """Structured lint finding emitted by graph validation."""
     code:     str
     severity: Literal["error", "warning"]
     message:  str
     context:  dict = field(default_factory=dict)
 
     def __str__(self) -> str:
+        """Render the lint finding as a single human-readable line."""
         ctx = " | ".join(f"{k}={v!r}" for k, v in self.context.items())
         return f"[{self.severity.upper()}] {self.code}: {self.message}" + (
             f"  ({ctx})" if ctx else ""
@@ -64,14 +66,30 @@ class LintError:
 # ---------------------------------------------------------------------------
 
 def _normalized_or_none(raw: str | None) -> str | None:
-    """Return the normalized form; ``None`` if raw is None or unrecognisable."""
+    """
+
+    Args:
+      raw: str | None:
+      raw: str | None: 
+
+    Returns:
+
+    """
     if raw is None:
         return None
     return normalize_condition(raw)
 
 
 def _condition_parses(expr: str | None) -> bool:
-    """True if *expr* is None or normalises + parses successfully."""
+    """True if *expr* is None or normalises + parses successfully.
+
+    Args:
+      expr: str | None:
+      expr: str | None: 
+
+    Returns:
+
+    """
     if expr is None:
         return True
     norm = normalize_condition(expr)
@@ -89,19 +107,49 @@ def _condition_parses(expr: str | None) -> bool:
 # ---------------------------------------------------------------------------
 
 def lint_process_graph(graph: dict) -> list[LintError]:  # noqa: C901
-    """
-    Validate a parsed AP process graph dict.
-
+    """Validate a parsed AP process graph dict.
+    
     Returns a list of ``LintError`` instances (may be empty if the graph
     is valid).  Errors with severity ``"error"`` prevent safe compilation.
     Warnings indicate potential issues but do not block compilation.
+
+    Args:
+      graph: dict:
+      graph: dict: 
+
+    Returns:
+
     """
     errors: list[LintError] = []
 
     def err(code: str, msg: str, **ctx) -> None:
+        """
+
+        Args:
+          code: str:
+          msg: str:
+          **ctx: 
+          code: str: 
+          msg: str: 
+
+        Returns:
+
+        """
         errors.append(LintError(code=code, severity="error", message=msg, context=ctx))
 
     def warn(code: str, msg: str, **ctx) -> None:
+        """
+
+        Args:
+          code: str:
+          msg: str:
+          **ctx: 
+          code: str: 
+          msg: str: 
+
+        Returns:
+
+        """
         errors.append(LintError(code=code, severity="warning", message=msg, context=ctx))
 
     nodes: list[dict]    = graph.get("nodes", [])
@@ -433,15 +481,21 @@ def lint_process_graph(graph: dict) -> list[LintError]:  # noqa: C901
 # ---------------------------------------------------------------------------
 
 def assert_graph_valid(graph: dict) -> None:
-    """
-    Lint *graph* and raise ``ValueError`` if any error-severity issues exist.
-
+    """Lint *graph* and raise ``ValueError`` if any error-severity issues exist.
+    
     The exception message contains a human-readable multi-line report of
     all errors (warnings are included for context but do not trigger the
-    raise).
 
-    Safe to call before graph compilation; blocks compilation on invalid
-    input (fail-closed behaviour).
+    Args:
+      graph: dict:
+      graph: dict: 
+
+    Returns:
+
+    Raises:
+      Safe: to call before graph compilation
+      input: fail
+
     """
     lint_results = lint_process_graph(graph)
 

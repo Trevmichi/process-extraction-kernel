@@ -17,11 +17,17 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 def _try_parse(entry: Any) -> dict | None:
-    """
-    Attempt to parse *entry* into a dict.
-
+    """Attempt to parse *entry* into a dict.
+    
     Returns ``None`` for non-string / non-dict entries, unparseable JSON,
     or anything that isn't a dict after parsing.
+
+    Args:
+      entry: Any:
+      entry: Any: 
+
+    Returns:
+
     """
     if isinstance(entry, dict):
         return entry
@@ -40,9 +46,14 @@ def _try_parse(entry: Any) -> dict | None:
 
 def extract_exception_event(audit_log: list) -> dict | None:
     """
-    Return the most recent ``exception_station`` event, or ``None``.
 
-    Scans the log in reverse so the last occurrence wins.
+    Args:
+      audit_log: list:
+      audit_log: list: 
+
+    Returns:
+      : Scans the log in reverse so the last occurrence wins.
+
     """
     for entry in reversed(audit_log):
         parsed = _try_parse(entry)
@@ -53,7 +64,13 @@ def extract_exception_event(audit_log: list) -> dict | None:
 
 def extract_match_event(audit_log: list) -> dict | None:
     """
-    Return the most recent ``match_result_set`` event, or ``None``.
+
+    Args:
+      audit_log: list:
+      audit_log: list: 
+
+    Returns:
+
     """
     for entry in reversed(audit_log):
         parsed = _try_parse(entry)
@@ -64,12 +81,17 @@ def extract_match_event(audit_log: list) -> dict | None:
 
 def extract_router_events(audit_log: list) -> list[dict]:
     """
-    Return all router decision events in log order.
 
-    Router events are identified by the presence of a ``"candidates"``
-    or ``"matched_targets"`` key, or by ``event`` containing ``"route"``.
-    Plain ``"Executed ..."`` strings are also included as best-effort
-    route-step markers.
+    Args:
+      audit_log: list:
+      audit_log: list: 
+
+    Returns:
+      : Router events are identified by the presence of a ``"candidates"``
+      or ``"matched_targets"`` key, or by ``event`` containing ``"route"``.
+      Plain ``"Executed ..."`` strings are also included as best-effort
+      route-step markers.
+
     """
     results: list[dict] = []
     for entry in audit_log:
@@ -77,7 +99,7 @@ def extract_router_events(audit_log: list) -> list[dict]:
         if parsed is not None:
             ev = parsed.get("event", "")
             if (
-                "route" in ev.lower()
+                ev in ("route_decision", "route_record")
                 or "candidates" in parsed
                 or "matched_targets" in parsed
             ):
@@ -91,9 +113,14 @@ def extract_router_events(audit_log: list) -> list[dict]:
 
 def extract_verifier_event(audit_log: list) -> dict | None:
     """
-    Return the most recent extraction/verifier event, or ``None``.
 
-    Matches entries whose ``event`` is ``"extraction"`` or ``"verifier"``.
+    Args:
+      audit_log: list:
+      audit_log: list: 
+
+    Returns:
+      : Matches entries whose ``event`` is ``"extraction"`` or ``"verifier"``.
+
     """
     for entry in reversed(audit_log):
         parsed = _try_parse(entry)

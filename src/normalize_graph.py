@@ -36,7 +36,7 @@ Design constraints
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from typing import Callable
+from typing import Any, Callable
 
 from .conditions import normalize_condition
 
@@ -46,10 +46,35 @@ from .conditions import normalize_condition
 # ---------------------------------------------------------------------------
 
 def _norm_meta(patch_id: str, rationale: str) -> dict:
+    """
+
+    Args:
+      patch_id: str:
+      rationale: str:
+      patch_id: str: 
+      rationale: str: 
+
+    Returns:
+
+    """
     return {"origin": "normalize", "patch_id": patch_id, "rationale": rationale}
 
 
 def _norm_edge(frm: str, to: str, condition, patch_id: str) -> dict:
+    """
+
+    Args:
+      frm: str:
+      to: str:
+      condition: 
+      patch_id: str:
+      frm: str: 
+      to: str: 
+      patch_id: str: 
+
+    Returns:
+
+    """
     return {
         "frm":       frm,
         "to":        to,
@@ -113,26 +138,78 @@ _EXCEPTION_NODES: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 def _node_by_id(data: dict) -> dict[str, dict]:
+    """
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
+    """
     return {n["id"]: n for n in data.get("nodes", [])}
 
 
 def _edges_from(data: dict, frm: str) -> list[dict]:
+    """
+
+    Args:
+      data: dict:
+      frm: str:
+      data: dict: 
+      frm: str: 
+
+    Returns:
+
+    """
     return [e for e in data.get("edges", []) if e.get("frm") == frm]
 
 
 def _remove_edges(data: dict, predicate: Callable[[dict], bool]) -> int:
-    """Remove edges matching *predicate*; return count removed."""
+    """Remove edges matching *predicate*; return count removed.
+
+    Args:
+      data: dict:
+      predicate: Callable[[dict]:
+      bool]: 
+      data: dict: 
+      predicate: Callable[[dict]: 
+
+    Returns:
+
+    """
     before = len(data["edges"])
     data["edges"] = [e for e in data["edges"] if not predicate(e)]
     return before - len(data["edges"])
 
 
 def _has_edge(data: dict, frm: str, to: str) -> bool:
+    """
+
+    Args:
+      data: dict:
+      frm: str:
+      to: str:
+      data: dict: 
+      frm: str: 
+      to: str: 
+
+    Returns:
+
+    """
     return any(e.get("frm") == frm and e.get("to") == to for e in data.get("edges", []))
 
 
 def _end_node_id(data: dict) -> str | None:
-    """Return the id of the first end-kind node or canonical end node."""
+    """
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
+    """
     for n in data.get("nodes", []):
         if n.get("kind") == "end":
             return n["id"]
@@ -142,7 +219,15 @@ def _end_node_id(data: dict) -> str | None:
 
 
 def _is_match3way_gateway(node: dict) -> bool:
-    """Return True if *node* is a MATCH_3_WAY-type gateway (by any signal)."""
+    """
+
+    Args:
+      node: dict:
+      node: dict: 
+
+    Returns:
+
+    """
     if node.get("kind") != "gateway":
         return False
     meta = node.get("meta") or {}
@@ -169,16 +254,27 @@ _ART_ACCOUNT_CODE = {
 
 
 def fix_artifact_references(data: dict) -> tuple[dict, list[str]]:
-    """
-    1. Inject ``art_account_code`` artifact if missing.
+    """1. Inject ``art_account_code`` artifact if missing.
     2. Replace empty ``action.artifact_id`` with ``art_invoice`` on
        RECEIVE_MESSAGE (and similar intake) nodes.
-
+    
     Contract
     --------
     Pre:     ``data`` has ``artifacts`` and ``nodes`` lists.
     Post:    ``art_account_code`` in artifacts; RECEIVE_MESSAGE nodes have non-empty ``artifact_id``.
     Mutates: ``data['artifacts']``, node ``action.artifact_id`` + ``meta``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
 
@@ -215,18 +311,29 @@ def fix_artifact_references(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def fix_canonical_key_duplicates(data: dict) -> tuple[dict, list[str]]:
-    """
-    For every ``canonical_key`` that appears on more than one node:
+    """For every ``canonical_key`` that appears on more than one node:
     - Set ``meta.intent_key`` to the original key (if not already set).
     - Suffix ``meta.canonical_key`` with ``@<node_id>`` to make it unique.
-
+    
     Nodes that already have a unique key only get ``intent_key`` set.
-
+    
     Contract
     --------
     Pre:     ``data['nodes']`` exists.
     Post:    All ``canonical_key`` values unique; every node with ``canonical_key`` has ``intent_key``.
     Mutates: ``node.meta.canonical_key``, ``node.meta.intent_key``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
 
@@ -264,16 +371,27 @@ def fix_canonical_key_duplicates(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def normalize_edge_conditions(data: dict) -> tuple[dict, list[str]]:
-    """
-    Replace every edge condition string with its canonical DSL form.
+    """Replace every edge condition string with its canonical DSL form.
     Conditions that cannot be normalised (e.g., IF_CONDITION) are left
     as-is so that later passes can detect and replace them.
-
+    
     Contract
     --------
     Pre:     ``data['edges']`` exists.
     Post:    Every edge condition with a known synonym is replaced with canonical DSL form.
     Mutates: ``edge['condition']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     for idx, edge in enumerate(data.get("edges", [])):
@@ -295,16 +413,27 @@ def normalize_edge_conditions(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def inject_exception_nodes(data: dict) -> tuple[dict, list[str]]:
-    """
-    Inject ``n_no_match`` and ``n_manual_review_gate`` nodes if absent.
+    """Inject ``n_no_match`` and ``n_manual_review_gate`` nodes if absent.
     These are referenced by later passes when gateway branches need a
     fail-closed target.
-
+    
     Contract
     --------
     Pre:     ``data['nodes']`` exists.
     Post:    ``n_no_match`` and ``n_manual_review_gate`` exist with correct action types.
     Mutates: ``data['nodes']`` (appends).
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     existing_ids = {n["id"] for n in data.get("nodes", [])}
@@ -324,26 +453,37 @@ def inject_exception_nodes(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def fix_match3way_gateway(data: dict) -> tuple[dict, list[str]]:
-    """
-    Repair the MATCH_3_WAY gateway (node n4) — **only** if n4 is actually
+    """Repair the MATCH_3_WAY gateway (node n4) — **only** if n4 is actually
     a MATCH_3_WAY gateway.
-
+    
     Before: n4 has fan-out edges — multiple edges with normalized condition
             ``match_3_way == true``, plus one edge with un-normalizable
             condition SCHEDULE_PAYMENT.
     After:  n4 has exactly two mutually exclusive edges:
             - ``match_3_way == true``  -> n_threshold (existing)
             - ``match_3_way == false`` -> n_no_match  (added)
-
+    
     Guard: If n4 is not a MATCH_3_WAY gateway (e.g. it is already
     ``task:VALIDATE_FIELDS``), this pass is a no-op.  The real MATCH_3_WAY
     gateway (typically n5) is handled by pass 5b instead.
-
+    
     Contract
     --------
     Pre:     n4 may exist; guard skips if not MATCH_3_WAY.
     Post:    If n4 is MATCH_3_WAY: exactly 2 outgoing edges (MATCH/NO_MATCH); else no-op.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     GW = "n4"
@@ -428,7 +568,20 @@ _PATCH_ID_SECONDARY = "normalize_secondary_match_gateway"
 
 def _find_chain_node(nodes_map: dict[str, dict], target_ids: set[str],
                      action_type: str) -> str | None:
-    """Return the node id from *target_ids* whose action.type matches, or None."""
+    """
+
+    Args:
+      nodes_map: dict[str:
+      dict]: 
+      target_ids: set[str]:
+      action_type: str:
+      nodes_map: dict[str: 
+      target_ids: set[str]: 
+      action_type: str: 
+
+    Returns:
+
+    """
     for nid in target_ids:
         node = nodes_map.get(nid)
         if node and (node.get("action") or {}).get("type") == action_type:
@@ -437,39 +590,50 @@ def _find_chain_node(nodes_map: dict[str, dict], target_ids: set[str],
 
 
 def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
-    """
-    Split secondary MATCH_3_WAY gateways (not n4) into task + decision gateway.
-
+    """Split secondary MATCH_3_WAY gateways (not n4) into task + decision gateway.
+    
     The miner produces nodes that both *perform* the 3-way match and *branch*
     on its result.  This pass separates concerns:
-
+    
     1. Convert the gateway into a **task** (``action.type = "MATCH_3_WAY"``).
        The task sets ``match_result`` in state.
     2. Inject a new **decision gateway** (``decision.type = "MATCH_DECISION"``)
        immediately after, whose only job is to branch on ``match_result``.
     3. Wire::
-
+    
            task → decision                     (unconditional)
            decision → approve_target           (match_result == "MATCH")
            decision → n_no_match               (match_result == "NO_MATCH")
            decision → unmodeled_station        (match_result == "UNKNOWN")
-
+    
     4. Ensure the sequential chain downstream of the MATCH branch::
-
+    
            approve → schedule → execute        (all unconditional)
-
+    
        If any chain node is missing, the MATCH branch is fail-closed to
        the unmodeled-gate station instead.
-
+    
     Idempotent: after the first run the gateway is ``kind == "task"`` and
     ``_is_match3way_gateway`` no longer matches it.  A ``{gw_id}_decision``
     node existence check is a secondary guard.
-
+    
     Contract
     --------
     Pre:     Secondary MATCH_3_WAY gateways may exist; requires exception stations.
     Post:    Each split into task + ``{id}_decision`` gateway with 3 canonical branches.
     Mutates: node ``kind/action/decision/meta``; ``data['nodes']``, ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     nodes_map = _node_by_id(data)
@@ -501,7 +665,9 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
             continue
 
         # --- Phase 1A: collect all original targets for chain discovery ---
-        original_targets: set[str] = {e.get("to") for e in out_edges}
+        original_targets: set[str] = {
+            to for e in out_edges for to in [e.get("to")] if isinstance(to, str)
+        }
 
         # --- Phase 1B: identify chain nodes ---
         approve_id = _find_chain_node(nodes_map, original_targets, "APPROVE")
@@ -560,7 +726,7 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
         log.append(f"  [GW2] {gw_id}: converted gateway -> task (MATCH_3_WAY)")
 
         # --- Phase 1E: inject decision gateway ---
-        decision_node = {
+        decision_node: dict[str, Any] = {
             "id":       decision_id,
             "kind":     "gateway",
             "name":     f"Match Decision ({gw_id})",
@@ -581,7 +747,7 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
         log.append(f"  [GW2] {gw_id}: injected decision gateway {decision_id}")
 
         # --- Phase 1F: remove ALL existing outgoing edges from task ---
-        removed = _remove_edges(data, lambda e, _gid=gw_id: e.get("frm") == _gid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == gw_id)
         log.append(f"  [GW2] {gw_id}: removed {removed} existing outgoing edge(s)")
 
         # --- Phase 1G: wire task → decision (unconditional) ---
@@ -628,15 +794,26 @@ def fix_secondary_match_gateways(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def fix_main_execution_path(data: dict) -> tuple[dict, list[str]]:
-    """
-    The mined graph wires EXECUTE_PAYMENT (n7) -> HAS_PO gateway (n8).
+    """The mined graph wires EXECUTE_PAYMENT (n7) -> HAS_PO gateway (n8).
     After payment is executed the process should end.  Change n7 -> n32.
-
+    
     Contract
     --------
     Pre:     n7/n8 may exist.
     Post:    No edge n7→n8; if n7 exists and had n8 edge, edge n7→end exists.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     end_id = _end_node_id(data)
@@ -674,9 +851,8 @@ def fix_main_execution_path(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def fix_haspo_gateway(data: dict) -> tuple[dict, list[str]]:
-    """
-    Repair the HAS_PO gateway (n8).
-
+    """Repair the HAS_PO gateway (n8).
+    
     Before: n8 has 6 fan-out edges all with condition ``has_po == true``
             pointing to sequential steps n9..n14.
     After:
@@ -684,12 +860,24 @@ def fix_haspo_gateway(data: dict) -> tuple[dict, list[str]]:
       - n8 -> n15  (has_po == true)   proceed to matching when HAS PO
       - Sequential chain n9->n10->n11->n12->end_id  (no-PO approval path)
       - Remove n14->n15 loop edge (prevents unwanted re-entry to match)
-
+    
     Contract
     --------
     Pre:     n8 may be HAS_PO gateway.
     Post:    n8 has exactly 2 edges: ``has_po==true``→n15, ``has_po==false``→n9; chain n9→n10→n11→n12.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     GW = "n8"
@@ -765,22 +953,33 @@ _PLACEHOLDER_GATEWAY_STRATEGY: dict[str, str] = {
 
 
 def fix_placeholder_gateways(data: dict) -> tuple[dict, list[str]]:
-    """
-    Replace placeholder gateway conditions with explicit DSL or exception routing.
-
+    """Replace placeholder gateway conditions with explicit DSL or exception routing.
+    
     * n16 / n21 (IF_CONDITION, unmodeled): convert node kind from "gateway"
       to "task" with intent MANUAL_REVIEW_UNMODELED_GATE; remove all
       outgoing edges; add single edge to n_manual_review_gate.
-
+    
     * n28 (duplicate check): keep as gateway but replace IF_CONDITION edges
       with ``status == "DUPLICATE"`` / ``status != "DUPLICATE"``; remove
       the erroneous MATCH_3_WAY edge; add n30->n31 sequential wiring.
-
+    
     Contract
     --------
     Pre:     n16/n21/n28 may exist with placeholder conditions.
     Post:    n16/n21 → exception tasks; n28 → ``status=="DUPLICATE"`` / ``status!="DUPLICATE"``.
     Mutates: node ``kind/action/decision/meta``; ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     nodes_map = _node_by_id(data)
@@ -801,7 +1000,21 @@ def fix_placeholder_gateways(data: dict) -> tuple[dict, list[str]]:
 def _fix_gateway_to_exception(
     data: dict, node: dict, gw_id: str, log: list[str]
 ) -> None:
-    """Convert a gateway with unmodeled conditions into a manual-review task."""
+    """Convert a gateway with unmodeled conditions into a manual-review task.
+
+    Args:
+      data: dict:
+      node: dict:
+      gw_id: str:
+      log: list[str]:
+      data: dict: 
+      node: dict: 
+      gw_id: str: 
+      log: list[str]: 
+
+    Returns:
+
+    """
 
     # Idempotency: already converted?
     if node.get("kind") == "task" and (
@@ -843,15 +1056,27 @@ def _fix_gateway_to_exception(
 def _fix_gateway_explicit_n28(
     data: dict, node: dict, gw_id: str, log: list[str]
 ) -> None:
-    """
-    Fix the duplicate-check gateway (n28) with explicit status-based conditions.
-
+    """Fix the duplicate-check gateway (n28) with explicit status-based conditions.
+    
     Before:  n28 -> n29 (IF_CONDITION)
              n28 -> n30 (IF_CONDITION)
              n28 -> n31 (MATCH_3_WAY — erroneous; n31 should follow n30)
     After:   n28 -> n29 (status == "DUPLICATE")
              n28 -> n30 (status != "DUPLICATE")
              n30 -> n31 (null — sequential)
+
+    Args:
+      data: dict:
+      node: dict:
+      gw_id: str:
+      log: list[str]:
+      data: dict: 
+      node: dict: 
+      gw_id: str: 
+      log: list[str]: 
+
+    Returns:
+
     """
     out_edges = _edges_from(data, gw_id)
 
@@ -907,9 +1132,15 @@ def _fix_gateway_explicit_n28(
 
 def _require_station(data: dict, intent_key: str) -> str:
     """
-    Return the node ID for the station with the given *intent_key*.
 
-    Raises ``ValueError`` if no such node exists in the graph.
+    Args:
+      data: dict:
+      intent_key: str:
+      data: dict: 
+      intent_key: str: 
+
+    Returns:
+
     """
     for node in data.get("nodes", []):
         meta = node.get("meta") or {}
@@ -929,42 +1160,49 @@ def _require_station(data: dict, intent_key: str) -> str:
 # This prevents false positives where miner-label noise (e.g. a
 # "SCHEDULE_PAYMENT" condition on a MATCH_3_WAY gateway) would cause
 # premature conversion before the dedicated pass runs.
-_KNOWN_STRUCTURED_GATEWAY_TYPES = frozenset({
-    "MATCH_3_WAY",
-    "MATCH_DECISION",
-    "HAS_PO",
-    "APPROVE_OR_REJECT",
-    "THRESHOLD_AMOUNT_10K",
-})
+#
+# Imported from the canonical ontology to prevent drift.
+from .ontology import KNOWN_STRUCTURED_GATEWAY_TYPES as _KNOWN_STRUCTURED_GATEWAY_TYPES
 
 
 def convert_unparseable_gateways_to_station(data: dict) -> tuple[dict, list[str]]:
-    """
-    Convert any remaining gateway with unparseable edge conditions into a
+    """Convert any remaining gateway with unparseable edge conditions into a
     manual-review task routed to the unmodeled-gate exception station.
-
+    
     A gateway is unparseable if *any* of its outgoing edges has a condition
     that ``normalize_condition()`` maps to ``None`` (e.g. ``IF_CONDITION``).
-
+    
     **Exception**: known structured gateways (MATCH_3_WAY, HAS_PO, etc.)
     that have at least one parseable outgoing condition are skipped — their
     dedicated repair passes handle the noise edges.  Only convert if *all*
     outgoing conditions normalise to None, or the gateway is not a known
     structured type.
-
+    
     Repair:
     1. Change ``node.kind`` from ``"gateway"`` to ``"task"``.
     2. Set ``action.type = "MANUAL_REVIEW_UNMODELED_GATE"``.
     3. Remove all outgoing edges.
     4. Add one unconditional edge to the unmodeled-gate station.
-
+    
     Idempotent: already-converted nodes (kind != "gateway") are skipped.
-
+    
     Contract
     --------
     Pre:     Gateways with unparseable conditions may remain.
     Post:    No gateway has all-unparseable conditions (unless known structured with some parseable).
     Mutates: node ``kind/action/decision/meta``; ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
 
@@ -1029,7 +1267,7 @@ def convert_unparseable_gateways_to_station(data: dict) -> tuple[dict, list[str]
         )
 
         # Remove all outgoing edges
-        removed = _remove_edges(data, lambda e, _nid=nid: e.get("frm") == _nid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [UNPARSE] {nid}: removed {removed} outgoing edge(s)")
 
         # Add single unconditional edge to station
@@ -1080,20 +1318,27 @@ _DISPATCH_PRIORITY: dict[str, int] = {
 
 
 def _dispatch_sort_key(node: dict) -> tuple[int, str]:
-    """Sort key for deterministic chain ordering: (priority, node_id)."""
+    """Sort key for deterministic chain ordering: (priority, node_id).
+
+    Args:
+      node: dict:
+      node: dict: 
+
+    Returns:
+
+    """
     atype = (node.get("action") or {}).get("type", "")
     return (_DISPATCH_PRIORITY.get(atype, 999), node["id"])
 
 
 def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str]]:
-    """
-    Convert whitelisted fan-out gateways into SEQUENTIAL_DISPATCH tasks
+    """Convert whitelisted fan-out gateways into SEQUENTIAL_DISPATCH tasks
     with a deterministic chain of their original targets.
-
+    
     Detection: gateway with intent_key/canonical_key in whitelist, whose
     outgoing edges include 3+ with the same normalized condition, and all
     targets in that fan-out group are tasks (kind='task').
-
+    
     Repair:
       - Convert gateway kind → 'task', action.type → 'SEQUENTIAL_DISPATCH'.
       - Remove all outgoing edges from gateway.
@@ -1101,14 +1346,26 @@ def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str
         fan-out group) to avoid routing ambiguity with the new chain.
       - Add unconditional chain: gateway → T1 → T2 → … → Tn (sorted by
         action.type priority, then node id).
-
+    
     Idempotent: already-converted nodes (kind != 'gateway') are skipped.
-
+    
     Contract
     --------
     Pre:     Whitelisted gateways may have 3+ fan-out.
     Post:    Converted to SEQUENTIAL_DISPATCH with deterministic chain; no inter-target edges.
     Mutates: node ``kind/action/decision/meta``; ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     nodes_map = _node_by_id(data)
@@ -1192,9 +1449,7 @@ def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str
         })
 
         # Remove ALL outgoing edges from the gateway
-        removed_gw = _remove_edges(
-            data, lambda e, _nid=nid: e.get("frm") == _nid
-        )
+        removed_gw = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [SEQ] {nid}: removed {removed_gw} outgoing edge(s)")
 
         # Remove inter-target edges (edges between any two targets)
@@ -1227,26 +1482,37 @@ def convert_whitelisted_fanout_to_sequential(data: dict) -> tuple[dict, list[str
 # ===========================================================================
 
 def convert_fanout_gateways_to_ambiguous_station(data: dict) -> tuple[dict, list[str]]:
-    """
-    Convert any remaining gateway with fan-out edges (multiple edges sharing
+    """Convert any remaining gateway with fan-out edges (multiple edges sharing
     the same normalized condition) into a manual-review task routed to the
     ambiguous-route exception station.
-
+    
     Detection: group outgoing edges by ``normalize_condition(cond)``; if any
     group has size > 1, the gateway is fan-out misuse (parallel dispatch
     masquerading as a branch).
-
+    
     Repair is identical to ``convert_unparseable_gateways_to_station`` but
     targets ``task:MANUAL_REVIEW_AMBIGUOUS_ROUTE`` instead.
-
+    
     Idempotent: already-converted nodes (kind != "gateway") are skipped.
     The station is only required if a fan-out gateway is actually detected.
-
+    
     Contract
     --------
     Pre:     Remaining gateways may have fan-out (same condition, multiple targets).
     Post:    No gateway has fan-out edges.
     Mutates: node ``kind/action/decision/meta``; ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
 
@@ -1305,7 +1571,7 @@ def convert_fanout_gateways_to_ambiguous_station(data: dict) -> tuple[dict, list
         )
 
         # Remove all outgoing edges
-        removed = _remove_edges(data, lambda e, _nid=nid: e.get("frm") == _nid)
+        removed = _remove_edges(data, lambda e: e.get("frm") == nid)
         log.append(f"  [FANOUT] {nid}: removed {removed} outgoing edge(s)")
 
         # Add single unconditional edge to station
@@ -1329,11 +1595,10 @@ def convert_fanout_gateways_to_ambiguous_station(data: dict) -> tuple[dict, list
 # ===========================================================================
 
 def wire_bad_extraction_route(data: dict) -> tuple[dict, list[str]]:
-    """
-    Inject a conditional edge from the ENTER_RECORD node to the rejection
+    """Inject a conditional edge from the ENTER_RECORD node to the rejection
     node so that ``status == "BAD_EXTRACTION"`` routes deterministically
     to reject instead of falling through to VALIDATE_FIELDS.
-
+    
     1. Find ENTER_RECORD node by ``action.type == "ENTER_RECORD"``.
     2. Find rejection node by ``action.type in {"REJECT_INVOICE", "REJECT"}``,
        preferring ``REJECT_INVOICE``.
@@ -1341,12 +1606,24 @@ def wire_bad_extraction_route(data: dict) -> tuple[dict, list[str]]:
     4. Ensure the conditional edge appears before any unconditional edge from
        the same source (defense-in-depth; the router already evaluates
        conditional edges before unconditional fallback).
-
+    
     Contract
     --------
     Pre:     ENTER_RECORD and rejection nodes may exist.
     Post:    Conditional edge ``status=="BAD_EXTRACTION"`` from ENTER_RECORD to rejection.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
 
@@ -1418,25 +1695,36 @@ def wire_bad_extraction_route(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def wire_critic_retry_route(data: dict) -> tuple[dict, list[str]]:
-    """
-    Replace the simple ``BAD_EXTRACTION`` → reject edge with a two-path
+    """Replace the simple ``BAD_EXTRACTION`` → reject edge with a two-path
     routing through the CRITIC_RETRY node.
-
+    
     After this pass, ENTER_RECORD routes:
     - ``status == "NEEDS_RETRY"``     → n_critic_retry
     - ``status == "BAD_EXTRACTION"``  → n_exc_bad_extraction
-
+    
     And n_critic_retry routes:
     - ``status == "BAD_EXTRACTION"``  → n_exc_bad_extraction
     - ``has_po == false`` (guarded)   → n_exception  (no-PO guard)
     - unconditional fallback          → n4           (success path)
-
+    
     Contract
     --------
     Pre:     ``wire_bad_extraction_route`` has already injected the
              ``status == "BAD_EXTRACTION"`` edge from ENTER_RECORD to reject.
     Post:    That edge is replaced; critic retry edges are wired.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     _PATCH_ID = "normalize_critic_retry_route"
@@ -1597,18 +1885,23 @@ def wire_critic_retry_route(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def inject_match_result_unknown_guardrail(data: dict) -> tuple[dict, list[str]]:
-    """
-    For every gateway whose outgoing edges reference ``match_result``,
+    """For every gateway whose outgoing edges reference ``match_result``,
     ensure there is an edge handling ``match_result == "UNKNOWN"``.
-
+    
     If missing, inject an edge to the ``task:MANUAL_REVIEW_UNMODELED_GATE``
-    exception station.  Raises ``ValueError`` if that station does not exist.
 
-    Contract
-    --------
-    Pre:     Gateways with ``match_result`` edges may lack UNKNOWN branch.
-    Post:    Every ``match_result`` gateway has ``match_result=="UNKNOWN"`` edge.
-    Mutates: ``data['edges']``.
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
+    Raises:
+      Contract: 
+      Pre: Gateways with
+      Post: Every
+      Mutates: data
+
     """
     log: list[str] = []
 
@@ -1678,15 +1971,26 @@ def inject_match_result_unknown_guardrail(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def deduplicate_edges(data: dict) -> tuple[dict, list[str]]:
-    """
-    Remove edges that are identical after normalization:
+    """Remove edges that are identical after normalization:
     same (frm, to, normalized_condition).  First occurrence wins.
-
+    
     Contract
     --------
     Pre:     Edges may have duplicates.
     Post:    No two edges share ``(frm, to, condition)``.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     seen: dict[tuple, int] = {}
@@ -1717,18 +2021,29 @@ def deduplicate_edges(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def deduplicate_edges_strict(data: dict) -> tuple[dict, list[str]]:
-    """
-    Final-pass safety net: remove edges with identical (frm, to, condition).
-
+    """Final-pass safety net: remove edges with identical (frm, to, condition).
+    
     Runs after all injection passes that could re-add edges.
     Uses the same key as the linter's E_EDGE_DUP check so the two stay
     in sync.  First occurrence wins.
-
+    
     Contract
     --------
     Pre:     Safety-net after final passes.
     Post:    No two edges share ``(frm, to, condition)``.
     Mutates: ``data['edges']``.
+    
+    Args:
+      data: dict:
+    
+    Returns:
+
+    Args:
+      data: dict: 
+
+    Returns:
+
+    
     """
     log: list[str] = []
     seen: dict[tuple, int] = {}
@@ -1759,11 +2074,17 @@ def deduplicate_edges_strict(data: dict) -> tuple[dict, list[str]]:
 # ===========================================================================
 
 def normalize_all(data: dict) -> tuple[dict, list[str]]:
-    """
-    Run all normalization passes in dependency order.
-
+    """Run all normalization passes in dependency order.
+    
     Returns *(modified_data, changelog)*.
     All passes are idempotent; running twice yields the same graph.
+
+    Args:
+      data: dict:
+      data: dict: 
+
+    Returns:
+
     """
     all_log: list[str] = []
 

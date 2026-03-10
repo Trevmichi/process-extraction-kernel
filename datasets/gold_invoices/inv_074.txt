@@ -1,0 +1,14 @@
+Silverline Packaging
+1200 Pack Ave, Charlotte, NC 28202
+
+Date: 07/22/2026
+Invoice Number: INV-1074
+PO Number: PO-SLP-333
+
+Custom corrugated boxes (qty 500)     $1,750.00
+Shrink wrap rolls (qty 20)              $300.00
+
+Subtotal: $2,050.00
+Discount: -$205.00
+Tax: $147.60
+Total: $1,992.60

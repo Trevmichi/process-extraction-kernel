@@ -6,12 +6,7 @@ All assertions on failure reasons use stable FailureCode literals.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.verifier import FailureCode, verify_extraction, _normalize_text
 
@@ -218,6 +213,18 @@ class TestAmountDisambiguation:
         valid, codes, prov = verify_extraction(RAW_TEXT_MULTI_AMOUNT, ext)
         assert "AMBIGUOUS_AMOUNT_EVIDENCE" not in codes
 
+    def test_keyword_beyond_3_chars_within_30_passes(self):
+        """Keyword ~8 chars before number, within 30 but beyond 3 (kills M012)."""
+        raw = "Invoice\nVendor: Acme\nItems: $50.00\nTotal:  $100.00\nPO: PO-1"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.00, "evidence": "Items: $50.00\nTotal:  $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1"},
+        }
+        valid, codes, _ = verify_extraction(raw, ext)
+        assert "AMBIGUOUS_AMOUNT_EVIDENCE" not in codes
+        assert "AMOUNT_MISMATCH" not in codes
+
 
 # ===========================================================================
 # 6. Ambiguous amount — disambiguation fails
@@ -231,6 +238,18 @@ class TestAmountAmbiguousFail:
         ext = {
             "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
             "amount": {"value": 100.00, "evidence": "Items: 50.00 and 100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1"},
+        }
+        valid, codes, _ = verify_extraction(raw, ext)
+        assert valid is False
+        assert "AMBIGUOUS_AMOUNT_EVIDENCE" in codes
+
+    def test_multiple_keywords_multiple_candidates_rejected(self):
+        """2+ numbers with nearby keywords → ambiguous (kills M011)."""
+        raw = "Invoice\nVendor: Acme\nAmount: $100.00\nDue: $200.00\nPO: PO-1"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.00, "evidence": "Amount: $100.00\nDue: $200.00"},
             "has_po": {"value": True, "evidence": "PO: PO-1"},
         }
         valid, codes, _ = verify_extraction(raw, ext)
@@ -512,3 +531,216 @@ class TestNormalizeText:
 
     def test_newlines_collapsed(self):
         assert _normalize_text("line1\n  line2\t\tline3") == "line1 line2 line3"
+
+
+# ===========================================================================
+# match_tier — evidence quality classification
+# ===========================================================================
+
+class TestMatchTier:
+    """Verify match_tier is set correctly for each field."""
+
+    # ---- vendor ----
+
+    def test_vendor_exact_match(self):
+        """Value appears in evidence as raw substring (case-preserved)."""
+        ext = _valid_extraction()
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["vendor"]["match_tier"] == "exact_match"
+
+    def test_vendor_normalized_match_case(self):
+        """Value differs in case from evidence → normalized_match."""
+        ext = _valid_extraction()
+        ext["vendor"]["value"] = "office supplies co"
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["vendor"]["match_tier"] == "normalized_match"
+
+    def test_vendor_normalized_match_whitespace(self):
+        """Value has newline/repeated whitespace not in evidence → normalized_match."""
+        raw = "INVOICE\nVendor: Office Supplies Co\nTotal: $250.00\nPO: PO-1122"
+        ext = _valid_extraction()
+        ext["vendor"]["value"] = "Office\n  Supplies\tCo"
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["vendor"]["match_tier"] == "normalized_match"
+
+    def test_vendor_not_found(self):
+        """Evidence not in raw text → not_found."""
+        ext = _valid_extraction()
+        ext["vendor"]["evidence"] = "FABRICATED_EVIDENCE"
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["vendor"]["match_tier"] == "not_found"
+
+    def test_vendor_empty_value_not_found(self):
+        """Empty vendor value with grounded evidence → stays not_found."""
+        ext = _valid_extraction()
+        ext["vendor"]["value"] = ""
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["vendor"]["match_tier"] == "not_found"
+
+    # ---- amount ----
+
+    def test_amount_exact_match(self):
+        """Parsed evidence exactly equals claimed value (delta == 0)."""
+        ext = _valid_extraction()
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["amount"]["match_tier"] == "exact_match"
+
+    def test_amount_normalized_match(self):
+        """Parsed evidence within tolerance (0 < delta <= 0.01)."""
+        raw = "INVOICE\nVendor: Acme\nTotal: $250.005\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 250.0, "evidence": "Total: $250.005"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["amount"]["match_tier"] == "normalized_match"
+
+    def test_amount_not_found(self):
+        """Evidence not in raw text → not_found."""
+        ext = _valid_extraction()
+        ext["amount"]["evidence"] = "Total: $999.99"
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["amount"]["match_tier"] == "not_found"
+
+    # ---- has_po ----
+
+    def test_has_po_exact_match_pattern_in_evidence(self):
+        """PO pattern found directly in evidence text → exact_match."""
+        ext = _valid_extraction()
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["has_po"]["match_tier"] == "exact_match"
+
+    def test_has_po_normalized_match_expanded_window(self):
+        """PO pattern only in expanded ±50 char window → normalized_match."""
+        raw = "INVOICE PO-5566 attached document\nVendor: Acme\nTotal: $100.00"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "attached document"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        # PO pattern not in "attached document" but in ±50 char window
+        assert prov["has_po"]["match_tier"] == "normalized_match"
+        assert prov["has_po"]["po_pattern_found"] is True
+
+    def test_has_po_false_null_tolerance_exact(self):
+        """value=False with no evidence → exact_match (deterministic non-PO)."""
+        ext = _valid_extraction()
+        ext["has_po"]["value"] = False
+        ext["has_po"]["evidence"] = ""
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["has_po"]["match_tier"] == "exact_match"
+
+    def test_has_po_false_with_evidence_exact(self):
+        """value=False with grounded evidence → exact_match."""
+        ext = _valid_extraction()
+        ext["has_po"]["value"] = False
+        ext["has_po"]["evidence"] = "PO: PO-1122"
+        valid, codes, prov = verify_extraction(RAW_TEXT, ext)
+        assert prov["has_po"]["match_tier"] == "exact_match"
+
+    # ---- invoice_date ----
+
+    def test_invoice_date_always_normalized(self):
+        """ISO value still gets normalized_match (parsing pipeline always runs)."""
+        raw = "INVOICE\nDate: 2024-01-15\nVendor: Acme\nTotal: $100.00"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": False, "evidence": ""},
+            "invoice_date": {"value": "2024-01-15", "evidence": "Date: 2024-01-15"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["invoice_date"]["match_tier"] == "normalized_match"
+
+    def test_invoice_date_slash_format_normalized(self):
+        """Slash-format date → normalized_match."""
+        raw = "INVOICE\nDate: 1/15/2024\nVendor: Acme\nTotal: $100.00"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": False, "evidence": ""},
+            "invoice_date": {"value": "1/15/2024", "evidence": "Date: 1/15/2024"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["invoice_date"]["match_tier"] == "normalized_match"
+
+    # ---- tax_amount ----
+
+    def test_tax_amount_exact_match(self):
+        """Tax delta == 0.0 → exact_match."""
+        raw = "INVOICE\nVendor: Acme\nSubtotal: $90.00\nTax: $10.00\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "tax_amount": {"value": 10.0, "evidence": "Tax: $10.00"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["tax_amount"]["match_tier"] == "exact_match"
+
+    def test_tax_amount_normalized_match(self):
+        """Tax delta within tolerance → normalized_match."""
+        raw = "INVOICE\nVendor: Acme\nTax: $10.005\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "tax_amount": {"value": 10.0, "evidence": "Tax: $10.005"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert prov["tax_amount"]["match_tier"] == "normalized_match"
+
+    # ---- 5-field integration (Phase 10d) ----
+
+    def test_five_field_payload_provenance_complete(self):
+        """verify_extraction with all 5 fields → provenance includes date/tax."""
+        raw = "INVOICE\nDate: 2024-01-15\nVendor: Acme\nSubtotal: $90.00\nTax: $10.00\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "invoice_date": {"value": "2024-01-15", "evidence": "Date: 2024-01-15"},
+            "tax_amount": {"value": 10.0, "evidence": "Tax: $10.00"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert "invoice_date" in prov
+        assert "tax_amount" in prov
+        assert prov["invoice_date"]["match_tier"] in ("exact_match", "normalized_match")
+        assert prov["tax_amount"]["match_tier"] in ("exact_match", "normalized_match")
+
+    def test_three_field_payload_no_optional_provenance(self):
+        """verify_extraction with 3 fields only → no invoice_date/tax_amount in prov."""
+        raw = "INVOICE\nVendor: Acme\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert "invoice_date" not in prov
+        assert "tax_amount" not in prov
+
+    def test_date_bad_evidence_produces_failure_code(self):
+        """invoice_date with fabricated evidence → DATE_* failure code."""
+        raw = "INVOICE\nDate: 2024-01-15\nVendor: Acme\nTotal: $100.00\nPO: PO-1122"
+        ext = {
+            "vendor": {"value": "Acme", "evidence": "Vendor: Acme"},
+            "amount": {"value": 100.0, "evidence": "Total: $100.00"},
+            "has_po": {"value": True, "evidence": "PO: PO-1122"},
+            "invoice_date": {"value": "2024-01-15", "evidence": "FABRICATED_DATE"},
+        }
+        valid, codes, prov = verify_extraction(raw, ext)
+        assert any(c.startswith("DATE_") for c in codes)
+        assert "invoice_date" in prov
+
+    # ---- default tier ----
+
+    def test_default_provenance_has_not_found(self):
+        """_default_provenance() initializes all fields to not_found."""
+        from src.verifier import _default_provenance
+        prov = _default_provenance()
+        assert prov["vendor"]["match_tier"] == "not_found"
+        assert prov["amount"]["match_tier"] == "not_found"
+        assert prov["has_po"]["match_tier"] == "not_found"

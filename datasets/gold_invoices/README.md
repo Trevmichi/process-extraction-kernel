@@ -1,6 +1,6 @@
 # Gold Invoice Text Files
 
-50 invoice text files across 13 vendors for evaluation of the AP extraction pipeline.
+70 invoice text files across 13 vendors for evaluation of the AP extraction pipeline.
 
 | File | Invoice ID | Vendor | Scenario |
 |------|-----------|--------|----------|
@@ -54,6 +54,26 @@
 | inv_048.txt | INV-1048 | Silverline Packaging | multiple_totals |
 | inv_049.txt | INV-1049 | Atlas Electrical Supply | weird_spacing |
 | inv_050.txt | INV-1050 | MetroTech Services | no_po, table_like |
+| inv_057.txt | INV-1057 | Horizon Freight Systems | threshold_edge_exact, happy_path |
+| inv_058.txt | INV-1058 | Horizon Freight Systems | threshold_edge_exact, no_po |
+| inv_059.txt | INV-1059 | Delta Mechanical Services | po_false_positive_prose, no_po |
+| inv_060.txt | INV-1060 | Delta Mechanical Services | po_false_positive_prose, no_po |
+| inv_061.txt | INV-1061 | Silverline Packaging | duplicate_total_lines, multiple_totals, happy_path |
+| inv_062.txt | INV-1062 | Silverline Packaging | duplicate_total_lines, multiple_totals, happy_path |
+| inv_063.txt | INV-1063 | Atlas Electrical Supply | ocr_spacing, weird_spacing, happy_path |
+| inv_064.txt | INV-1064 | MetroTech Services | ocr_spacing, weird_spacing, no_po |
+| inv_065.txt | INV-1065 | Acme Industrial Supply, LLC | vendor_alias_variation, happy_path |
+| inv_066.txt | INV-1066 | Acme Industrial Supply Inc. | vendor_alias_variation, happy_path |
+| inv_067.txt | INV-1067 | Atlas Electrical Supply | footer_total_vs_amount_due_conflict, happy_path |
+| inv_068.txt | INV-1068 | MetroTech Services | multi_currency_symbol_noise, happy_path |
+| inv_069.txt | INV-1069 | Acme Industrial Supply | date_us_format, tax_standard, happy_path |
+| inv_070.txt | INV-1070 | NorthRiver Office Solutions | date_us_format, tax_standard, happy_path |
+| inv_071.txt | INV-1071 | Global Logistics Corp | date_eu_format, tax_standard, happy_path |
+| inv_072.txt | INV-1072 | Horizon Freight Systems | date_eu_format, tax_standard, happy_path |
+| inv_073.txt | INV-1073 | Delta Mechanical Services | tax_complex_lines, happy_path |
+| inv_074.txt | INV-1074 | Silverline Packaging | tax_complex_lines, happy_path |
+| inv_075.txt | INV-1075 | Atlas Electrical Supply | tax_zero_explicit, happy_path |
+| inv_076.txt | INV-1076 | MetroTech Services | tax_zero_explicit, happy_path |
 
 ---
 

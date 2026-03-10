@@ -3,6 +3,15 @@ from dataclasses import asdict
 from .models import ProcessDoc
 
 def to_json(process: ProcessDoc) -> str:
+    """
+
+    Args:
+      process: ProcessDoc:
+      process: ProcessDoc: 
+
+    Returns:
+
+    """
     obj = {
         "meta": process.meta,
         "actors": process.actors,

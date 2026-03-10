@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Hashable
 
 from langgraph.graph import END, StateGraph
 
@@ -34,25 +35,17 @@ from .router import route_edge
 from .state import APState
 
 
-def build_ap_graph(json_path: str):
-    """
-    Compile and return a LangGraph graph from *json_path*.
+def build_ap_graph(json_path: str) -> Any:
+    """Compile and return a LangGraph graph from *json_path*.
 
-    Parameters
-    ----------
-    json_path : path to an ``ap_*_auto.json`` file produced by the
-                extraction pipeline.
+    Args:
+      json_path(path to an ``ap_*_auto.json`` file produced by the): extraction pipeline.
+      json_path: str:
+      json_path: str: 
 
-    Returns
-    -------
-    A compiled LangGraph ``CompiledGraph`` ready for ``.invoke()``.
+    Returns:
+      : 
 
-    Raises
-    ------
-    ValueError
-        If the graph JSON fails linting (missing artifacts, invalid
-        conditions, gateway fan-out, etc.).  The error message contains
-        a detailed multi-line lint report.
     """
     data: dict = json.loads(Path(json_path).read_text(encoding="utf-8"))
 
@@ -107,12 +100,18 @@ def build_ap_graph(json_path: str):
 
     # ---- build the StateGraph ------------------------------------------------
     graph: StateGraph = StateGraph(APState)
+    graph_any: Any = graph
 
     # Register every node from the JSON
     for node in nodes:
         nid     = node["id"]
-        handler = create_node_handler(nid, node, outgoing.get(nid, []))
-        graph.add_node(nid, handler)
+        handler = create_node_handler(
+            nid,
+            node,
+            outgoing.get(nid, []),
+            station_map,
+        )
+        graph_any.add_node(nid, handler)
 
     # Wire edges
     for nid, node in node_by_id.items():
@@ -139,7 +138,7 @@ def build_ap_graph(json_path: str):
         else:
             # ---- Conditional routing -----------------------------------------
             # Build path_map: routing-fn return value → LangGraph node name
-            path_map: dict[str, str] = {
+            path_map: dict[Hashable, str] = {
                 t: (END if t in end_node_ids else t)
                 for t in unique_targets
             }
@@ -155,14 +154,37 @@ def build_ap_graph(json_path: str):
                 bound_node: dict,
                 bound_stations: dict[str, str],
             ):
+                """
+
+                Args:
+                  bound_edges: list[dict]:
+                  bound_node: dict:
+                  bound_stations: dict[str:
+                  str]: 
+                  bound_edges: list[dict]: 
+                  bound_node: dict: 
+                  bound_stations: dict[str: 
+
+                Returns:
+
+                """
                 def _route(state: APState) -> str:
+                    """
+
+                    Args:
+                      state: APState:
+                      state: APState: 
+
+                    Returns:
+
+                    """
                     return route_edge(
                         state, bound_edges, bound_node, bound_stations
                     )
                 _route.__name__ = f"route_{bound_node['id']}"
                 return _route
 
-            graph.add_conditional_edges(
+            graph_any.add_conditional_edges(
                 nid,
                 _make_router(out_edges, node, station_map),
                 path_map,

@@ -9,6 +9,7 @@ dist/
 
 # Local Environment
 .env
+**/secret_key.txt
 
 # Generated eval outputs
 eval_report.json
@@ -18,6 +19,9 @@ eval_audit_report.md
 
 # Test caches
 .pytest_cache/
+
+# Local binaries
+bin/
 
 # Generated runtime logs & build outputs
 outputs/

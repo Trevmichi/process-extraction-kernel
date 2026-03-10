@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_extraction_v1.json",
+  "title": "AuditEvent: extraction",
+  "description": "Emitted by ENTER_RECORD handler in nodes.py. Has 3 distinct variants with different key sets: (1) LLM error uses 'reasons', (2) structural failure uses 'failure_codes' + 'status', (3) verifier result uses 'reasons'. This inconsistency is documented as-is — it reflects the actual emission code.",
+  "type": "object",
+  "properties": {
+    "node": {
+      "type": "string",
+      "const": "ENTER_RECORD"
+    },
+    "event": {
+      "type": "string",
+      "const": "extraction"
+    }
+  },
+  "required": ["node", "event", "valid"],
+  "oneOf": [
+    {
+      "description": "Variant 1: LLM invocation error. Uses 'reasons' key.",
+      "properties": {
+        "node": { "const": "ENTER_RECORD" },
+        "event": { "const": "extraction" },
+        "valid": { "type": "boolean", "const": false },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string" },
+          "contains": { "const": "LLM_ERROR" }
+        }
+      },
+      "required": ["node", "event", "valid", "reasons"],
+      "additionalProperties": false
+    },
+    {
+      "description": "Variant 2: Structural validation failure. Uses 'failure_codes' + 'status' keys (not 'reasons').",
+      "properties": {
+        "node": { "const": "ENTER_RECORD" },
+        "event": { "const": "extraction" },
+        "valid": { "type": "boolean", "const": false },
+        "failure_codes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^STRUCT_" }
+        },
+        "status": {
+          "type": "string",
+          "const": "BAD_EXTRACTION"
+        }
+      },
+      "required": ["node", "event", "valid", "failure_codes", "status"],
+      "additionalProperties": false
+    },
+    {
+      "description": "Variant 3: Verifier result (success or failure). Uses 'reasons' key with FailureCode values.",
+      "properties": {
+        "node": { "const": "ENTER_RECORD" },
+        "event": { "const": "extraction" },
+        "valid": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["node", "event", "valid", "reasons"],
+      "not": {
+        "properties": {
+          "reasons": { "contains": { "const": "LLM_ERROR" } }
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

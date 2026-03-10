@@ -6,24 +6,81 @@ from .models import ProcessDoc, Edge, Node, Action
 ADD_IMPLIED_WITHIN_TOLERANCE = False  # set True to auto-add within_tolerance edge
 
 def _ck(n: Node) -> str:
+    """
+
+    Args:
+      n: Node:
+      n: Node: 
+
+    Returns:
+
+    """
     return (n.meta or {}).get("canonical_key", "")
 
 def _find_node_by_ck(proc: ProcessDoc, ck: str) -> Optional[Node]:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      ck: str:
+      proc: ProcessDoc: 
+      ck: str: 
+
+    Returns:
+
+    """
     for n in proc.nodes:
         if _ck(n) == ck:
             return n
     return None
 
 def _has_edge(proc: ProcessDoc, frm: str, to: str, cond: Optional[str]) -> bool:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      frm: str:
+      to: str:
+      cond: Optional[str]:
+      proc: ProcessDoc: 
+      frm: str: 
+      to: str: 
+      cond: Optional[str]: 
+
+    Returns:
+
+    """
     for e in proc.edges:
         if e.frm == frm and e.to == to and (e.condition or None) == (cond or None):
             return True
     return False
 
 def _has_labeled_out(proc: ProcessDoc, gw_id: str) -> bool:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      gw_id: str:
+      proc: ProcessDoc: 
+      gw_id: str: 
+
+    Returns:
+
+    """
     return any(e.frm == gw_id and (e.condition or "").strip() != "" for e in proc.edges)
 
 def _prune_branch_unknown(proc: ProcessDoc, snippet_contains: str) -> None:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      snippet_contains: str:
+      proc: ProcessDoc: 
+      snippet_contains: str: 
+
+    Returns:
+
+    """
     # Remove only the generic "Decision detected..." unknown for a given sentence snippet
     proc.unknowns = [
         u for u in (proc.unknowns or [])
@@ -31,6 +88,15 @@ def _prune_branch_unknown(proc: ProcessDoc, snippet_contains: str) -> None:
     ]
 
 def _next_id(proc: ProcessDoc) -> str:
+    """
+
+    Args:
+      proc: ProcessDoc:
+      proc: ProcessDoc: 
+
+    Returns:
+
+    """
     used = {n.id for n in proc.nodes}
     i = 1
     while f"n{i}" in used:
@@ -38,9 +104,15 @@ def _next_id(proc: ProcessDoc) -> str:
     return f"n{i}"
 
 def apply_branch_model(proc: ProcessDoc) -> List[Dict]:
-    """
-    Adds simple branch edges for known gateway types.
+    """Adds simple branch edges for known gateway types.
     Returns list of edits made (for trace/debug).
+
+    Args:
+      proc: ProcessDoc:
+      proc: ProcessDoc: 
+
+    Returns:
+
     """
     edits: List[Dict] = []
 

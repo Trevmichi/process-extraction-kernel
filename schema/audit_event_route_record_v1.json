@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_route_record_v1.json",
+  "title": "AuditEvent: route_record",
+  "description": "Emitted by gateway node handlers in nodes.py after each route decision. Wraps a full RouteRecord observability payload. Inner structure mirrors route_record_v1.json.",
+  "type": "object",
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "route_record"
+    },
+    "route_record": {
+      "$ref": "#/$defs/RouteRecord"
+    }
+  },
+  "required": ["event", "route_record"],
+  "additionalProperties": false,
+  "$defs": {
+    "OutgoingEdge": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "raw_condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "raw_condition"]
+    },
+    "NormalizedCondition": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "raw_condition": { "type": ["string", "null"] },
+        "normalized_condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "raw_condition", "normalized_condition"]
+    },
+    "PredicateResult": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "normalized_condition": { "type": ["string", "null"] },
+        "matched": { "type": ["boolean", "null"] },
+        "phase": {
+          "type": "string",
+          "enum": ["conditional", "fallback"]
+        }
+      },
+      "required": ["to", "normalized_condition", "matched", "phase"]
+    },
+    "SelectedEdge": {
+      "type": "object",
+      "properties": {
+        "to": { "type": "string" },
+        "condition": { "type": ["string", "null"] }
+      },
+      "required": ["to", "condition"]
+    },
+    "ExceptionMapping": {
+      "type": "object",
+      "properties": {
+        "intent_key": { "type": "string" },
+        "sink_node": { "type": "string" }
+      },
+      "required": ["intent_key", "sink_node"]
+    },
+    "RouteRecord": {
+      "type": "object",
+      "properties": {
+        "gateway_id": {
+          "type": "string"
+        },
+        "outgoing_edge_set": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OutgoingEdge" }
+        },
+        "normalized_conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/NormalizedCondition" }
+        },
+        "predicate_results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PredicateResult" }
+        },
+        "selected_edge": {
+          "oneOf": [
+            { "$ref": "#/$defs/SelectedEdge" },
+            { "type": "null" }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "single_edge",
+            "all_same_target",
+            "condition_match",
+            "unconditional_fallback",
+            "ambiguous_route",
+            "no_route"
+          ]
+        },
+        "exception_mapping": {
+          "oneOf": [
+            { "$ref": "#/$defs/ExceptionMapping" },
+            { "type": "null" }
+          ]
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "route_record_v1"
+        }
+      },
+      "required": [
+        "gateway_id",
+        "outgoing_edge_set",
+        "normalized_conditions",
+        "predicate_results",
+        "selected_edge",
+        "reason",
+        "exception_mapping",
+        "schema_version"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

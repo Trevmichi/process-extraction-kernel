@@ -10,17 +10,24 @@ NodeKind = Literal["event", "task", "gateway", "end"]
 
 @dataclass
 class Evidence:
+    """Evidence span grounding metadata for an extracted field."""
     source_id: str
     span: str
 
 @dataclass
 class Action:
-    type: ActionType
+    """Executable process action attached to a task node."""
+    type: ActionType | Literal["UNKNOWN_ACTION"]
     actor_id: ActorId | str
     artifact_id: ArtifactId | str
     extra: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        """Normalize out-of-schema action, actor, and artifact identifiers.
+
+        Returns:
+          None
+        """
         if self.type not in VALID_ACTIONS:
             import json as _json
             import warnings
@@ -62,11 +69,17 @@ class Action:
 
 @dataclass
 class Decision:
+    """Gateway decision metadata used by routing nodes."""
     type: DecisionType
     inputs: List[str] = field(default_factory=list)
     expression: Optional[str] = None
 
     def __post_init__(self) -> None:
+        """Normalize out-of-schema decision types.
+
+        Returns:
+          None
+        """
         if self.type not in VALID_DECISIONS:
             import json as _json
             import warnings
@@ -104,9 +117,14 @@ class Decision:
 @dataclass
 class Node:
     """Represents a process node, with optional metadata for extensions and annotations.
-
+    
     The ``meta`` field can be used to attach arbitrary, implementation-specific
     information to a node (for example, UI hints, tags, or integration data).
+
+    Args:
+
+    Returns:
+
     """
     id: str
     kind: NodeKind
@@ -118,12 +136,14 @@ class Node:
 
 @dataclass
 class Edge:
+    """Directed connection between two node ids in the process graph."""
     frm: str
     to: str
     condition: Optional[str] = None
 
 @dataclass
 class ProcessDoc:
+    """Top-level extracted process document payload."""
     meta: Dict[str, Any]
     actors: List[Dict[str, Any]]
     artifacts: List[Dict[str, Any]]
