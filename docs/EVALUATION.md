@@ -20,7 +20,7 @@ invoices with known expected outputs. It supports two modes:
 | `scripts/qa_eval.ps1` | QA script — pytest + eval (PowerShell) |
 | `tests/test_eval_harness.py` | CI validation of dataset integrity |
 | `datasets/expected.jsonl` | 126 gold records (1 JSON line per invoice) |
-| `datasets/gold_invoices/` | 112 invoice text files (62 inv_NNN.txt + 50 INV-NNNN.txt synthetic) |
+| `datasets/gold_invoices/` | 126 invoice text files (76 inv_NNN.txt + 50 INV-NNNN.txt synthetic) |
 | `datasets/gold_invoices/README.md` | Invoice catalog with scenario labels |
 | `datasets/schema.md` | JSON schema reference for expected.jsonl |
 
