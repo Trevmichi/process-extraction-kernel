@@ -197,7 +197,7 @@ raw invoice text.
 
 **`verify_extraction(raw_text, extraction) -> (bool, list[FailureCode], dict)`**
 
-**Failure codes** (`FailureCode` literal type):
+**Failure codes** (`FailureCode` literal type, 24 codes):
 
 | Code | Meaning |
 |------|---------|
@@ -210,17 +210,47 @@ raw invoice text.
 | `PO_PATTERN_MISSING` | has_po=true but no PO pattern in evidence |
 | `MISSING_KEY` | Required field missing from extraction dict |
 | `WRONG_TYPE` | Field value has incorrect type |
+| `DATE_MISSING_KEY` | invoice_date field missing required sub-key |
+| `DATE_WRONG_TYPE` | invoice_date value has incorrect type |
+| `DATE_EVIDENCE_NOT_FOUND` | Date evidence not grounded in raw text |
+| `DATE_PARSE_FAILED` | Date value cannot be parsed |
+| `DATE_AMBIGUOUS` | Multiple plausible dates in evidence |
+| `DATE_VALUE_MISMATCH` | Parsed date != claimed date |
+| `TAX_MISSING_KEY` | tax_amount field missing required sub-key |
+| `TAX_WRONG_TYPE` | tax_amount value has incorrect type |
+| `TAX_EVIDENCE_NOT_FOUND` | Tax evidence not grounded in raw text |
+| `TAX_MISSING_EVIDENCE` | Tax evidence field empty/null |
+| `TAX_PARSE_FAILED` | Tax value cannot be parsed from evidence |
+| `TAX_ANCHOR_MISSING` | No tax keyword anchor in evidence |
+| `TAX_AMBIGUOUS_EVIDENCE` | Multiple plausible tax amounts in evidence |
+| `TAX_AMOUNT_MISMATCH` | Parsed tax != claimed tax (delta > 0.01) |
+| `ARITH_TOTAL_MISMATCH` | Source-text subtotal+tax+fees != total |
+| `ARITH_TAX_RATE_MISMATCH` | Source-text rate*subtotal != tax |
 
-**Per-field verification** (see `_verify_vendor`, `_verify_amount`, `_verify_has_po`):
+**Per-field verification** (5 fields, 3 required + 2 optional):
 
-- **Vendor**: value non-empty, evidence grounded in raw text, vendor name
-  appears in evidence.
-- **Amount**: value numeric, evidence grounded, all numbers extracted from
-  evidence via regex. If multiple: disambiguate using 30-char keyword window
+- **Vendor** (required): value non-empty, evidence grounded in raw text, vendor
+  name appears in evidence.
+- **Amount** (required): value numeric, evidence grounded, all numbers extracted
+  from evidence via regex. If multiple: disambiguate using 30-char keyword window
   (`"total"`, `"amount due"`, `"balance due"`, `"sum"`). Verify
   `abs(parsed - claimed) <= 0.01`.
-- **has_po**: value is bool, evidence grounded. If `true`: evidence must match
-  PO regex `\b(PO|Purchase\s+Order)\b|\bP\.O\.(?:\s|$|#)|PO-?\d+`.
+- **has_po** (required): value is bool, evidence grounded. If `true`: evidence
+  must match PO regex `\b(PO|Purchase\s+Order)\b|\bP\.O\.(?:\s|$|#)|PO-?\d+`.
+- **invoice_date** (optional): value is date string, evidence grounded.
+  Normalizes common formats (ISO, slash-delimited). Skipped when absent from
+  extraction dict.
+- **tax_amount** (optional): value numeric, evidence grounded. Tax keyword
+  anchor required. Disambiguates via keyword proximity. Skipped when absent
+  from extraction dict.
+
+**Verifier registry** (`src/verifier_registry.py`): registry-backed field
+validation. Each field has a `FieldValidatorSpec` with `optional` flag.
+Optional fields are skipped when not present in the extraction dict.
+
+**Evidence quality tiers** (`MatchTier`): each field verifier classifies match
+quality as `exact_match`, `normalized_match`, or `not_found`. Tiers propagate
+through provenance and verifier summary audit events.
 
 **Text normalization**: `_normalize_text(s)` collapses whitespace, strips, and
 casefolds before all substring comparisons.
@@ -309,20 +339,25 @@ The system is designed to never silently guess when routing is ambiguous:
 
 ```python
 class APState(TypedDict):
-    invoice_id:   str
-    vendor:       str
-    amount:       float
-    has_po:       bool
-    po_match:     bool
-    match_3_way:  bool
-    match_result: str       # "MATCH" | "NO_MATCH" | "VARIANCE" | "UNKNOWN"
-    status:       str
-    current_node: str
-    last_gateway: str
-    audit_log:    Annotated[list[str], operator.add]  # accumulates per step
-    raw_text:     str
-    extraction:   dict      # LLM payload: {field: {value, evidence}, ...}
-    provenance:   dict      # verifier metadata per field
+    invoice_id:     str
+    vendor:         str
+    amount:         float
+    has_po:         bool
+    invoice_date:   str       # optional field — promoted only on successful verification
+    tax_amount:     float     # optional field — promoted only on successful verification
+    po_match:       bool
+    match_3_way:    bool
+    match_result:   str       # "MATCH" | "NO_MATCH" | "VARIANCE" | "UNKNOWN"
+    status:         str       # StatusType literal
+    current_node:   str
+    last_gateway:   str
+    audit_log:      Annotated[list[str], operator.add]  # accumulates per step
+    route_records:  Annotated[list[dict], operator.add]  # structured RouteRecord dicts
+    raw_text:       str
+    extraction:     dict      # LLM payload: {field: {value, evidence}, ...}
+    provenance:     dict      # verifier metadata per field
+    retry_count:    int       # critic retry attempts executed
+    failure_codes:  list[str] # verifier failure codes from most recent attempt
 ```
 
 **Factory**: `make_initial_state(invoice_id, raw_text, po_match=False, match_3_way=None)`
@@ -330,3 +365,8 @@ creates a state dict with safe defaults from `DEFAULT_STATE_TEMPLATE`.
 
 **`audit_log`** uses `Annotated[list, operator.add]` so LangGraph merges
 (not replaces) audit entries across steps.
+
+**Optional field promotion**: `invoice_date` and `tax_amount` are only promoted
+to state inside `if valid:` blocks, preserving the invariant that optional fields
+are only populated on successful verification. When absent or verification fails,
+they retain their defaults (`""` and `0.0`).
