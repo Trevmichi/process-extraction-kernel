@@ -1,7 +1,7 @@
 # Process Extraction Kernel
 
 A deterministic AP invoice-processing kernel. A mined process graph is patched
-with business-logic guardrails, normalized through 15 idempotent repair passes,
+with business-logic guardrails, normalized through 17 idempotent repair passes,
 validated by a structural linter, and compiled to a LangGraph state machine.
 LLM calls are constrained to two extraction tasks
 (see `src/agent/nodes.py: execute_node`); all routing decisions are made by an
@@ -44,7 +44,7 @@ checks with a structured interpretation layer for operator-facing explanation.
 
 | Layer | Module | Description |
 |-------|--------|-------------|
-| **Normalization** | `src/normalize_graph.py` | 15 idempotent repair passes: fix artifacts, canonical keys, edge conditions, gateways, exception nodes, deduplication |
+| **Normalization** | `src/normalize_graph.py` | 17 idempotent repair passes: fix artifacts, canonical keys, edge conditions, gateways, exception nodes, deduplication |
 | **Condition DSL** | `src/conditions.py` | Eval-free grammar: `comparison (AND comparison)*`; tokenizer -> AST (`Comparison` / `Conjunction`) -> compiled predicate |
 | **Graph Linter** | `src/linter.py` + `src/invariants.py` | Sections A-E: referential integrity, actor/artifact checks, gateway semantics, decision consistency, structural invariants |
 | **LangGraph Agent** | `src/agent/compiler.py` | Compiles patched JSON -> `StateGraph`; calls `assert_graph_valid`, builds station map for router |
@@ -93,12 +93,12 @@ process-extraction-kernel/
 |   +-- agent/
 |   |   +-- compiler.py     # JSON -> LangGraph compiler
 |   |   +-- router.py       # 2-phase deterministic router
-|   |   +-- nodes.py        # Node executors (ENTER_RECORD, VALIDATE_FIELDS, ROUTE_FOR_REVIEW)
+|   |   +-- nodes.py        # Node executors (ENTER_RECORD, CRITIC_RETRY, VALIDATE_FIELDS, ROUTE_FOR_REVIEW)
 |   |   +-- state.py        # APState definition (extraction, provenance, audit_log)
 |   +-- conditions.py       # Eval-free condition DSL (tokenizer, AST, compiler)
 |   +-- linter.py           # Graph linter (sections A-E)
 |   +-- invariants.py       # Structural invariant checks
-|   +-- normalize_graph.py  # 15 idempotent repair passes
+|   +-- normalize_graph.py  # 17 idempotent repair passes
 |   +-- verifier.py         # Evidence-backed extraction verifier (5 fields)
 |   +-- verifier_registry.py # Registry-backed field validation (optional field support)
 |   +-- schema_validator.py # Runtime JSON Schema gates for extraction payloads
@@ -310,8 +310,9 @@ into three categories:
 **Reference documents** -- `actions_v1`, `validators_v1`, `process_v1`
 
 All audit event schemas enforce `additionalProperties: false` at every nesting
-level. Schemas are artifact definitions validated by tests -- there is no runtime
-schema enforcement in the processing pipeline.
+level. Extraction payloads are validated at runtime via `src/schema_validator.py`
+(JSON Schema gates at emission points). Audit event schemas are artifact
+definitions validated by tests (`tests/test_schemas.py`) but not runtime-enforced.
 
 ---
 
@@ -437,25 +438,25 @@ the latest `eval_report.md` and test suite output.
 
 - **1,589** passing tests
 - **102/126** terminal accuracy (eval harness, mock mode -- 81.0%)
-- **322/399** field accuracy (80.7% overall)
+- **318/394** field accuracy (80.7% overall)
 - **0** linter errors on production graph
 
 | Field | Correct | Total | Accuracy |
 |-------|---------|-------|----------|
-| vendor | 107 | 126 | 84.9% |
-| amount | 107 | 126 | 84.9% |
-| has_po | 104 | 126 | 82.5% |
+| vendor | 102 | 126 | 81.0% |
+| amount | 102 | 126 | 81.0% |
+| has_po | 109 | 126 | 86.5% |
 | invoice_date | 2 | 8 | 25.0% |
-| tax_amount | 2 | 8 | 25.0% |
+| tax_amount | 3 | 8 | 37.5% |
 
 **Stratified by scenario bucket:**
 
 | Bucket | Records | Terminal | Field |
 |--------|---------|----------|-------|
-| clean_standard | 58 | 86.2% | 86.8% |
-| noisy_ocr_synthetic | 50 | 76.0% | 76.0% |
-| match_path | 10 | 80.0% | 76.7% |
-| extended_fields | 8 | 75.0% | 27.5% |
+| clean_standard | 58 | 100.0% | 100.0% |
+| noisy_ocr_synthetic | 50 | 66.0% | 70.7% |
+| match_path | 10 | 90.0% | 90.0% |
+| extended_fields | 8 | 25.0% | 27.5% |
 
 ---
 
