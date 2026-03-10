@@ -1,0 +1,12 @@
+Horizon Freight Systems
+7200 Harbor Blvd, Long Beach, CA 90802
+
+Date: 2026-10-01
+Invoice Number: INV-1057
+PO Number: PO-HFS-500
+
+Full container load (FCL) Pacific route    8500.00
+Port handling and customs clearance        1200.00
+Inland drayage                              300.00
+
+Total: 10000.00

@@ -4,10 +4,6 @@ Tests for make_initial_state(), DEFAULT_STATE_TEMPLATE, and REQUIRED_KEYS.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.agent.state import (
     DEFAULT_STATE_TEMPLATE,
@@ -54,16 +50,19 @@ class TestMakeInitialState:
         assert state["last_gateway"] == ""
 
     def test_fresh_mutables(self):
-        """audit_log, extraction, provenance are fresh per call (not shared)."""
+        """Mutable list/dict fields are fresh per call (not shared)."""
         s1 = make_initial_state(invoice_id="INV-1", raw_text="a")
         s2 = make_initial_state(invoice_id="INV-2", raw_text="b")
         # Must be different objects
         assert s1["audit_log"] is not s2["audit_log"]
+        assert s1["route_records"] is not s2["route_records"]
         assert s1["extraction"] is not s2["extraction"]
         assert s1["provenance"] is not s2["provenance"]
         # Mutating one must not affect the other
         s1["audit_log"].append("x")
+        s1["route_records"].append({"x": 1})
         assert s2["audit_log"] == []
+        assert s2["route_records"] == []
 
 
 class TestTemplateImmutability:
@@ -74,6 +73,12 @@ class TestTemplateImmutability:
         state = make_initial_state(invoice_id="INV-1", raw_text="test")
         state["audit_log"].append("should not appear in template")
         assert DEFAULT_STATE_TEMPLATE["audit_log"] == []
+
+    def test_template_route_records_survives_state_mutation(self):
+        """Mutating a state's route_records must not pollute the template."""
+        state = make_initial_state(invoice_id="INV-1", raw_text="test")
+        state["route_records"].append({"gateway_id": "n1"})
+        assert DEFAULT_STATE_TEMPLATE["route_records"] == []
 
     def test_template_extraction_survives_state_mutation(self):
         """Mutating a state's extraction must not pollute the template."""
@@ -94,6 +99,7 @@ class TestTemplateImmutability:
         for i in range(10):
             s = make_initial_state(invoice_id=f"INV-{i}", raw_text=f"text-{i}")
             s["audit_log"].extend(["a", "b", "c"])
+            s["route_records"].append({"i": i})
             s["extraction"]["x"] = i
             s["provenance"]["y"] = i
         assert DEFAULT_STATE_TEMPLATE == snapshot

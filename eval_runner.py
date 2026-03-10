@@ -28,6 +28,7 @@ from unittest.mock import patch
 
 from src.agent.compiler import build_ap_graph
 from src.agent.state import APState, make_initial_state
+from src.policy import DEFAULT_POLICY
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -48,7 +49,7 @@ _REQUIRED_RECORD_KEYS = frozenset({
     "expected_fields", "mock_extraction", "tags",
 })
 
-_REQUIRED_EXTRACTION_FIELDS = frozenset({"vendor", "amount", "has_po"})
+_REQUIRED_EXTRACTION_FIELDS = frozenset(DEFAULT_POLICY.required_fields)
 
 
 def _validate_gold_record(rec: dict) -> None:
@@ -136,8 +137,10 @@ def compare_fields(expected_fields: dict, result_state: dict) -> dict:
         actual = result_state.get(field)
         if field == "vendor":
             match = _norm_str(str(expected)) == _norm_str(str(actual or ""))
-        elif field == "amount":
-            match = abs(float(expected) - float(actual or 0)) <= 0.01
+        elif field in ("amount", "tax_amount"):
+            match = actual is not None and abs(float(expected) - float(actual)) <= 0.01
+        elif field == "invoice_date":
+            match = str(expected) == str(actual or "")
         else:  # has_po: strict
             match = expected == actual
         comparisons[field] = {"expected": expected, "actual": actual, "match": match}
@@ -204,6 +207,102 @@ def compute_failure_groupings(
             tag_buckets[tag][bucket].append(inv_id)
 
     return by_bucket, tag_buckets
+
+
+# ---------------------------------------------------------------------------
+# Primary evaluation buckets (stratified reporting)
+# ---------------------------------------------------------------------------
+_PRIMARY_BUCKETS = (
+    "noisy_ocr_synthetic",
+    "match_path",
+    "extended_fields",
+    "clean_standard",
+)
+
+
+def classify_primary_bucket(
+    tags: list[str], compared_field_names: set[str],
+) -> str:
+    """Assign exactly one primary evaluation bucket to a gold record.
+
+    Classification is deterministic and priority-ordered:
+    1. noisy_ocr_synthetic — has 'synthetic' tag
+    2. match_path — has 'match_fail' tag (and not synthetic)
+    3. extended_fields — has invoice_date or tax_amount in compared fields
+    4. clean_standard — everything else
+    """
+    if "synthetic" in tags:
+        return "noisy_ocr_synthetic"
+    if "match_fail" in tags:
+        return "match_path"
+    if "invoice_date" in compared_field_names or "tax_amount" in compared_field_names:
+        return "extended_fields"
+    return "clean_standard"
+
+
+def compute_bucket_metrics(results: list[dict]) -> dict[str, dict]:
+    """Compute stratified metrics for each primary evaluation bucket.
+
+    Each result must already have a ``primary_bucket`` key.
+    Returns dict keyed by bucket name.  All ``_PRIMARY_BUCKETS`` keys are
+    always present (stable shape).
+    """
+    grouped: dict[str, list[dict]] = {b: [] for b in _PRIMARY_BUCKETS}
+    for r in results:
+        grouped[r["primary_bucket"]].append(r)
+
+    by_bucket: dict[str, dict] = {}
+    for bucket in _PRIMARY_BUCKETS:
+        cohort = grouped[bucket]
+        count = len(cohort)
+        terminal_correct = sum(1 for r in cohort if r["status_match"])
+
+        field_stats: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"correct": 0, "total": 0},
+        )
+        overall_correct = 0
+        overall_total = 0
+        for r in cohort:
+            for field, comp in r["field_comparison"].items():
+                field_stats[field]["total"] += 1
+                overall_total += 1
+                if comp["match"]:
+                    field_stats[field]["correct"] += 1
+                    overall_correct += 1
+
+        fa: dict[str, dict] = {}
+        for field in sorted(field_stats.keys()):
+            s = field_stats[field]
+            fa[field] = {
+                "correct": s["correct"],
+                "total": s["total"],
+                "accuracy": s["correct"] / s["total"] if s["total"] > 0 else 0.0,
+            }
+        fa["overall"] = {
+            "correct": overall_correct,
+            "total": overall_total,
+            "accuracy": overall_correct / overall_total if overall_total > 0 else 0.0,
+        }
+
+        # Per-bucket failure breakdown
+        fb: dict[str, list[str]] = {b: [] for b in _FAILURE_BUCKETS}
+        for r in cohort:
+            fbucket = r.get("failure_bucket", "pass")
+            if fbucket != "pass":
+                fb[fbucket].append(r["invoice_id"])
+
+        by_bucket[bucket] = {
+            "count": count,
+            "terminal_accuracy": {
+                "correct": terminal_correct,
+                "total": count,
+                "accuracy": terminal_correct / count if count > 0 else 0.0,
+            },
+            "field_accuracy": fa,
+            "failure_breakdown": fb,
+        }
+
+    return by_bucket
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +530,13 @@ def compute_metrics(results: list[dict]) -> dict:
             "field_accuracy": tag_fa,
         }
 
+    # Primary bucket classification (stratified reporting)
+    for r in results:
+        r["primary_bucket"] = classify_primary_bucket(
+            r.get("tags", []), set(r["field_comparison"].keys()),
+        )
+    by_primary_bucket = compute_bucket_metrics(results)
+
     # Failure groupings (stable shape — always present)
     failures_by_bucket, failures_by_tag = compute_failure_groupings(results)
 
@@ -479,6 +585,7 @@ def compute_metrics(results: list[dict]) -> dict:
         "unknown_rate": unknown_rate,
         "confusion_matrix": confusion_plain,
         "by_tag": by_tag,
+        "by_primary_bucket": by_primary_bucket,
         "failures_by_bucket": failures_by_bucket,
         "failures_by_tag": failures_by_tag,
         "suspicious_passes": suspicious_passes,
@@ -504,16 +611,82 @@ def write_md_report(
     lines: list[str] = []
     lines.append("# Evaluation Report\n")
 
-    # Terminal accuracy
-    ta = metrics["terminal_accuracy"]
-    lines.append(f"## Terminal Accuracy: {ta['correct']}/{ta['total']}"
-                 f" ({ta['accuracy']:.1%})\n")
+    # Stratified results (primary truth surface)
+    bpb = metrics.get("by_primary_bucket")
+    if bpb:
+        lines.append("## Stratified Results\n")
+        lines.append("| Bucket | Count | Terminal Accuracy | Field Accuracy |")
+        lines.append("|--------|-------|-------------------|----------------|")
+        for bucket in _PRIMARY_BUCKETS:
+            data = bpb.get(bucket)
+            if not data:
+                continue
+            bta = data["terminal_accuracy"]
+            bfa = data["field_accuracy"].get("overall", {})
+            lines.append(
+                f"| {bucket} | {data['count']}"
+                f" | {bta['correct']}/{bta['total']} ({bta['accuracy']:.1%})"
+                f" | {bfa.get('correct', 0)}/{bfa.get('total', 0)}"
+                f" ({bfa.get('accuracy', 0):.1%}) |"
+            )
+        lines.append("")
 
-    # Unknown rate
+        # Per-bucket failure details
+        has_bucket_failures = any(
+            sum(len(v) for v in bpb[b]["failure_breakdown"].values()) > 0
+            for b in _PRIMARY_BUCKETS if b in bpb
+        )
+        if has_bucket_failures:
+            lines.append("### Per-Bucket Failures\n")
+            for bucket in _PRIMARY_BUCKETS:
+                data = bpb.get(bucket)
+                if not data:
+                    continue
+                fb = data["failure_breakdown"]
+                total_fb = sum(len(v) for v in fb.values())
+                if total_fb == 0:
+                    continue
+                lines.append(f"**{bucket}** ({total_fb} failure(s)):\n")
+                for fb_name in _FAILURE_BUCKETS:
+                    ids = fb.get(fb_name, [])
+                    if ids:
+                        lines.append(f"- {fb_name}: {', '.join(ids)}")
+                lines.append("")
+
+        # Interpretation notes
+        lines.append("### Interpretation Notes\n")
+        lines.append(
+            "> **clean_standard**: Standard invoices without special "
+            "characteristics — primary benchmark cohort.\n>"
+        )
+        lines.append(
+            "> **noisy_ocr_synthetic**: Synthetic OCR-noise stress cases; "
+            "mock-mode results reflect extraction template fidelity, "
+            "not real OCR robustness.\n>"
+        )
+        lines.append(
+            "> **match_path**: 3-way PO match failure path; tests "
+            "MATCH_3_WAY → exception routing.\n>"
+        )
+        lines.append(
+            "> **extended_fields**: Invoices with invoice_date/tax_amount; "
+            "small sample — directional, not statistically robust.\n"
+        )
+
+    # Aggregate metrics (blended — use stratified results as primary truth)
+    lines.append("## Aggregate Metrics\n")
+    lines.append(
+        "> *Aggregate metrics blend standard, stress, extended-field, and "
+        "workflow-path cases; use stratified results as the primary "
+        "truth surface.*\n"
+    )
+
+    ta = metrics["terminal_accuracy"]
+    lines.append(f"**Terminal Accuracy**: {ta['correct']}/{ta['total']}"
+                 f" ({ta['accuracy']:.1%})\n")
     lines.append(f"**Unknown rate**: {metrics['unknown_rate']:.1%}\n")
 
     # Field accuracy table
-    lines.append("## Field Accuracy\n")
     lines.append("| Field | Correct | Total | Accuracy |")
     lines.append("|-------|---------|-------|----------|")
     for field, stats in metrics["field_accuracy"].items():
@@ -648,16 +821,17 @@ def write_md_report(
 
     # Per-invoice detail
     lines.append("## Per-Invoice Results\n")
-    lines.append("| Invoice | Expected | Actual | Match | Fields |")
-    lines.append("|---------|----------|--------|-------|--------|")
+    lines.append("| Invoice | Bucket | Expected | Actual | Match | Fields |")
+    lines.append("|---------|--------|----------|--------|-------|--------|")
     for r in metrics["per_invoice"]:
         field_summary = ", ".join(
             f"{f}:{'ok' if c['match'] else 'FAIL'}"
             for f, c in r["field_comparison"].items()
         )
         status_icon = "ok" if r["status_match"] else "FAIL"
+        pbucket = r.get("primary_bucket", "")
         lines.append(
-            f"| {r['invoice_id']} | {r['expected_status'][0]}"
+            f"| {r['invoice_id']} | {pbucket} | {r['expected_status'][0]}"
             f" | {r['actual_status']} | {status_icon} | {field_summary} |"
         )
     lines.append("")

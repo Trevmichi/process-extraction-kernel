@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 import os
 import re
-from typing import List, Tuple, Dict, Optional, TypedDict, Literal
+from typing import Any, List, Tuple, Dict, Optional, TypedDict, Literal, cast
 from .models import ProcessDoc, Node, Edge, Action, Decision, Evidence
 from .ontology import ActionType, DecisionType, VALID_ACTIONS, VALID_DECISIONS
 
@@ -60,6 +60,7 @@ _BRANCH_GW_TYPES: Dict[str, str] = {
 }
 
 class ParsedIntent(TypedDict, total=False):
+    """Structured intermediate intent extracted from a sentence."""
     kind: Literal["action", "decision"]
     intent: str  # ActionType or DecisionType
     actor_id: str
@@ -70,6 +71,15 @@ class ParsedIntent(TypedDict, total=False):
     inputs: List[str]  # Decision.inputs (for MATCH_3_WAY)
 
 def _split_sentences(text: str) -> List[str]:
+    """
+
+    Args:
+      text: str:
+      text: str: 
+
+    Returns:
+
+    """
     # Normalize wrapped lines: keep blank lines as paragraph breaks, flatten other newlines
     t = text.strip()
     t = re.sub(r"\r\n", "\n", t)
@@ -81,15 +91,42 @@ def _split_sentences(text: str) -> List[str]:
     return [s.strip() for s in raw if s and s.strip()]
 
 def _guess_actor(action_type: str) -> str:
+    """
+
+    Args:
+      action_type: str:
+      action_type: str: 
+
+    Returns:
+
+    """
     systemish = {"MATCH_3_WAY", "SCHEDULE_PAYMENT", "EXECUTE_PAYMENT", "UPDATE_STATUS", "RECEIVE_MESSAGE"}
     return "sys_erp" if action_type in systemish else "role_ap_clerk"
 
 def _guess_artifact(action_type: str) -> str:
+    """
+
+    Args:
+      action_type: str:
+      action_type: str: 
+
+    Returns:
+
+    """
     if action_type in {"SCHEDULE_PAYMENT", "EXECUTE_PAYMENT"}:
         return "art_payment"
     return "art_invoice"
 
 def _detect_gateway(s: str) -> Optional[Decision]:
+    """
+
+    Args:
+      s: str:
+      s: str: 
+
+    Returns:
+
+    """
     # 3-way match phrasing
     if re.search(r"\bmatches?\b.*\b(po|purchase order)\b.*\b(goods receipt|grn)\b", s, re.I):
         return Decision(type="MATCH_3_WAY", inputs=["art_invoice", "art_po", "art_grn"])
@@ -129,6 +166,15 @@ def _detect_gateway(s: str) -> Optional[Decision]:
     return None
 
 def _branch_label(s: str) -> Optional[str]:
+    """
+
+    Args:
+      s: str:
+      s: str: 
+
+    Returns:
+
+    """
     s2 = (s or "").strip().lower()
     # approve/reject branch
     if re.search(r"\bif\s+approved\b", s2) or re.search(r"\bif\s+the\s+\w+\s+approves\b", s2) or re.search(r"\bapprove(d)?\b", s2):
@@ -153,10 +199,32 @@ def _branch_label(s: str) -> Optional[str]:
     return None
 
 def _is_rerun_matching_sentence(s: str) -> bool:
+    """
+
+    Args:
+      s: str:
+      s: str: 
+
+    Returns:
+
+    """
     s = (s or "").lower()
     return ("re-runs matching" in s) or ("reruns matching" in s) or ("re-run matching" in s) or ("rerun matching" in s)
 
 def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None, branch_label: Optional[str] = None) -> List[str]:
+    """
+
+    Args:
+      s: str:
+      gw_type_for_sentence: Optional[str]:  (Default value = None)
+      branch_label: Optional[str]:  (Default value = None)
+      s: str: 
+      gw_type_for_sentence: Optional[str]:  (Default value = None)
+      branch_label: Optional[str]:  (Default value = None)
+
+    Returns:
+
+    """
     is_rerun = _is_rerun_matching_sentence(s)
     _bl = (branch_label or "").lower()
     acts: List[str] = []
@@ -190,7 +258,15 @@ def _actions_from_sentence(s: str, gw_type_for_sentence: Optional[str] = None, b
     return out
 
 def _classify_regex_fallback(s: str) -> List[ParsedIntent]:
-    """Classify a sentence into ParsedIntent dicts using regex heuristics only."""
+    """Classify a sentence into ParsedIntent dicts using regex heuristics only.
+
+    Args:
+      s: str:
+      s: str: 
+
+    Returns:
+
+    """
     intents: List[ParsedIntent] = []
     label = _branch_label(s)
     decision = _detect_gateway(s)
@@ -219,6 +295,21 @@ def _classify_regex_fallback(s: str) -> List[ParsedIntent]:
     return intents
 
 def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report: str = "") -> ProcessDoc:
+    """
+
+    Args:
+      text: str:
+      source_id: str:
+      process_id: str:
+      gap_report: str:  (Default value = "")
+      text: str: 
+      source_id: str: 
+      process_id: str: 
+      gap_report: str:  (Default value = "")
+
+    Returns:
+
+    """
     actors = [
         {"id": "role_ap_clerk", "type": "human_role", "name": "AP Clerk"},
         {"id": "role_manager", "type": "human_role", "name": "Department Manager"},
@@ -236,10 +327,10 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
     sentences = _split_sentences(text)
 
     # --- Extraction Phase ---
-    all_intents: List[Dict] = []
+    all_intents: List[ParsedIntent] = []
     if os.environ.get("USE_LLM_CLASSIFIER") == "true":
         from .llm_classifier import classify_text_block_llm
-        all_intents = classify_text_block_llm(text, gap_report=gap_report)
+        all_intents = cast(List[ParsedIntent], classify_text_block_llm(text, gap_report=gap_report))
 
     # Fallback to regex if LLM is off, failed, or hit a rate limit
     if not all_intents:
@@ -251,6 +342,15 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
     edges: List[Edge] = []
 
     def ev(span: str) -> List[Evidence]:
+        """
+
+        Args:
+          span: str:
+          span: str: 
+
+        Returns:
+
+        """
         return [Evidence(source_id=source_id, span=span)]
 
     nodes.append(Node(
@@ -277,7 +377,7 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                 kind="gateway",
                 name="Decision",
                 decision=Decision(
-                    type=dec_type,
+                    type=cast(DecisionType, dec_type),
                     expression=intent.get("expression"),
                     inputs=intent.get("inputs", []),
                 ),
@@ -306,7 +406,10 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                     id=gid,
                     kind="gateway",
                     name="Decision",
-                    decision=Decision(type=act, expression=intent.get("expression")),
+                    decision=Decision(
+                        type=cast(DecisionType, act),
+                        expression=intent.get("expression"),
+                    ),
                     evidence=ev(ev_span),
                     meta={"canonical_key": f"gw:{act}"},
                 )
@@ -324,7 +427,11 @@ def heuristic_extract_ap(text: str, source_id: str, process_id: str, gap_report:
                 id=tid,
                 kind="task",
                 name=ev_span[:60] + ("..." if len(ev_span) > 60 else ""),
-                action=Action(type=act, actor_id=intent.get("actor_id", ""), artifact_id=intent.get("artifact_id", "")),
+                action=Action(
+                    type=cast(ActionType | Literal["UNKNOWN_ACTION"], act),
+                    actor_id=intent.get("actor_id", ""),
+                    artifact_id=intent.get("artifact_id", ""),
+                ),
                 evidence=ev(ev_span),
                 meta={"canonical_key": task_key},
             ))

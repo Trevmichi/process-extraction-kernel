@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit_event_verifier_summary_v1.json",
+  "title": "AuditEvent: verifier_summary",
+  "description": "Emitted by ENTER_RECORD and CRITIC_RETRY handlers in nodes.py after verify_extraction(). Carries per-field grounding summaries for explanation. Same shape from both emitters.",
+  "type": "object",
+  "$defs": {
+    "VendorSummary": {
+      "type": "object",
+      "properties": {
+        "value": { "description": "Claimed vendor value (str or null)." },
+        "ok": { "type": "boolean", "description": "True if no vendor-related failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier. Always emitted at runtime; optional in schema for test compatibility."
+        }
+      },
+      "required": ["value", "ok", "has_evidence"],
+      "additionalProperties": false
+    },
+    "AmountSummary": {
+      "type": "object",
+      "properties": {
+        "value": { "description": "Claimed amount value (number or null)." },
+        "ok": { "type": "boolean", "description": "True if no amount-related failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "parsed_evidence": { "type": ["number", "null"], "description": "Parsed numeric value from evidence, or null." },
+        "delta": { "type": ["number", "null"], "description": "Absolute difference between claimed and parsed, or null." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier. Always emitted at runtime; optional in schema for test compatibility."
+        }
+      },
+      "required": ["value", "ok", "has_evidence", "parsed_evidence", "delta"],
+      "additionalProperties": false
+    },
+    "HasPoSummary": {
+      "type": "object",
+      "properties": {
+        "value": { "description": "Claimed has_po value (bool or null)." },
+        "ok": { "type": "boolean", "description": "True if no has_po-related failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier. Always emitted at runtime; optional in schema for test compatibility."
+        }
+      },
+      "required": ["value", "ok", "has_evidence"],
+      "additionalProperties": false
+    },
+    "InvoiceDateSummary": {
+      "type": "object",
+      "description": "Optional — present only when verifier processed invoice_date.",
+      "properties": {
+        "value": { "description": "Claimed invoice_date value (string or null)." },
+        "ok": { "type": "boolean", "description": "True if no DATE_* failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["value", "ok", "has_evidence"],
+      "additionalProperties": false
+    },
+    "TaxAmountSummary": {
+      "type": "object",
+      "description": "Optional — present only when verifier processed tax_amount.",
+      "properties": {
+        "value": { "description": "Claimed tax_amount value (number or null)." },
+        "ok": { "type": "boolean", "description": "True if no TAX_* failure codes." },
+        "has_evidence": { "type": "boolean", "description": "Whether non-empty evidence was provided." },
+        "parsed_evidence": { "type": ["number", "null"], "description": "Parsed numeric value from evidence, or null." },
+        "delta": { "type": ["number", "null"], "description": "Absolute difference between claimed and parsed, or null." },
+        "match_tier": {
+          "type": "string",
+          "enum": ["exact_match", "normalized_match", "not_found"],
+          "description": "Evidence match quality tier."
+        }
+      },
+      "required": ["value", "ok", "has_evidence", "parsed_evidence", "delta"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "event": {
+      "type": "string",
+      "const": "verifier_summary"
+    },
+    "valid": {
+      "type": "boolean",
+      "description": "Overall verification result."
+    },
+    "failure_codes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of FailureCode strings (empty when valid=true)."
+    },
+    "status_before": {
+      "type": "string",
+      "description": "Status value before verification (e.g., 'NEW', 'NEEDS_RETRY')."
+    },
+    "status_after": {
+      "type": "string",
+      "description": "Status value after verification (e.g., 'DATA_EXTRACTED', 'BAD_EXTRACTION')."
+    },
+    "vendor": { "$ref": "#/$defs/VendorSummary" },
+    "amount": { "$ref": "#/$defs/AmountSummary" },
+    "has_po": { "$ref": "#/$defs/HasPoSummary" },
+    "invoice_date": { "$ref": "#/$defs/InvoiceDateSummary" },
+    "tax_amount": { "$ref": "#/$defs/TaxAmountSummary" }
+  },
+  "required": ["event", "valid", "failure_codes", "status_before", "status_after", "vendor", "amount", "has_po"],
+  "additionalProperties": false
+}

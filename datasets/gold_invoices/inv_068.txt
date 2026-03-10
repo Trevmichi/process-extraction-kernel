@@ -1,0 +1,14 @@
+MetroTech Services
+555 Tech Blvd, San Jose, CA 95101
+
+Date: 2026-12-15
+Invoice Number: INV-1068
+PO Number: PO-MTS-220
+
+Cloud infrastructure migration
+  EU datacenter setup (reference: EUR 500.00 budget allocation)
+  US datacenter primary deployment
+
+Service Fee: $1,234.56
+
+Total: $1,234.56

@@ -1,0 +1,14 @@
+Delta Mechanical Services
+890 Industrial Pkwy, Detroit, MI 48201
+
+Date: 03/10/2026
+Invoice Number: INV-1073
+PO Number: PO-DMS-550
+
+HVAC system maintenance                $2,800.00
+Replacement filters and parts            $450.00
+
+Subtotal: $3,250.00
+Shipping: $175.00
+Tax: $273.00
+Total: $3,698.00

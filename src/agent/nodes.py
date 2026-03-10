@@ -35,6 +35,10 @@ from langchain_core.messages import HumanMessage
 from langchain_ollama import ChatOllama
 
 from .state import APState
+from ..contracts import validate_extraction_semantics, validate_extraction_structure
+from ..ontology import VALID_STATUSES
+from ..arithmetic import check_arithmetic
+from ..schema_validator import assert_valid, validate_payload
 from ..verifier import (
     verify_extraction,
     MONEY_RE, CURRENCY_RE, AMOUNT_KEYWORDS, KEYWORD_WINDOW, normalize_text,
@@ -60,7 +64,15 @@ _llm = ChatOllama(model="gemma3:12b", temperature=0.0, format="json")
 # Intent → human-readable label
 # ---------------------------------------------------------------------------
 def _intent_label(node_data: dict) -> str:
-    """Extract the most descriptive label from a node dict."""
+    """Extract the most descriptive label from a node dict.
+
+    Args:
+      node_data: dict:
+      node_data: dict: 
+
+    Returns:
+
+    """
     action   = node_data.get("action") or {}
     decision = node_data.get("decision") or {}
     return (
@@ -74,16 +86,30 @@ def _intent_label(node_data: dict) -> str:
 # LLM helper
 # ---------------------------------------------------------------------------
 def _call_llm_json(prompt: str) -> dict:
-    """
-    Invoke the local LLM and return a parsed JSON dict.
+    """Invoke the local LLM and return a parsed JSON dict.
 
     Strips markdown code fences if the model wraps the response in them.
     Returns ``{"_error": <message>}`` on any failure so callers can degrade
     gracefully without raising.
+
+    For extraction prompts the returned dict conforms to
+    ``ExtractionPayload`` (see ``src/contracts.py``) when the LLM cooperates;
+    callers validate shape separately via ``validate_extraction_structure()``.
+    For validation prompts the dict has a different shape (e.g. ``{"is_valid": bool}``).
     """
     try:
         response = _llm.invoke([HumanMessage(content=prompt)])
-        raw = response.content.strip()
+        content = response.content
+        if isinstance(content, str):
+            raw = content.strip()
+        else:
+            raw_parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    raw_parts.append(item)
+                else:
+                    raw_parts.append(json.dumps(item))
+            raw = "".join(raw_parts).strip()
 
         # Strip ```json ... ``` or ``` ... ``` fences if present
         if raw.startswith("```"):
@@ -106,9 +132,16 @@ def _call_llm_json(prompt: str) -> dict:
 
 def build_enter_record_prompt(raw_text: str) -> str:
     """Build the ENTER_RECORD extraction prompt for a given invoice text.
-
+    
     This is the single source of truth for the extraction prompt template.
     Used by execute_node (ENTER_RECORD branch) and by eval_variance.py.
+
+    Args:
+      raw_text: str:
+      raw_text: str: 
+
+    Returns:
+
     """
     return f"""You are a precise data extractor. Read the following invoice/PO text and output a JSON object.
 For EACH field, return a nested object with "value" (the canonical value) and "evidence"
@@ -116,32 +149,205 @@ For EACH field, return a nested object with "value" (the canonical value) and "e
 
 Schema:
 {{
-  "vendor":  {{"value": "<string>",  "evidence": "<exact substring>"}},
-  "amount":  {{"value": <float>,     "evidence": "<exact substring>"}},
-  "has_po":  {{"value": <boolean>,   "evidence": "<exact substring>"}}
+  "vendor":       {{"value": "<string>",     "evidence": "<exact substring>"}},
+  "amount":       {{"value": <float>,        "evidence": "<exact substring>"}},
+  "has_po":       {{"value": <boolean>,      "evidence": "<exact substring>"}},
+  "invoice_date": {{"value": "<YYYY-MM-DD>", "evidence": "<exact substring>"}},
+  "tax_amount":   {{"value": <float>,        "evidence": "<exact substring>"}}
 }}
 
 Rules:
-- "amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "amount.value" / "tax_amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "invoice_date.value": YYYY-MM-DD preferred (e.g. 2024-01-15)
 - "evidence" MUST be copied verbatim from the text — do NOT paraphrase or summarize
-- If a field cannot be found, set value to null and evidence to ""
+- If vendor, amount, or has_po cannot be found, set value to null and evidence to ""
+- If invoice_date or tax_amount cannot be found, omit the field entirely from the JSON
 
 Text:
 {raw_text}"""
 
 
 # ---------------------------------------------------------------------------
+# Shared extraction validation helpers
+# ---------------------------------------------------------------------------
+
+def _validate_extraction_pipeline(
+    raw_text: str, extraction: dict,
+) -> tuple[bool, list[str], dict, dict | None]:
+    """Run shared validation chain: structural → semantic → schema → verifier → arithmetic.
+
+    Called after LLM response with no ``_error`` key.
+
+    Returns ``(valid, codes, provenance, arith_provenance)``.
+
+    Early rejection (struct / sem / schema fail):
+        ``valid=False``, ``codes=<failure codes>``, ``provenance={}``,
+        ``arith_provenance=None``.
+
+    Verifier completed:
+        ``valid=<bool>``, ``codes=<all codes incl. arithmetic>``,
+        ``provenance=<populated dict>``, ``arith_provenance=<dict | None>``.
+
+    Callers use ``not provenance`` to distinguish early rejection from
+    the verifier path.
+    """
+    # Structural shape check
+    struct_ok, struct_issues = validate_extraction_structure(extraction)
+    if not struct_ok:
+        return False, struct_issues, {}, None
+
+    # Semantic plausibility check
+    sem_ok, sem_issues = validate_extraction_semantics(extraction)
+    if not sem_ok:
+        return False, sem_issues, {}, None
+
+    # Schema contract enforcement
+    schema_issues = validate_payload(extraction, "extraction_payload_v1.json")
+    if schema_issues:
+        return False, ["SCHEMA_EXTRACTION_INVALID"], {}, None
+
+    # Deterministic evidence verifier
+    valid, codes, prov = verify_extraction(raw_text, extraction)
+
+    # Arithmetic consistency check
+    arith_codes, arith_prov = check_arithmetic(raw_text)
+    codes.extend(arith_codes)
+    if arith_prov is not None:
+        prov["arithmetic"] = arith_prov
+    valid = valid and len(arith_codes) == 0
+
+    # Runtime provenance schema enforcement
+    assert_valid(prov, "provenance_report_v1.json")
+
+    return valid, codes, prov, arith_prov
+
+
+def _build_verifier_summary(
+    extraction: dict, codes: list[str], prov: dict,
+    *, valid: bool, status_before: str, status_after: str,
+) -> dict:
+    """Build the ``verifier_summary`` audit event dict.
+
+    Returns a plain dict (caller wraps with ``json.dumps``).
+    """
+    _vendor_ev = (extraction.get("vendor") or {}).get("evidence") or ""
+    _amount_ev = (extraction.get("amount") or {}).get("evidence") or ""
+    _haspo_ev = (extraction.get("has_po") or {}).get("evidence") or ""
+
+    summary = {
+        "event": "verifier_summary", "valid": valid,
+        "failure_codes": list(codes),
+        "status_before": status_before,
+        "status_after": status_after,
+        "vendor": {
+            "value": extraction.get("vendor", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_vendor_ev.strip()),
+            "match_tier": prov.get("vendor", {}).get("match_tier", "not_found"),
+        },
+        "amount": {
+            "value": extraction.get("amount", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_amount_ev.strip()),
+            "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
+            "delta": prov.get("amount", {}).get("delta"),
+            "match_tier": prov.get("amount", {}).get("match_tier", "not_found"),
+        },
+        "has_po": {
+            "value": extraction.get("has_po", {}).get("value"),
+            "ok": not any(c in codes for c in
+                          ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
+                           "EVIDENCE_NOT_FOUND")),
+            "has_evidence": bool(_haspo_ev.strip()),
+            "match_tier": prov.get("has_po", {}).get("match_tier", "not_found"),
+        },
+    }
+
+    # Optional fields — include when verifier processed them
+    if "invoice_date" in prov:
+        _date_ev = (extraction.get("invoice_date") or {}).get("evidence") or ""
+        summary["invoice_date"] = {
+            "value": extraction.get("invoice_date", {}).get("value"),
+            "ok": not any(c.startswith("DATE_") for c in codes),
+            "has_evidence": bool(_date_ev.strip()),
+            "match_tier": prov.get("invoice_date", {}).get("match_tier", "not_found"),
+        }
+    if "tax_amount" in prov:
+        _tax_ev = (extraction.get("tax_amount") or {}).get("evidence") or ""
+        summary["tax_amount"] = {
+            "value": extraction.get("tax_amount", {}).get("value"),
+            "ok": not any(c.startswith("TAX_") for c in codes),
+            "has_evidence": bool(_tax_ev.strip()),
+            "parsed_evidence": prov.get("tax_amount", {}).get("parsed_evidence"),
+            "delta": prov.get("tax_amount", {}).get("delta"),
+            "match_tier": prov.get("tax_amount", {}).get("match_tier", "not_found"),
+        }
+
+    return summary
+
+
+def _build_amount_candidates_audit(raw_text: str, prov: dict) -> dict:
+    """Build the ``amount_candidates`` audit event dict.
+
+    Returns a plain dict (caller wraps with ``json.dumps``).
+    """
+    _norm = normalize_text(raw_text)
+    _cleaned = CURRENCY_RE.sub("", _norm)
+    _amt_candidates = []
+    _winning_keyword = None
+    for _m in MONEY_RE.finditer(_cleaned):
+        _raw_num = _m.group()
+        _parsed_num = _raw_num.replace(",", "")
+        if not _parsed_num or _parsed_num == ".":
+            continue
+        try:
+            _val = float(_parsed_num)
+        except ValueError:
+            continue
+        _start = max(0, _m.start() - KEYWORD_WINDOW)
+        _window = _cleaned[_start:_m.start()]
+        _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
+        _amt_candidates.append({
+            "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
+        })
+        if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
+            _winning_keyword = _kw_hit
+
+    return {
+        "event": "amount_candidates",
+        "candidates": _amt_candidates,
+        "selected": prov.get("amount", {}).get("parsed_evidence"),
+        "winning_keyword": _winning_keyword,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Core executor
 # ---------------------------------------------------------------------------
 def execute_node(state: APState, node_data: dict,
-                 outgoing_edges: list[dict] | None = None) -> dict:
-    """
-    Simulate an agent performing work at *node_data*.
-
+                 outgoing_edges: list[dict] | None = None,
+                 station_map: dict[str, str] | None = None) -> dict:
+    """Simulate an agent performing work at *node_data*.
+    
     Smart nodes (ENTER_RECORD, VALIDATE_FIELDS) call the local Ollama LLM.
     All other nodes use deterministic logic.
-
+    
     Returns a partial state dict suitable for LangGraph's merge.
+
+    Args:
+      state: APState:
+      node_data: dict:
+      outgoing_edges: list[dict] | None:  (Default value = None)
+      state: APState: 
+      node_data: dict: 
+      outgoing_edges: list[dict] | None:  (Default value = None)
+
+    Returns:
+
     """
     node_id = node_data["id"]
     intent  = _intent_label(node_data)
@@ -155,14 +361,25 @@ def execute_node(state: APState, node_data: dict,
         updates["last_gateway"] = node_id
         # Emit structured route_decision audit event
         if outgoing_edges:
-            from .router import analyze_routing
+            from .router import analyze_routing, build_route_record
             result = analyze_routing(state, outgoing_edges)
+            route_record = build_route_record(
+                gateway_id=node_id,
+                outgoing_edges=outgoing_edges,
+                result=result,
+                station_map=station_map,
+            )
             updates.setdefault("audit_log", []).append(json.dumps({
                 "event": "route_decision",
                 "from_node": node_id,
                 "candidates": result.candidates,
                 "selected": result.selected,
                 "reason": result.reason,
+            }))
+            updates.setdefault("route_records", []).append(route_record)
+            updates.setdefault("audit_log", []).append(json.dumps({
+                "event": "route_record",
+                "route_record": route_record,
             }))
 
     # ---- Smart node: evidence-backed data extraction -------------------------
@@ -183,103 +400,86 @@ def execute_node(state: APState, node_data: dict,
                             "valid": False, "reasons": ["LLM_ERROR"]})
             ]
         else:
-            # Run deterministic evidence verifier
-            valid, codes, prov = verify_extraction(raw_text, parsed)
-            updates["provenance"] = prov
+            valid, codes, prov, arith_prov = _validate_extraction_pipeline(raw_text, parsed)
 
-            # Build per-field evidence presence flags
-            _vendor_ev = (parsed.get("vendor") or {}).get("evidence") or ""
-            _amount_ev = (parsed.get("amount") or {}).get("evidence") or ""
-            _haspo_ev = (parsed.get("has_po") or {}).get("evidence") or ""
-
-            status_before = state.get("status", "NEW")
-            _retry_count = state.get("retry_count", 0)
-            if valid:
-                status_after = "DATA_EXTRACTED"
+            if not prov:
+                # Early rejection (structural / semantic / schema)
+                updates["status"] = "BAD_EXTRACTION"
+                updates["failure_codes"] = codes
+                updates["provenance"] = {}
+                updates["audit_log"] = [
+                    json.dumps({"node": "ENTER_RECORD", "event": "extraction",
+                                "valid": False,
+                                "failure_codes": codes,
+                                "status": "BAD_EXTRACTION"}),
+                ]
             else:
-                status_after = "NEEDS_RETRY" if _retry_count == 0 else "BAD_EXTRACTION"
+                # Verifier path
+                updates["provenance"] = prov
 
-            updates["audit_log"] = [
-                json.dumps({"node": "ENTER_RECORD", "event": "extraction",
-                            "valid": valid, "reasons": list(codes)}),
-                json.dumps({"event": "verifier_summary", "valid": valid,
-                            "failure_codes": list(codes),
-                            "status_before": status_before,
-                            "status_after": status_after,
-                            "vendor": {"value": parsed.get("vendor", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_vendor_ev.strip())},
-                            "amount": {"value": parsed.get("amount", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_amount_ev.strip()),
-                                       "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
-                                       "delta": prov.get("amount", {}).get("delta")},
-                            "has_po": {"value": parsed.get("has_po", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_haspo_ev.strip())}}),
-            ]
+                status_before = state.get("status", "NEW")
+                _retry_count = state.get("retry_count", 0)
+                if valid:
+                    status_after = "DATA_EXTRACTED"
+                else:
+                    status_after = "NEEDS_RETRY" if _retry_count == 0 else "BAD_EXTRACTION"
 
-            # Emit amount_candidates for audit: all money-like values in raw text
-            _norm = normalize_text(raw_text)
-            _cleaned = CURRENCY_RE.sub("", _norm)
-            _amt_candidates = []
-            _winning_keyword = None
-            for _m in MONEY_RE.finditer(_cleaned):
-                _raw_num = _m.group()
-                _parsed_num = _raw_num.replace(",", "")
-                if not _parsed_num or _parsed_num == ".":
-                    continue
-                try:
-                    _val = float(_parsed_num)
-                except ValueError:
-                    continue
-                # Check keyword window for this candidate
-                _start = max(0, _m.start() - KEYWORD_WINDOW)
-                _window = _cleaned[_start:_m.start()]
-                _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
-                _amt_candidates.append({
-                    "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
-                })
-                if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
-                    _winning_keyword = _kw_hit
+                updates["audit_log"] = [
+                    json.dumps({"node": "ENTER_RECORD", "event": "extraction",
+                                "valid": valid, "reasons": list(codes)}),
+                    json.dumps(_build_verifier_summary(
+                        parsed, codes, prov,
+                        valid=valid, status_before=status_before,
+                        status_after=status_after)),
+                ]
 
-            updates["audit_log"].append(json.dumps({
-                "event": "amount_candidates",
-                "candidates": _amt_candidates,
-                "selected": prov.get("amount", {}).get("parsed_evidence"),
-                "winning_keyword": _winning_keyword,
-            }))
+                updates["audit_log"].append(json.dumps(
+                    _build_amount_candidates_audit(raw_text, prov)))
 
-            if valid:
-                # Map nested values to core state fields
-                updates["vendor"] = str(parsed["vendor"]["value"])
-                updates["amount"] = float(parsed["amount"]["value"])
-                updates["has_po"] = bool(parsed["has_po"]["value"])
-                updates["status"] = "DATA_EXTRACTED"
-                updates["failure_codes"] = []
-            else:
-                # Verification failed — use NEEDS_RETRY on first attempt,
-                # BAD_EXTRACTION if already retried (avoids compound DSL conditions)
-                retry_count = state.get("retry_count", 0)
-                updates["status"] = "NEEDS_RETRY" if retry_count == 0 else "BAD_EXTRACTION"
-                updates["failure_codes"] = list(codes)
-                if _allow_unverified():
-                    # Debug mode: still write values (status stays BAD_EXTRACTION)
-                    v = parsed.get("vendor", {})
-                    a = parsed.get("amount", {})
-                    p = parsed.get("has_po", {})
-                    if isinstance(v, dict) and v.get("value"):
-                        updates["vendor"] = str(v["value"])
-                    if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
-                        updates["amount"] = float(a["value"])
-                    if isinstance(p, dict) and isinstance(p.get("value"), bool):
-                        updates["has_po"] = p["value"]
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
+                    updates["audit_log"].append(json.dumps({
+                        "event": "arithmetic_check",
+                        **arith_prov,
+                    }))
+
+                if valid:
+                    # Map nested values to core state fields
+                    updates["vendor"] = str(parsed["vendor"]["value"])
+                    updates["amount"] = float(parsed["amount"]["value"])
+                    updates["has_po"] = bool(parsed["has_po"]["value"])
+                    # Optional fields — promote when present and non-null
+                    _inv_date = parsed.get("invoice_date", {})
+                    if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                        updates["invoice_date"] = str(_inv_date["value"])
+                    _tax_amt = parsed.get("tax_amount", {})
+                    if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                        updates["tax_amount"] = float(_tax_amt["value"])
+                    updates["status"] = "DATA_EXTRACTED"
+                    updates["failure_codes"] = []
+                else:
+                    # Verification failed — use NEEDS_RETRY on first attempt,
+                    # BAD_EXTRACTION if already retried (avoids compound DSL conditions)
+                    retry_count = state.get("retry_count", 0)
+                    updates["status"] = "NEEDS_RETRY" if retry_count == 0 else "BAD_EXTRACTION"
+                    updates["failure_codes"] = list(codes)
+                    if _allow_unverified():
+                        # Debug mode: still write values (status stays BAD_EXTRACTION)
+                        v = parsed.get("vendor", {})
+                        a = parsed.get("amount", {})
+                        p = parsed.get("has_po", {})
+                        if isinstance(v, dict) and v.get("value"):
+                            updates["vendor"] = str(v["value"])
+                        if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
+                            updates["amount"] = float(a["value"])
+                        if isinstance(p, dict) and isinstance(p.get("value"), bool):
+                            updates["has_po"] = p["value"]
+                        _inv_date = parsed.get("invoice_date", {})
+                        if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                            updates["invoice_date"] = str(_inv_date["value"])
+                        _tax_amt = parsed.get("tax_amount", {})
+                        if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                            updates["tax_amount"] = float(_tax_amt["value"])
 
     # ---- Smart node: forensic critic retry -----------------------------------
     elif intent == "CRITIC_RETRY":
@@ -300,15 +500,19 @@ verbatim evidence. Return the corrected extraction as a complete JSON object usi
 exact schema:
 
 {{
-  "vendor":  {{"value": "<string>",  "evidence": "<exact substring>"}},
-  "amount":  {{"value": <float>,     "evidence": "<exact substring>"}},
-  "has_po":  {{"value": <boolean>,   "evidence": "<exact substring>"}}
+  "vendor":       {{"value": "<string>",     "evidence": "<exact substring>"}},
+  "amount":       {{"value": <float>,        "evidence": "<exact substring>"}},
+  "has_po":       {{"value": <boolean>,      "evidence": "<exact substring>"}},
+  "invoice_date": {{"value": "<YYYY-MM-DD>", "evidence": "<exact substring>"}},
+  "tax_amount":   {{"value": <float>,        "evidence": "<exact substring>"}}
 }}
 
 Rules:
-- "amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "amount.value" / "tax_amount.value": float with no currency symbols or commas (e.g. 835.45 not $835.45)
+- "invoice_date.value": YYYY-MM-DD preferred (e.g. 2024-01-15)
 - "evidence" MUST be copied verbatim from the text — do NOT paraphrase or summarize
-- If you cannot fix a field, keep the original value and evidence
+- If you cannot fix a required field (vendor, amount, has_po), keep the original value and evidence
+- If you cannot fix an optional field (invoice_date, tax_amount), omit it from the JSON
 
 Text:
 {raw_text}"""
@@ -325,93 +529,76 @@ Text:
                             "failure_codes": ["LLM_ERROR"], "status": "BAD_EXTRACTION"})
             ]
         else:
-            valid, codes, prov = verify_extraction(raw_text, parsed)
-            updates["provenance"] = prov
+            valid, codes, prov, arith_prov = _validate_extraction_pipeline(raw_text, parsed)
 
-            cr_status = "DATA_EXTRACTED" if valid else "BAD_EXTRACTION"
-            updates["failure_codes"] = [] if valid else list(codes)
-
-            # Per-field evidence presence flags (mirrors ENTER_RECORD)
-            _vendor_ev = (parsed.get("vendor") or {}).get("evidence") or ""
-            _amount_ev = (parsed.get("amount") or {}).get("evidence") or ""
-            _haspo_ev = (parsed.get("has_po") or {}).get("evidence") or ""
-
-            updates["audit_log"] = [
-                # Critic-specific event
-                json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
-                            "attempt": retry_count + 1, "valid": valid,
-                            "failure_codes": list(codes), "status": cr_status}),
-                # verifier_summary (same structure as ENTER_RECORD)
-                json.dumps({"event": "verifier_summary", "valid": valid,
-                            "failure_codes": list(codes),
-                            "status_before": state.get("status", ""),
-                            "status_after": cr_status,
-                            "vendor": {"value": parsed.get("vendor", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("MISSING_VENDOR", "VENDOR_EVIDENCE_MISMATCH",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_vendor_ev.strip())},
-                            "amount": {"value": parsed.get("amount", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("AMOUNT_MISMATCH", "AMBIGUOUS_AMOUNT_EVIDENCE",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_amount_ev.strip()),
-                                       "parsed_evidence": prov.get("amount", {}).get("parsed_evidence"),
-                                       "delta": prov.get("amount", {}).get("delta")},
-                            "has_po": {"value": parsed.get("has_po", {}).get("value"),
-                                       "ok": not any(c in codes for c in
-                                           ("PO_PATTERN_MISSING", "MISSING_EVIDENCE",
-                                            "EVIDENCE_NOT_FOUND")),
-                                       "has_evidence": bool(_haspo_ev.strip())}}),
-            ]
-
-            # amount_candidates (same structure as ENTER_RECORD)
-            _norm = normalize_text(raw_text)
-            _cleaned = CURRENCY_RE.sub("", _norm)
-            _amt_candidates = []
-            _winning_keyword = None
-            for _m in MONEY_RE.finditer(_cleaned):
-                _raw_num = _m.group()
-                _parsed_num = _raw_num.replace(",", "")
-                if not _parsed_num or _parsed_num == ".":
-                    continue
-                try:
-                    _val = float(_parsed_num)
-                except ValueError:
-                    continue
-                _start = max(0, _m.start() - KEYWORD_WINDOW)
-                _window = _cleaned[_start:_m.start()]
-                _kw_hit = next((kw for kw in AMOUNT_KEYWORDS if kw in _window), None)
-                _amt_candidates.append({
-                    "raw": _raw_num, "parsed": _val, "keyword": _kw_hit,
-                })
-                if _kw_hit and _val == prov.get("amount", {}).get("parsed_evidence"):
-                    _winning_keyword = _kw_hit
-
-            updates["audit_log"].append(json.dumps({
-                "event": "amount_candidates",
-                "candidates": _amt_candidates,
-                "selected": prov.get("amount", {}).get("parsed_evidence"),
-                "winning_keyword": _winning_keyword,
-            }))
-
-            if valid:
-                updates["vendor"] = str(parsed["vendor"]["value"])
-                updates["amount"] = float(parsed["amount"]["value"])
-                updates["has_po"] = bool(parsed["has_po"]["value"])
-                updates["status"] = "DATA_EXTRACTED"
-            else:
+            if not prov:
+                # Early rejection (structural / semantic / schema)
                 updates["status"] = "BAD_EXTRACTION"
-                if _allow_unverified():
-                    v = parsed.get("vendor", {})
-                    a = parsed.get("amount", {})
-                    p = parsed.get("has_po", {})
-                    if isinstance(v, dict) and v.get("value"):
-                        updates["vendor"] = str(v["value"])
-                    if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
-                        updates["amount"] = float(a["value"])
-                    if isinstance(p, dict) and isinstance(p.get("value"), bool):
-                        updates["has_po"] = p["value"]
+                updates["failure_codes"] = codes
+                updates["provenance"] = {}
+                updates["audit_log"] = [
+                    json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
+                                "attempt": retry_count + 1, "valid": False,
+                                "failure_codes": codes, "status": "BAD_EXTRACTION"}),
+                ]
+            else:
+                # Verifier path
+                updates["provenance"] = prov
+
+                cr_status = "DATA_EXTRACTED" if valid else "BAD_EXTRACTION"
+                updates["failure_codes"] = [] if valid else list(codes)
+
+                updates["audit_log"] = [
+                    # Critic-specific event
+                    json.dumps({"event": "critic_retry_executed", "node": "CRITIC_RETRY",
+                                "attempt": retry_count + 1, "valid": valid,
+                                "failure_codes": list(codes), "status": cr_status}),
+                    # verifier_summary (same structure as ENTER_RECORD)
+                    json.dumps(_build_verifier_summary(
+                        parsed, codes, prov,
+                        valid=valid, status_before=state.get("status", ""),
+                        status_after=cr_status)),
+                ]
+
+                updates["audit_log"].append(json.dumps(
+                    _build_amount_candidates_audit(raw_text, prov)))
+
+                # Emit arithmetic_check only when at least one check ran
+                if arith_prov is not None:
+                    updates["audit_log"].append(json.dumps({
+                        "event": "arithmetic_check",
+                        **arith_prov,
+                    }))
+
+                if valid:
+                    updates["vendor"] = str(parsed["vendor"]["value"])
+                    updates["amount"] = float(parsed["amount"]["value"])
+                    updates["has_po"] = bool(parsed["has_po"]["value"])
+                    _inv_date = parsed.get("invoice_date", {})
+                    if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                        updates["invoice_date"] = str(_inv_date["value"])
+                    _tax_amt = parsed.get("tax_amount", {})
+                    if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                        updates["tax_amount"] = float(_tax_amt["value"])
+                    updates["status"] = "DATA_EXTRACTED"
+                else:
+                    updates["status"] = "BAD_EXTRACTION"
+                    if _allow_unverified():
+                        v = parsed.get("vendor", {})
+                        a = parsed.get("amount", {})
+                        p = parsed.get("has_po", {})
+                        if isinstance(v, dict) and v.get("value"):
+                            updates["vendor"] = str(v["value"])
+                        if isinstance(a, dict) and isinstance(a.get("value"), (int, float)):
+                            updates["amount"] = float(a["value"])
+                        if isinstance(p, dict) and isinstance(p.get("value"), bool):
+                            updates["has_po"] = p["value"]
+                        _inv_date = parsed.get("invoice_date", {})
+                        if isinstance(_inv_date, dict) and _inv_date.get("value") is not None:
+                            updates["invoice_date"] = str(_inv_date["value"])
+                        _tax_amt = parsed.get("tax_amount", {})
+                        if isinstance(_tax_amt, dict) and isinstance(_tax_amt.get("value"), (int, float)):
+                            updates["tax_amount"] = float(_tax_amt["value"])
 
     # ---- Smart node: field validation ---------------------------------------
     elif intent == "VALIDATE_FIELDS":
@@ -537,6 +724,14 @@ Text:
             if state.get("status") == "NEW":
                 updates["status"] = "PENDING_INFO"
 
+    # Validate status against canonical vocabulary (debug-mode guard)
+    if __debug__ and "status" in updates:
+        _s = updates["status"]
+        assert _s in VALID_STATUSES, (
+            f"execute_node produced unknown status {_s!r} at node {node_id}. "
+            f"Add it to src/ontology.py VALID_STATUSES if intentional."
+        )
+
     return updates
 
 
@@ -547,20 +742,38 @@ def create_node_handler(
     node_id: str,
     node_data: dict,
     outgoing_edges: list[dict] | None = None,
+    station_map: dict[str, str] | None = None,
 ) -> Callable[[APState], dict]:
-    """
-    Return a LangGraph-compatible callable for *node_id*.
+    """Return a LangGraph-compatible callable for *node_id*.
 
     The returned function is named ``node_<id>`` so it appears legibly
     in LangGraph's debug output and Mermaid diagram exports.
 
-    Parameters
-    ----------
-    outgoing_edges : passed to ``execute_node`` so gateway nodes can emit
-                     structured ``route_decision`` audit events.
+    Args:
+      node_id: str
+      node_data: dict
+      outgoing_edges: list
+      station_map: dict[str, str] | None
+      node_id: str:
+      node_data: dict:
+      outgoing_edges: list[dict] | None:  (Default value = None)
+      station_map: dict[str, str] | None:  (Default value = None)
+
+    Returns:
+
+
     """
     def handler(state: APState) -> dict:
-        return execute_node(state, node_data, outgoing_edges)
+        """
+
+        Args:
+          state: APState:
+          state: APState:
+
+        Returns:
+
+        """
+        return execute_node(state, node_data, outgoing_edges, station_map)
 
     handler.__name__ = f"node_{node_id}"
     return handler

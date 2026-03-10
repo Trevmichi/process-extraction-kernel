@@ -10,12 +10,8 @@ Each pass is tested for:
 from __future__ import annotations
 
 import copy
-import sys
-from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.normalize_graph import (
     convert_fanout_gateways_to_ambiguous_station,

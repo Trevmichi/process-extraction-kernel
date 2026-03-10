@@ -16,12 +16,18 @@ _DEFAULT_PATH = "outputs/unmodeled_logic.jsonl"
 
 
 def record_event(event: dict, path: str = _DEFAULT_PATH) -> None:
-    """
-    Append *event* as a single JSON line to the JSONL file at *path*.
-
+    """Append *event* as a single JSON line to the JSONL file at *path*.
+    
     Creates parent directories if they do not exist.  The caller is
     responsible for populating the event dict — this function only
     serialises and appends.
+
+    Args:
+      event: dict: 
+      path: str:  (Default value = _DEFAULT_PATH)
+
+    Returns:
+
     """
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)

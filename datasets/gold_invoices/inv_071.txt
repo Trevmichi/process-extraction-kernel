@@ -1,0 +1,13 @@
+Global Logistics Corp
+Industriestrasse 45, 80331 Munich, Germany
+
+Invoice Date: 25/06/2026
+Invoice Number: INV-1071
+PO Number: PO-GLC-802
+
+International freight consolidation   EUR 3,200.00
+Customs brokerage services             EUR 480.00
+
+Subtotal: EUR 3,680.00
+VAT (19%): EUR 699.20
+Total: EUR 4,379.20

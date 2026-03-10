@@ -1,0 +1,13 @@
+Horizon Freight Systems
+Keizersgracht 112, 1015 AA Amsterdam, Netherlands
+
+Invoice Date: 17/11/2026
+Invoice Number: INV-1072
+PO Number: PO-HFS-610
+
+Container shipping (Rotterdam-NYC)     EUR 5,800.00
+Port handling and documentation         EUR 720.00
+
+Subtotal: EUR 6,520.00
+VAT (21%): EUR 1,369.20
+Total: EUR 7,889.20

@@ -12,6 +12,11 @@ _DB_PATH = Path("data/analytics/metrics.db")
 
 
 def _connect() -> sqlite3.Connection:
+    """Create a SQLite connection for the analytics DB.
+
+    Returns:
+      sqlite3.Connection: Connection with row_factory configured to sqlite3.Row.
+    """
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
@@ -19,6 +24,11 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Create metrics tables and apply additive schema migrations.
+
+    Returns:
+      None
+    """
     with _connect() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS extraction_logs (
@@ -74,7 +84,25 @@ def log_extraction(
     unknown_count: int,
     char_count: int,
 ) -> None:
-    """Insert one extraction metrics row."""
+    """Insert one extraction metrics row.
+
+    Args:
+      file_id: str:
+      model_name: str:
+      node_count: int:
+      edge_count: int:
+      unknown_count: int:
+      char_count: int:
+      file_id: str: 
+      model_name: str: 
+      node_count: int: 
+      edge_count: int: 
+      unknown_count: int: 
+      char_count: int: 
+
+    Returns:
+
+    """
     init_db()
     complexity_score = char_count / node_count if node_count > 0 else 0.0
     success_rate = node_count / (node_count + unknown_count) if (node_count + unknown_count) > 0 else 0.0
@@ -109,7 +137,43 @@ def log_calibration_result(
     vram_delta_mb: int | None = None,
     tps: float = 0.0,
 ) -> None:
-    """Insert one calibration stress-test row."""
+    """Insert one calibration stress-test row.
+
+    Args:
+      doc_name: str:
+      chunk_size_tokens: int:
+      num_chunks: int:
+      avg_effective_tokens: float:
+      avg_unique_nodes: float:
+      avg_unknown_count: float:
+      avg_broken_edges: float:
+      node_recovery_rate: float:
+      logic_integrity: int:
+      latency_per_1k_tokens: float:
+      info_density: float:
+      sweet_spot: bool:  (Default value = False)
+      stitch_failures: int:  (Default value = 0)
+      vram_delta_mb: int | None:  (Default value = None)
+      tps: float:  (Default value = 0.0)
+      doc_name: str: 
+      chunk_size_tokens: int: 
+      num_chunks: int: 
+      avg_effective_tokens: float: 
+      avg_unique_nodes: float: 
+      avg_unknown_count: float: 
+      avg_broken_edges: float: 
+      node_recovery_rate: float: 
+      logic_integrity: int: 
+      latency_per_1k_tokens: float: 
+      info_density: float: 
+      sweet_spot: bool:  (Default value = False)
+      stitch_failures: int:  (Default value = 0)
+      vram_delta_mb: int | None:  (Default value = None)
+      tps: float:  (Default value = 0.0)
+
+    Returns:
+
+    """
     init_db()
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _connect() as conn:
@@ -141,7 +205,29 @@ def log_hyperparameter_result(
     success_probability: float,
     max_recursion_depth: int = 0,
 ) -> None:
-    """Insert one hyperparameter grid-search row."""
+    """Insert one hyperparameter grid-search row.
+
+    Args:
+      doc_name: str:
+      chunk_size_tokens: int:
+      num_chunks: int:
+      total_node_count: int:
+      total_unknown_count: int:
+      latency_sec: float:
+      success_probability: float:
+      max_recursion_depth: int:  (Default value = 0)
+      doc_name: str: 
+      chunk_size_tokens: int: 
+      num_chunks: int: 
+      total_node_count: int: 
+      total_unknown_count: int: 
+      latency_sec: float: 
+      success_probability: float: 
+      max_recursion_depth: int:  (Default value = 0)
+
+    Returns:
+
+    """
     _init_hyperparameter_table()
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with _connect() as conn:
@@ -165,8 +251,16 @@ def get_hyperparameter_result(
     chunk_size_tokens: int,
 ) -> "dict | None":
     """
-    Return the most recent hyperparameter_results row for *doc_name* +
-    *chunk_size_tokens* as a plain dict, or None if no row exists yet.
+
+    Args:
+      doc_name: str:
+      chunk_size_tokens: int:
+      doc_name: str: 
+      chunk_size_tokens: int: 
+
+    Returns:
+      : *chunk_size_tokens* as a plain dict, or None if no row exists yet.
+
     """
     _init_hyperparameter_table()
     with _connect() as conn:

@@ -42,6 +42,14 @@ _project_root = Path(__file__).parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from src.ontology import (  # noqa: E402
+    CONDITION_AMOUNT_ABOVE_THRESHOLD,
+    CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
+)
+
+from src.ontology import VALID_ACTIONS, VALID_DECISIONS
+from src.policy import DEFAULT_POLICY
+
 SRC_PATH = Path("outputs/ap_master_manual_auto.json")
 DST_PATH = Path("outputs/ap_master_manual_auto_patched.json")
 
@@ -251,6 +259,27 @@ EXCEPTION_STATIONS: list[dict] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Ontology consistency check — validate all injected types at import time
+# ---------------------------------------------------------------------------
+def _validate_injected_vocabulary() -> None:
+    for node in NEW_NODES + EXCEPTION_STATIONS:
+        act = (node.get("action") or {}).get("type")
+        dec = (node.get("decision") or {}).get("type")
+        if act and act not in VALID_ACTIONS:
+            raise ValueError(
+                f"patch_logic: node {node['id']!r} has action type {act!r} "
+                f"not in ontology.VALID_ACTIONS"
+            )
+        if dec and dec not in VALID_DECISIONS:
+            raise ValueError(
+                f"patch_logic: node {node['id']!r} has decision type {dec!r} "
+                f"not in ontology.VALID_DECISIONS"
+            )
+
+_validate_injected_vocabulary()
+
+
 def inject_exception_stations(data: dict) -> list[str]:
     """
     Idempotently inject fail-closed exception station nodes into *data*.
@@ -328,21 +357,21 @@ def _patch(data: dict) -> tuple[dict, list[str]]:
         f"  [PATCH 1] Rewired {n4_n5_count} edge(s) n4 -> n5  =>  n4 -> n_threshold"
     )
 
-    # New threshold routing edges (canonical DSL conditions)
+    # New threshold routing edges (canonical DSL conditions from ontology)
     data["edges"].append({
         "frm":       "n_threshold",
         "to":        "n_escalate",
-        "condition": "amount > 10000",
+        "condition": CONDITION_AMOUNT_ABOVE_THRESHOLD,
         "meta":      _edge_meta("patch_1_threshold_gateway"),
     })
     data["edges"].append({
         "frm":       "n_threshold",
         "to":        "n5",
-        "condition": "amount <= 10000",
+        "condition": CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD,
         "meta":      _edge_meta("patch_1_threshold_gateway"),
     })
-    changelog.append("  [PATCH 1] Added n_threshold -> n_escalate  (condition: amount > 10000)")
-    changelog.append("  [PATCH 1] Added n_threshold -> n5           (condition: amount <= 10000)")
+    changelog.append(f"  [PATCH 1] Added n_threshold -> n_escalate  (condition: {CONDITION_AMOUNT_ABOVE_THRESHOLD})")
+    changelog.append(f"  [PATCH 1] Added n_threshold -> n5           (condition: {CONDITION_AMOUNT_AT_OR_BELOW_THRESHOLD})")
 
     # ------------------------------------------------------------------
     # PATCH 2 — seal the bad-data and No-PO loopholes after n3
@@ -356,21 +385,24 @@ def _patch(data: dict) -> tuple[dict, list[str]]:
         "condition": 'status == "MISSING_DATA"',
         "meta":      _edge_meta("patch_2_data_loophole"),
     })
-    _NO_PO_GUARD = (
-        'status != "BAD_EXTRACTION" AND status != "NEEDS_RETRY" '
-        'AND status != "MISSING_DATA" AND has_po == false'
-    )
-    data["edges"].append({
-        "frm":       "n3",
-        "to":        "n_exception",
-        "condition": _NO_PO_GUARD,
-        "meta":      _edge_meta("patch_2_data_loophole"),
-    })
     changelog.append(
         "  [PATCH 2] n3 -> n4 edge: remains unconditional (normal-path fallback)"
     )
     changelog.append('  [PATCH 2] Added n3 -> n_reject    (condition: status == "MISSING_DATA")')
-    changelog.append(f"  [PATCH 2] Added n3 -> n_exception (condition: {_NO_PO_GUARD})")
+    if DEFAULT_POLICY.po_mode == "required":
+        _NO_PO_GUARD = (
+            'status != "BAD_EXTRACTION" AND status != "NEEDS_RETRY" '
+            'AND status != "MISSING_DATA" AND has_po == false'
+        )
+        data["edges"].append({
+            "frm":       "n3",
+            "to":        "n_exception",
+            "condition": _NO_PO_GUARD,
+            "meta":      _edge_meta("patch_2_data_loophole"),
+        })
+        changelog.append(f"  [PATCH 2] Added n3 -> n_exception (condition: {_NO_PO_GUARD})")
+    else:
+        changelog.append("  [PATCH 2] No-PO guard skipped (po_mode={!r})".format(DEFAULT_POLICY.po_mode))
 
     # ------------------------------------------------------------------
     # Inject new nodes (idempotent)

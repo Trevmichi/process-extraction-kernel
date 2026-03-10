@@ -644,6 +644,28 @@ class TestPlaceholderCondition:
         graph["edges"][0]["condition"] = "IF_CONDITION"
         assert "E_PLACEHOLDER_CONDITION" in error_codes(graph)
 
+    def test_approve_placeholder_detected_by_invariant_directly(self):
+        """APPROVE on non-gateway edge: only the (a) guard in invariants catches it.
+
+        Calls check_no_placeholder_conditions directly. APPROVE normalizes to
+        'amount <= 5000' (not None), so the (b) fallback won't fire.
+        Mutation target: M015 inverts the membership check at (a).
+        """
+        from src.invariants import check_no_placeholder_conditions
+        graph = {
+            "nodes": [
+                {"id": "n1", "kind": "task", "name": "T1",
+                 "action": {"type": "X", "actor_id": "r1", "artifact_id": "a1"},
+                 "decision": None, "evidence": [], "meta": {}},
+                {"id": "n2", "kind": "task", "name": "T2",
+                 "action": {"type": "Y", "actor_id": "r1", "artifact_id": "a1"},
+                 "decision": None, "evidence": [], "meta": {}},
+            ],
+            "edges": [{"frm": "n1", "to": "n2", "condition": "APPROVE"}],
+        }
+        errors = check_no_placeholder_conditions(graph)
+        assert any(e.code == "E_PLACEHOLDER_CONDITION" for e in errors)
+
 
 # ===========================================================================
 # (E) Structural invariants — match_result ownership
@@ -729,6 +751,29 @@ class TestMatchResultRouting:
             {"frm": "n5", "to": "n_approve", "condition": "amount > 10000"}
         )
         assert "E_MATCH_RESULT_WRONG_ROUTER" not in error_codes(graph)
+
+    def test_task_match_result_no_match_decision_gateways(self):
+        """Task routing on match_result with no MATCH_DECISION gateways (kills M016).
+
+        When match_decision_ids is empty, original: frm not in {} → error.
+        Mutant (inverted): frm not in {} → True → continue → no error.
+        """
+        from src.invariants import check_match_result_routing
+        graph = {
+            "nodes": [
+                {"id": "n1", "kind": "task", "name": "T1",
+                 "action": {"type": "X", "actor_id": "r1", "artifact_id": "a1"},
+                 "decision": None, "evidence": [], "meta": {}},
+                {"id": "n2", "kind": "task", "name": "T2",
+                 "action": {"type": "Y", "actor_id": "r1", "artifact_id": "a1"},
+                 "decision": None, "evidence": [], "meta": {}},
+            ],
+            "edges": [
+                {"frm": "n1", "to": "n2", "condition": 'match_result == "MATCH"'},
+            ],
+        }
+        errors = check_match_result_routing(graph)
+        assert any(e.code == "E_MATCH_RESULT_WRONG_ROUTER" for e in errors)
 
 
 class TestMatchDecisionTruthTable:
