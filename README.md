@@ -13,6 +13,63 @@ meta-agent can autonomously patch failures and open PRs.
 
 ---
 
+## Quick Links
+
+- [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) — scannable high-level diagram
+- [Detailed Technical Diagram](docs/ARCHITECTURE_DIAGRAM.md) — trust boundaries, router phases, observability layers
+- [Architecture Docs](docs/ARCHITECTURE.md) — module-level reference
+- [Evaluation Docs](docs/EVALUATION.md) — gold dataset, evidence grounding, metrics
+
+---
+
+## Architecture at a Glance
+
+High-level view of the deterministic AI workflow: untrusted extraction, deterministic validation, fail-closed routing, and operator/eval visibility.
+
+> For the detailed technical view, see [ARCHITECTURE_DIAGRAM.md](docs/ARCHITECTURE_DIAGRAM.md).
+> For module-level documentation, see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+```mermaid
+flowchart TD
+    subgraph BUILD_TIME["Build-Time"]
+        direction LR
+        SRC(["Source Graph"]) --> BUILD["Build Pipeline"] --> WFG(["Executable Workflow Graph"])
+    end
+
+    WFG -. "compiled workflow" .-> LLM
+
+    INV(["Invoice Text"]) --> LLM["LLM Extraction"]:::untrusted
+    LLM -- "untrusted output" --> VAL["Deterministic Validation"]:::deterministic
+    VAL -- "verified data" --> STATE(["APState"])
+
+    VAL -. "failure codes" .-> RETRY["Forensic Retry"]:::failclosed
+    RETRY -- "codes + context" --> LLM
+    RETRY -. "exhausted" .-> EXC["Exception Path"]:::failclosed
+
+    STATE --> RTR["Fail-Closed Router"]:::deterministic
+    RTR --> NEXT["Workflow Continues"]
+    RTR -. "fail-closed" .-> EXC
+
+    STATE -. "audit events" .-> INTERP["Audit & Explanation"]
+    INTERP --> OPUI["Operator UI"]
+    INTERP --> EVAL["Eval Harness"]
+
+    classDef untrusted fill:#ffeaea,stroke:#d32f2f,stroke-width:2px,stroke-dasharray:5 5
+    classDef deterministic fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef failclosed fill:#fff3e0,stroke:#e65100,stroke-width:2px
+```
+
+| Visual cue | Meaning |
+|------------|---------|
+| Red dashed border | Untrusted AI output |
+| Green border | Deterministic control (validation, routing) |
+| Orange border | Failure handling (retry, fail-closed exits) |
+| Dashed arrows | Failure paths or observability flows |
+
+Cross-cutting concerns such as PolicyConfig, Schema Contracts, and the internal validation layers are shown in the [detailed technical diagram](docs/ARCHITECTURE_DIAGRAM.md).
+
+---
+
 ## What the System Does
 
 The system combines deterministic extraction verification, routing, and arithmetic
