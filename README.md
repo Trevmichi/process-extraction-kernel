@@ -405,6 +405,8 @@ on Ubuntu with Python 3.11.
 
 | Document | Contents |
 |----------|----------|
+| [Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md) | Scannable high-level diagram (build-time, extraction, routing, observability) |
+| [Detailed Technical Diagram](docs/ARCHITECTURE_DIAGRAM.md) | Trust boundary steps, router phases, observability layers, cross-cutting sidecars |
 | [Architecture](docs/ARCHITECTURE.md) | Pipeline diagram, subsystem reference (normalizer, DSL, router, verifier, linter) |
 | [Project History](docs/PROJECT_HISTORY.md) | Era-based timeline grounded in git log |
 | [Evaluation Harness](docs/EVALUATION.md) | Gold invoices, evidence grounding rules, mock dispatch, metrics |

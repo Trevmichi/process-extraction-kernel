@@ -1,5 +1,7 @@
 # Architecture
 
+> Diagrams: [Architecture Overview](ARCHITECTURE_OVERVIEW.md) · [Detailed Technical Diagram](ARCHITECTURE_DIAGRAM.md)
+
 ## Overview
 
 The system processes raw AP invoices through a deterministic pipeline: a mined
