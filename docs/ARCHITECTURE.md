@@ -14,7 +14,7 @@ the condition DSL and the 2-phase router.
 Raw Graph JSON                     ──> patch_logic.py (inject guardrails)
   outputs/ap_master_manual_auto.json       │
                                            ▼
-                                    normalize_graph.py (15 idempotent passes)
+                                    normalize_graph.py (17 idempotent passes)
                                            │
                                            ▼
 Patched + Normalized Graph         ──> compiler.py (build_ap_graph)
