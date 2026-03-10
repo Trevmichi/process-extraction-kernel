@@ -3,7 +3,7 @@
 A deterministic AP invoice-processing kernel. A mined process graph is patched
 with business-logic guardrails, normalized through 17 idempotent repair passes,
 validated by a structural linter, and compiled to a LangGraph state machine.
-LLM calls are constrained to two extraction tasks
+LLM calls are constrained to minimized output to reduce degradation, used for semantic extraction
 (see `src/agent/nodes.py: execute_node`); all routing decisions are made by an
 eval-free condition DSL and a 2-phase deterministic router. Extraction output is
 cross-checked against raw invoice text by an evidence-backed verifier and an
