@@ -251,6 +251,34 @@ class TestVerifierSummaryEvent:
         assert e.amount == {}
         assert e.has_po == {}
 
+    # ---- Optional invoice_date / tax_amount (Phase 10d) ----
+
+    def test_optional_fields_populated_when_present(self):
+        log = [_j({"event": "verifier_summary", "valid": True,
+                    "failure_codes": [],
+                    "status_before": "NEW", "status_after": "DATA_EXTRACTED",
+                    "vendor": {"value": "Acme", "ok": True, "has_evidence": True},
+                    "amount": {"value": 100.0, "ok": True, "has_evidence": True,
+                               "parsed_evidence": 100.0, "delta": 0.0},
+                    "has_po": {"value": True, "ok": True, "has_evidence": True},
+                    "invoice_date": {"value": "2024-01-15", "ok": True, "has_evidence": True},
+                    "tax_amount": {"value": 10.0, "ok": True, "has_evidence": True,
+                                   "parsed_evidence": 10.0, "delta": 0.0}})]
+        e = parse_audit_log(log).verifier_summaries[0]
+        assert e.invoice_date is not None
+        assert e.invoice_date["value"] == "2024-01-15"
+        assert e.tax_amount is not None
+        assert e.tax_amount["ok"] is True
+
+    def test_optional_fields_none_when_absent(self):
+        log = [_j({"event": "verifier_summary", "valid": True,
+                    "failure_codes": [],
+                    "status_before": "NEW", "status_after": "DATA_EXTRACTED",
+                    "vendor": {}, "amount": {}, "has_po": {}})]
+        e = parse_audit_log(log).verifier_summaries[0]
+        assert e.invoice_date is None
+        assert e.tax_amount is None
+
 
 # ===================================================================
 # CriticRetryEvent

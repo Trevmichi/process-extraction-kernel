@@ -59,6 +59,8 @@ class APState(TypedDict):
     vendor:           str
     amount:           float
     has_po:           bool
+    invoice_date:     str
+    tax_amount:       float
     po_match:         bool
     match_3_way:      bool           # legacy flag (mirrors po_match)
     match_result:     MatchResult    # strict outcome of 3-way match step
@@ -85,6 +87,8 @@ DEFAULT_STATE_TEMPLATE: APState = {
     "vendor":       "",
     "amount":       0.0,
     "has_po":       False,
+    "invoice_date": "",
+    "tax_amount":   0.0,
     "po_match":     False,
     "match_3_way":  False,
     "match_result": "UNKNOWN",

@@ -101,6 +101,8 @@ class VerifierSummaryEvent:
     vendor: dict
     amount: dict
     has_po: dict
+    invoice_date: dict | None = None    # present when verifier processed this field
+    tax_amount: dict | None = None      # present when verifier processed this field
 
 
 @dataclass(frozen=True)
@@ -308,6 +310,8 @@ def _make_verifier_summary(obj: dict) -> VerifierSummaryEvent:
         vendor=obj.get("vendor") or {},
         amount=obj.get("amount") or {},
         has_po=obj.get("has_po") or {},
+        invoice_date=obj.get("invoice_date"),
+        tax_amount=obj.get("tax_amount"),
     )
 
 
