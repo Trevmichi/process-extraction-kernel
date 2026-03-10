@@ -127,7 +127,7 @@ process-extraction-kernel/
 +-- datasets/
 |   +-- expected.jsonl      # 126 gold records
 |   +-- schema.md           # JSONL schema + evidence grounding rules
-|   +-- gold_invoices/      # 112 invoice text files
+|   +-- gold_invoices/      # 126 invoice text files
 +-- schema/                 # JSON Schema contracts (data + audit events)
 +-- outputs/                # Patched graphs, traces, visualizations
 +-- docs/                   # Architecture, history, evaluation docs
@@ -307,7 +307,7 @@ into three categories:
 `audit_event_route_decision_v1`, `audit_event_critic_retry_v1`,
 `audit_event_arithmetic_check_v1`, `audit_event_route_record_v1`
 
-**Reference documents** -- `actions_v1`, `validators_v1`, `process_v1`
+**Reference documents** -- `actions_v1`
 
 All audit event schemas enforce `additionalProperties: false` at every nesting
 level. Extraction payloads are validated at runtime via `src/schema_validator.py`
