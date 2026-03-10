@@ -2,7 +2,7 @@
 
 ## Overview
 
-The evaluation harness validates the AP extraction pipeline against 50 gold
+The evaluation harness validates the AP extraction pipeline against 126 gold
 invoices with known expected outputs. It supports two modes:
 
 - **Mock mode** (default): deterministic, no LLM needed. Uses per-invoice
@@ -19,8 +19,8 @@ invoices with known expected outputs. It supports two modes:
 | `scripts/qa_eval.sh` | QA script — pytest + eval (Bash) |
 | `scripts/qa_eval.ps1` | QA script — pytest + eval (PowerShell) |
 | `tests/test_eval_harness.py` | CI validation of dataset integrity |
-| `datasets/expected.jsonl` | 50 gold records (1 JSON line per invoice) |
-| `datasets/gold_invoices/` | 50 invoice text files |
+| `datasets/expected.jsonl` | 126 gold records (1 JSON line per invoice) |
+| `datasets/gold_invoices/` | 112 invoice text files (62 inv_NNN.txt + 50 INV-NNNN.txt synthetic) |
 | `datasets/gold_invoices/README.md` | Invoice catalog with scenario labels |
 | `datasets/schema.md` | JSON schema reference for expected.jsonl |
 
@@ -30,22 +30,35 @@ invoices with known expected outputs. It supports two modes:
 
 ```
 datasets/
-  expected.jsonl                    # 50 gold records
+  expected.jsonl                    # 126 gold records
   schema.md                        # JSON schema
   gold_invoices/
     README.md                      # catalog
-    inv_001.txt ... inv_050.txt    # 50 invoice text files
+    inv_001.txt ... inv_062.txt    # 62 curated invoice text files
+    INV-1001.txt ... INV-1050.txt  # 50 synthetic invoice text files (OCR noise)
 ```
 
-**Coverage**: 13 vendors, 3 core scenario types, multiple format tags:
+**Coverage**: 13+ vendors, multiple scenario types and format tags:
 
 | Scenario | Count | Description |
 |----------|-------|-------------|
 | `happy_path` | 28 | Normal invoices with PO, amount under/over threshold |
 | `no_po` | 11 | No purchase order -> routes to MANUAL_REVIEW_NO_PO |
 | `match_fail` | 9 | PO match fails -> routes to MATCH_FAILED exception |
+| `bad_extraction` | varies | Expected extraction failure |
+| `missing_data` | varies | Expected missing-data rejection |
 | `multiple_totals` | 1 | Invoice with multiple dollar amounts |
 | `weird_spacing` | 1 | Invoice with irregular whitespace |
+| `noisy_ocr` | 50 | Synthetic invoices with procedural OCR noise |
+
+**Stratification buckets** (Phase 11):
+
+| Bucket | Records | Description |
+|--------|---------|-------------|
+| `clean_standard` | 58 | Clean curated invoices without extended fields |
+| `noisy_ocr_synthetic` | 50 | Procedurally generated with OCR noise |
+| `match_path` | 10 | Curated records exercising the match/no-match path |
+| `extended_fields` | 8 | Records with `invoice_date` and/or `tax_amount` in gold |
 
 ---
 
@@ -81,8 +94,8 @@ Each line in `datasets/expected.jsonl` is a JSON object:
 | `file` | string | Filename in `gold_invoices/` |
 | `po_match` | bool | **Test harness control flag** -- passed to `make_initial_state()`, NOT an extracted field. Controls whether MATCH_3_WAY succeeds or fails. |
 | `expected_status` | list[string] | Acceptable terminal statuses (OR logic: any match is a pass) |
-| `expected_fields` | object | Ground truth for `vendor`, `amount`, `has_po` |
-| `mock_extraction` | object | Per-invoice mock LLM response. Each field has `value` and `evidence`. |
+| `expected_fields` | object | Ground truth for `vendor`, `amount`, `has_po` (and optionally `invoice_date`, `tax_amount`) |
+| `mock_extraction` | object | Per-invoice mock LLM response. Each field has `value` and `evidence`. May include `invoice_date` and `tax_amount`. |
 | `tags` | list[string] | Scenario labels for filtering and reporting |
 
 **Optional fields**:
@@ -159,6 +172,8 @@ normalized comparison rules (see `eval_runner.py`):
 | `vendor` | Casefold + whitespace collapse | Normalized strings equal |
 | `amount` | None | `abs(expected - actual) <= 0.01` |
 | `has_po` | None | Strict boolean equality |
+| `invoice_date` | None | Exact string equality (only compared when present in gold) |
+| `tax_amount` | None | `abs(expected - actual) <= 0.01` (only compared when present in gold) |
 
 ---
 
@@ -231,9 +246,9 @@ report, use `--group-by-tag` to include the tag breakdown table.
 
 | Metric | Calculation |
 |--------|-------------|
-| **Terminal accuracy** | `actual_status in expected_status` for each invoice. Count correct / 50. |
-| **Field accuracy** | 3 fields x 50 invoices = 150 comparisons. Count correct / 150. |
-| **Unknown rate** | Count of invoices where `match_result == "UNKNOWN"` / 50. |
+| **Terminal accuracy** | `actual_status in expected_status` for each invoice. Count correct / 126. |
+| **Field accuracy** | 3 required fields x 126 invoices + optional fields where present. Count correct / total. |
+| **Unknown rate** | Count of invoices where `match_result == "UNKNOWN"` / 126. |
 | **Confusion matrix** | Rows: `expected_status[0]` (primary). Columns: `actual_status`. |
 | **By-tag metrics** | Terminal + field accuracy computed per tag cohort. |
 
