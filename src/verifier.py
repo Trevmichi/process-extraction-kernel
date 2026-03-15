@@ -354,11 +354,7 @@ def _verify_amount(
         codes.append("WRONG_TYPE")
         return
 
-    if evidence is not None and not isinstance(evidence, str):
-        codes.append("WRONG_TYPE")
-        return
-
-    if evidence is None or not isinstance(evidence, str):
+    if not isinstance(evidence, str):
         codes.append("WRONG_TYPE")
         return
 
@@ -462,11 +458,7 @@ def _verify_has_po(
         prov["has_po"]["match_tier"] = "exact_match"
         return
 
-    if evidence is not None and not isinstance(evidence, str):
-        codes.append("WRONG_TYPE")
-        return
-
-    if evidence is None or not isinstance(evidence, str):
+    if not isinstance(evidence, str):
         codes.append("WRONG_TYPE")
         return
 

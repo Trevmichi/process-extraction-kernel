@@ -265,10 +265,10 @@ def analyze_routing(
         )
 
     # --- All edges lead to the same target ---
-    unique_targets = list(dict.fromkeys(e["to"] for e in outgoing_edges))
-    if len(unique_targets) == 1:
+    target_set = {e["to"] for e in outgoing_edges}
+    if len(target_set) == 1:
         return RouteResult(
-            selected=unique_targets[0],
+            selected=next(iter(target_set)),
             reason="all_same_target",
             candidates=[{"to": e["to"], "condition": e.get("condition"),
                          "matched": None} for e in outgoing_edges],
