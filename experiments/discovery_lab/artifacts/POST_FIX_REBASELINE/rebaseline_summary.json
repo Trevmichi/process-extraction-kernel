@@ -1,0 +1,88 @@
+{
+  "rebaseline_id": "post_ff002_rebaseline_20260315T141329Z",
+  "context": "Post-FF-002 fixture correction rebaseline with FF-003 analysis",
+  "source_run_id": "run_20260315T133306Z",
+  "ff003_analysis_id": "ff003_analysis_20260315T141329Z",
+  "pre_fix": {
+    "total_blocked": 25,
+    "blocked_rate": 0.198,
+    "reachable": 101,
+    "families": {
+      "FF-001": 12,
+      "FF-002": 5,
+      "FF-003": 6,
+      "FF-004": 2
+    }
+  },
+  "post_fix": {
+    "total_blocked": 20,
+    "blocked_rate": 0.159,
+    "reachable": 106,
+    "families": {
+      "FF-001": 12,
+      "FF-002": 0,
+      "FF-003": 6,
+      "FF-004": 2
+    }
+  },
+  "delta": {
+    "cases_unblocked": 5,
+    "blocked_rate_reduction": 0.039,
+    "families_resolved": ["FF-002"],
+    "unblocked_ids": ["INV-2005", "INV-2021", "INV-2026", "INV-2038", "INV-2041"]
+  },
+  "family_details": [
+    {
+      "family_id": "FF-001",
+      "name": "Table-format arithmetic corruption (synthetic data)",
+      "count": 12,
+      "layer": "L1_input_text",
+      "priority": "low",
+      "production_relevance": "low",
+      "status": "deferred",
+      "blocker_type": "ARITH_TOTAL_MISMATCH",
+      "diagnosis_confidence": "high",
+      "reason": "Synthetic invoices have arithmetically inconsistent line items. Requires synthetic data generator fix, not extraction-level intervention."
+    },
+    {
+      "family_id": "FF-002",
+      "name": "No-PO email-style OCR — eval fixture integrity",
+      "count": 0,
+      "layer": "eval_fixture_integrity",
+      "priority": "resolved",
+      "production_relevance": "low",
+      "status": "resolved",
+      "blocker_type": "SCHEMA_EXTRACTION_INVALID (has_po.evidence: null)",
+      "diagnosis_confidence": "high",
+      "reason": "Fixture patched 2026-03-15. All 5 cases now reach EXCEPTION_NO_PO."
+    },
+    {
+      "family_id": "FF-003",
+      "name": "Extended-field extraction failure (invoice_date + tax_amount)",
+      "count": 6,
+      "layer": "L3_evidence_binding",
+      "priority": "medium",
+      "production_relevance": "medium",
+      "status": "analyzed",
+      "blocker_type": "DATE_AMBIGUOUS (3), TAX_AMOUNT_MISMATCH (2), ARITH_TOTAL_MISMATCH (1)",
+      "diagnosis_confidence": "high",
+      "reason": "FF-003 analysis confirmed 3 distinct sub-modes. Two are verifier-level issues potentially addressable by prompt or regex changes. One (INV-1074) is an arithmetic failure that may overlap with FF-001/L1."
+    },
+    {
+      "family_id": "FF-004",
+      "name": "Sparse-tag extraction failure (match_fail only)",
+      "count": 2,
+      "layer": "L2_extraction_proposal",
+      "priority": "low",
+      "production_relevance": "unknown",
+      "status": "deferred",
+      "blocker_type": "unknown",
+      "diagnosis_confidence": "low",
+      "reason": "N=2, no diagnostic tags. Root cause unknown. Needs manual inspection of GLC-4005 and APX-5004."
+    }
+  ],
+  "leading_target": {
+    "family_id": "FF-003",
+    "rationale": "Largest remaining production-relevant blocked family (6/20 = 30% of blocked). FF-003 analysis confirmed two verifier-level sub-modes (DATE_AMBIGUOUS, TAX_AMOUNT_MISMATCH) that are potentially addressable. FF-001 is larger (12) but requires synthetic data fix (not extraction-level). FF-004 is too small (2) and lacks diagnostic signal."
+  }
+}

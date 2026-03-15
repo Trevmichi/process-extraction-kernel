@@ -1,0 +1,58 @@
+{
+  "generated": "2026-03-15T14:13:29Z",
+  "context": "Post-FF-002 fixture correction. FF-003 analysis confirmed 3 sub-modes. Ranking derived from taxonomy state, analysis results, and production relevance.",
+  "source_taxonomy": "artifacts/failure_taxonomy.json",
+  "source_analysis": "artifacts/FF_003_ANALYSIS/analysis.json",
+  "priority_order": [
+    {
+      "rank": 1,
+      "family_id": "FF-003",
+      "name": "Extended-field extraction failure (invoice_date + tax_amount)",
+      "count": 6,
+      "layer": "L3_evidence_binding",
+      "priority": "medium",
+      "production_relevance": "medium",
+      "blocker_type": "verifier (5 cases) + arithmetic (1 case)",
+      "confirmed_failure_codes": {
+        "DATE_AMBIGUOUS": 3,
+        "TAX_AMOUNT_MISMATCH": 2,
+        "ARITH_TOTAL_MISMATCH": 1
+      },
+      "actionability": "Two verifier sub-modes have identified root causes (ambiguous date parsing, tax regex capturing percentage). Both are potentially addressable by extraction prompt changes or verifier regex improvements.",
+      "recommended_next_action": "Expand gold dataset to 20+ records with invoice_date + tax_amount. Then evaluate: (1) requiring ISO dates in extraction prompts for DATE_AMBIGUOUS, (2) regex improvement for _TAX_ANCHOR_VALUE_RE for TAX_AMOUNT_MISMATCH.",
+      "condition_for_action": "Gold dataset expanded with sufficient date/tax test cases for statistically meaningful evaluation.",
+      "open_question": "INV-1074 passes verifier but fails arithmetic — consider reclassifying to FF-001/L1 overlap. If reclassified, FF-003 drops to 5 cases."
+    },
+    {
+      "rank": 2,
+      "family_id": "FF-004",
+      "name": "Sparse-tag extraction failure (match_fail only)",
+      "count": 2,
+      "layer": "L2_extraction_proposal",
+      "priority": "low",
+      "production_relevance": "unknown",
+      "blocker_type": "unknown",
+      "confirmed_failure_codes": {},
+      "actionability": "Root cause unknown. No diagnostic tags. Cannot design intervention without understanding the failure.",
+      "recommended_next_action": "Manual inspection of GLC-4005 and APX-5004 raw text and extraction attempts to identify failure mechanism.",
+      "condition_for_action": "Manual inspection completed and root cause documented."
+    },
+    {
+      "rank": 3,
+      "family_id": "FF-001",
+      "name": "Table-format arithmetic corruption (synthetic data)",
+      "count": 12,
+      "layer": "L1_input_text",
+      "priority": "low",
+      "production_relevance": "low",
+      "blocker_type": "ARITH_TOTAL_MISMATCH",
+      "confirmed_failure_codes": {
+        "ARITH_TOTAL_MISMATCH": 12
+      },
+      "actionability": "Extraction is correct (verify_extraction passes 12/12). Blocker is synthetic data quality — line items do not sum to stated grand total. Not addressable by extraction prompt or verifier changes.",
+      "recommended_next_action": "Fix synthetic invoice generator to produce arithmetically consistent documents. Then reassess.",
+      "condition_for_action": "Synthetic data generator updated."
+    }
+  ],
+  "ranking_rationale": "FF-003 ranks first because it has confirmed, potentially addressable failure mechanisms at L3 (evidence-binding). FF-004 ranks second despite being smaller because its root cause is unknown — manual inspection is a prerequisite for any further work. FF-001 ranks last because despite being the largest family (12 cases), it requires an external fix (synthetic data generator) that is outside the scope of extraction or verifier improvements."
+}
