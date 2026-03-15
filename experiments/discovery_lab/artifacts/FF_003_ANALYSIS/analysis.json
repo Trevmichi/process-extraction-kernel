@@ -1,0 +1,345 @@
+{
+  "analysis_id": "ff003_analysis_20260315T141329Z",
+  "population": {
+    "total_traced": 7,
+    "ff003_targets": 6,
+    "positive_controls": 1
+  },
+  "per_field_accuracy": {
+    "invoice_date": {
+      "pass_count": 4,
+      "total": 7,
+      "accuracy": 0.5714285714285714
+    },
+    "tax_amount": {
+      "pass_count": 5,
+      "total": 7,
+      "accuracy": 0.7142857142857143
+    }
+  },
+  "first_blocker_distribution": {
+    "verifier": 5,
+    "arithmetic": 1
+  },
+  "date_failure_code_distribution": {
+    "DATE_AMBIGUOUS": 3
+  },
+  "tax_failure_code_distribution": {
+    "TAX_AMOUNT_MISMATCH": 2
+  },
+  "sub_patterns": {
+    "DATE_AMBIGUOUS": [
+      "INV-1070",
+      "INV-1073",
+      "INV-1075"
+    ],
+    "TAX_AMOUNT_MISMATCH": [
+      "INV-1071",
+      "INV-1072"
+    ],
+    "ARITH_TOTAL_MISMATCH": [
+      "INV-1074"
+    ]
+  },
+  "reclassification_candidates": {
+    "ids": [
+      "INV-1074"
+    ],
+    "note": "These cases pass the verifier but fail arithmetic (ARITH_TOTAL_MISMATCH). They may overlap with FF-001/L1 rather than belonging to FF-003/L3."
+  },
+  "control_analysis": {
+    "invoice_id": "INV-1076",
+    "passes_pipeline": true,
+    "date_pass": true,
+    "date_value": "2026-02-14",
+    "date_evidence": "Invoice Date: 14/02/2026",
+    "date_normalized": "2026-02-14",
+    "tax_pass": true,
+    "tax_value": 0.0,
+    "tax_evidence": "VAT: EUR 0.00",
+    "tax_parsed": 0.0,
+    "arithmetic_pass": true,
+    "tags": [
+      "tax_zero_explicit",
+      "happy_path",
+      "under_threshold",
+      "vendor_metrotech"
+    ]
+  },
+  "per_case_traces": [
+    {
+      "invoice_id": "INV-1070",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "date_us_format",
+        "tax_standard",
+        "happy_path",
+        "under_threshold",
+        "vendor_north_river"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": false,
+      "verifier_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "arithmetic_pass": true,
+      "arithmetic_codes": [],
+      "first_blocker": "verifier",
+      "would_pass_pipeline": false,
+      "date_pass": false,
+      "date_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "date_value": "2026-12-03",
+      "date_evidence": "Date: 12/03/2026",
+      "date_normalized_value": null,
+      "date_normalized_evidence": null,
+      "date_match_tier": "not_found",
+      "tax_pass": true,
+      "tax_codes": [],
+      "tax_value": 235.2,
+      "tax_evidence": "Tax: $235.20",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 235.2,
+      "tax_delta": 0.0,
+      "tax_match_tier": "exact_match"
+    },
+    {
+      "invoice_id": "INV-1071",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "date_eu_format",
+        "tax_standard",
+        "happy_path",
+        "under_threshold",
+        "vendor_global_logistics"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": false,
+      "verifier_codes": [
+        "TAX_AMOUNT_MISMATCH"
+      ],
+      "arithmetic_pass": false,
+      "arithmetic_codes": [
+        "ARITH_TOTAL_MISMATCH"
+      ],
+      "first_blocker": "verifier",
+      "would_pass_pipeline": false,
+      "date_pass": true,
+      "date_codes": [],
+      "date_value": "2026-06-25",
+      "date_evidence": "Invoice Date: 25/06/2026",
+      "date_normalized_value": "2026-06-25",
+      "date_normalized_evidence": "2026-06-25",
+      "date_match_tier": "normalized_match",
+      "tax_pass": false,
+      "tax_codes": [
+        "TAX_AMOUNT_MISMATCH"
+      ],
+      "tax_value": 699.2,
+      "tax_evidence": "VAT (19%): EUR 699.20",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 19.0,
+      "tax_delta": 680.2,
+      "tax_match_tier": "not_found"
+    },
+    {
+      "invoice_id": "INV-1072",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "date_eu_format",
+        "tax_standard",
+        "happy_path",
+        "under_threshold",
+        "vendor_horizon"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": false,
+      "verifier_codes": [
+        "TAX_AMOUNT_MISMATCH"
+      ],
+      "arithmetic_pass": false,
+      "arithmetic_codes": [
+        "ARITH_TOTAL_MISMATCH"
+      ],
+      "first_blocker": "verifier",
+      "would_pass_pipeline": false,
+      "date_pass": true,
+      "date_codes": [],
+      "date_value": "2026-11-17",
+      "date_evidence": "Invoice Date: 17/11/2026",
+      "date_normalized_value": "2026-11-17",
+      "date_normalized_evidence": "2026-11-17",
+      "date_match_tier": "normalized_match",
+      "tax_pass": false,
+      "tax_codes": [
+        "TAX_AMOUNT_MISMATCH"
+      ],
+      "tax_value": 1369.2,
+      "tax_evidence": "VAT (21%): EUR 1,369.20",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 21.0,
+      "tax_delta": 1348.2,
+      "tax_match_tier": "not_found"
+    },
+    {
+      "invoice_id": "INV-1073",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "tax_complex_lines",
+        "happy_path",
+        "under_threshold",
+        "vendor_delta"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": false,
+      "verifier_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "arithmetic_pass": true,
+      "arithmetic_codes": [],
+      "first_blocker": "verifier",
+      "would_pass_pipeline": false,
+      "date_pass": false,
+      "date_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "date_value": "2026-03-10",
+      "date_evidence": "Date: 03/10/2026",
+      "date_normalized_value": null,
+      "date_normalized_evidence": null,
+      "date_match_tier": "not_found",
+      "tax_pass": true,
+      "tax_codes": [],
+      "tax_value": 273.0,
+      "tax_evidence": "Tax: $273.00",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 273.0,
+      "tax_delta": 0.0,
+      "tax_match_tier": "exact_match"
+    },
+    {
+      "invoice_id": "INV-1074",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "tax_complex_lines",
+        "happy_path",
+        "under_threshold",
+        "vendor_silverline"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": true,
+      "verifier_codes": [],
+      "arithmetic_pass": false,
+      "arithmetic_codes": [
+        "ARITH_TOTAL_MISMATCH"
+      ],
+      "first_blocker": "arithmetic",
+      "would_pass_pipeline": false,
+      "date_pass": true,
+      "date_codes": [],
+      "date_value": "2026-07-22",
+      "date_evidence": "Date: 07/22/2026",
+      "date_normalized_value": "2026-07-22",
+      "date_normalized_evidence": "2026-07-22",
+      "date_match_tier": "normalized_match",
+      "tax_pass": true,
+      "tax_codes": [],
+      "tax_value": 147.6,
+      "tax_evidence": "Tax: $147.60",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 147.6,
+      "tax_delta": 0.0,
+      "tax_match_tier": "exact_match"
+    },
+    {
+      "invoice_id": "INV-1075",
+      "is_ff003_target": true,
+      "is_positive_control": false,
+      "tags": [
+        "tax_zero_explicit",
+        "happy_path",
+        "under_threshold",
+        "vendor_atlas"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": false,
+      "verifier_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "arithmetic_pass": true,
+      "arithmetic_codes": [],
+      "first_blocker": "verifier",
+      "would_pass_pipeline": false,
+      "date_pass": false,
+      "date_codes": [
+        "DATE_AMBIGUOUS"
+      ],
+      "date_value": "2026-09-08",
+      "date_evidence": "Date: 09/08/2026",
+      "date_normalized_value": null,
+      "date_normalized_evidence": null,
+      "date_match_tier": "not_found",
+      "tax_pass": true,
+      "tax_codes": [],
+      "tax_value": 0.0,
+      "tax_evidence": "Tax: $0.00",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 0.0,
+      "tax_delta": 0.0,
+      "tax_match_tier": "exact_match"
+    },
+    {
+      "invoice_id": "INV-1076",
+      "is_ff003_target": false,
+      "is_positive_control": true,
+      "tags": [
+        "tax_zero_explicit",
+        "happy_path",
+        "under_threshold",
+        "vendor_metrotech"
+      ],
+      "structural_pass": true,
+      "semantic_pass": true,
+      "schema_pass": true,
+      "verifier_pass": true,
+      "verifier_codes": [],
+      "arithmetic_pass": true,
+      "arithmetic_codes": [],
+      "first_blocker": null,
+      "would_pass_pipeline": true,
+      "date_pass": true,
+      "date_codes": [],
+      "date_value": "2026-02-14",
+      "date_evidence": "Invoice Date: 14/02/2026",
+      "date_normalized_value": "2026-02-14",
+      "date_normalized_evidence": "2026-02-14",
+      "date_match_tier": "normalized_match",
+      "tax_pass": true,
+      "tax_codes": [],
+      "tax_value": 0.0,
+      "tax_evidence": "VAT: EUR 0.00",
+      "tax_anchor_found": true,
+      "tax_parsed_evidence": 0.0,
+      "tax_delta": 0.0,
+      "tax_match_tier": "exact_match"
+    }
+  ]
+}

@@ -1,0 +1,213 @@
+{
+  "schema_version": "0.1.0",
+  "generated_from": "experiments/discovery_lab/ sandbox analysis",
+  "evidence_sources": [
+    "artifacts/BLOCKED_EXTRACTION/analysis.json",
+    "artifacts/BLOCKED_EXTRACTION/synthetic_noisy_ocr/analysis.json",
+    "artifacts/PO_TRIAGE_001/runtime_validation.json",
+    "datasets/expected.jsonl (126 gold records)"
+  ],
+  "layer_model": {
+    "L1_input_text": "Raw invoice text quality/format issues before extraction",
+    "L2_extraction_proposal": "LLM extraction produces malformed or incorrect structured output",
+    "L3_evidence_binding": "Verifier rejects extraction due to grounding/consistency failures",
+    "L4_ambiguity_conflict": "Multiple valid interpretations prevent deterministic resolution",
+    "L5_routing_unreachable": "Upstream gate blocks entry to routing layer"
+  },
+  "failure_families": [
+    {
+      "failure_id": "FF-001",
+      "name": "Table-format arithmetic corruption (synthetic data)",
+      "layer": "L1_input_text",
+      "description": "Synthetic invoices with table-like formatting and multiple candidate totals fail the full extraction pipeline due to raw-text arithmetic inconsistency. The extraction itself succeeds — verify_extraction() passes 12/12 — but check_arithmetic() rejects the document because line-item values do not sum to the stated grand total. This is a document-level data quality issue, not an extraction or evidence-grounding failure.",
+      "symptoms": [
+        "Terminal status EXCEPTION_BAD_EXTRACTION",
+        "ARITH_TOTAL_MISMATCH on all 12 cases",
+        "verify_extraction() passes 12/12 — extraction itself is correct at the evidence-grounding level",
+        "Invoice has multiple numeric values near total-like keywords (descriptive, not causal)"
+      ],
+      "likely_causes": [
+        "Synthetic invoice generator produces arithmetically inconsistent documents (line items do not sum to stated grand total)",
+        "For the currently evaluated FF-001 cases, arithmetic corruption is the actual blocker; OCR noise appears secondary rather than primary",
+        "The original L2 classification was based on surface symptoms (table formatting, multiple totals) without testing whether extraction itself was actually failing"
+      ],
+      "example_cases": [
+        "INV-2002", "INV-2004", "INV-2006", "INV-2012",
+        "INV-2028", "INV-2030", "INV-2032", "INV-2040",
+        "INV-2042", "INV-2047", "INV-2001", "INV-2009"
+      ],
+      "observed_count": 12,
+      "total_population": 126,
+      "frequency_pct": 9.5,
+      "evidence_basis": "12 of 17 synthetic_noisy_ocr blocked records carry both table_like and multiple_totals tags. The compound predicate synthetic+noisy_ocr+table_like+multiple_totals achieves 12 TP / 13 flagged = 92.3% precision for predicting EXCEPTION_BAD_EXTRACTION. 1 false positive (INV-2020) carries same tags but passes extraction.",
+      "candidate_interventions": [
+        "Fix synthetic invoice generator to produce arithmetically consistent documents",
+        "Evaluate whether ARITH_TOTAL_MISMATCH handling should differ for known-synthetic test data",
+        "Redirect rescue efforts to failure families where extraction quality is actually the bottleneck"
+      ],
+      "is_invariant_candidate": false,
+      "invariant_note": "92.3% precision / 70.6% recall — 1 FP and 5 FN remain. Not deterministic.",
+      "priority": "low",
+      "priority_rationale": "Largest single failure cluster (12/25 = 48% of all blocked), but not addressable by extraction rescue. Root cause is synthetic data quality (arithmetic corruption), not a pipeline limitation. RP-001 prototype confirmed that prompt-level rescue cannot address L1 input-integrity failures.",
+      "recommended_next_action": "Fix synthetic invoice generator; reassess with arithmetically consistent test data",
+      "notes": "All 12 are synthetic with OCR noise injection. Real-world table invoices may present differently and may have correct arithmetic — if so, the extraction pipeline would likely succeed without rescue. RP-001 oracle-assisted prototype falsified the original rescue hypothesis (2026-03-15). See artifacts/RP_001_PROTOTYPE/FINDINGS.md.",
+      "prototype_result": {
+        "prototype_id": "RP-001",
+        "result": "falsified",
+        "finding": "Extraction passes verifier 12/12. Sole blocker is ARITH_TOTAL_MISMATCH (L1 input text). Prompt-level rescue cannot address this.",
+        "findings_path": "artifacts/RP_001_PROTOTYPE/FINDINGS.md"
+      },
+      "diagnosis_confidence": "high",
+      "overlap_note": "INV-2009 and INV-2030 also had has_po.evidence:null (same fixture issue as FF-002). After fixture patch (2026-03-15), they pass schema validation but still fail arithmetic (ARITH_TOTAL_MISMATCH). They remain correctly classified as FF-001/L1."
+    },
+    {
+      "failure_id": "FF-002",
+      "name": "No-PO email-style OCR — eval fixture integrity (resolved)",
+      "layer": "eval_fixture_integrity",
+      "description": "Reclassified: The 5 FF-002 cases were rejected at schema validation because has_po.evidence was null in mock_extractions, not because extraction quality was insufficient. This was an evaluation fixture defect, not a production bottleneck. Fixed by patching null evidence to empty string (2026-03-15). After fix, all 5 cases pass the full validation pipeline and reach EXCEPTION_NO_PO (their expected status).",
+      "symptoms": [
+        "Terminal status EXCEPTION_BAD_EXTRACTION (pre-fix)",
+        "Root cause: has_po.evidence:null fails JSON Schema validation (Step 3 of _validate_extraction_pipeline), before verify_extraction() runs",
+        "Post-fix: all 5 cases pass full pipeline and route to EXCEPTION_NO_PO"
+      ],
+      "likely_causes": [
+        "Fixture data issue: mock_extractions in expected.jsonl had null evidence for has_po field",
+        "JSON Schema (extraction_payload_v1.json) requires evidence to be type 'string'; null is not valid in Draft 2020-12",
+        "Schema validation gate runs before verify_extraction(), causing early rejection"
+      ],
+      "example_cases": [
+        "INV-2005", "INV-2021", "INV-2026", "INV-2038", "INV-2041"
+      ],
+      "observed_count": 0,
+      "observed_count_pre_fix": 5,
+      "total_population": 126,
+      "frequency_pct": 0.0,
+      "frequency_pct_pre_fix": 4.0,
+      "evidence_basis": "FF-002 validation-path trace (ff002_trace_20260315T132024Z) confirmed all 5 cases fail at schema validation. RP-002 oracle-assisted prototype confirmed verify_extraction() passes 5/5 and check_arithmetic() passes 5/5 when run directly. Counterfactual (null→empty string) passes full pipeline 5/5 via _validate_extraction_pipeline().",
+      "candidate_interventions": [
+        "No intervention needed — fixture patched"
+      ],
+      "is_invariant_candidate": false,
+      "invariant_note": "Resolved. No longer blocked.",
+      "priority": "resolved",
+      "priority_rationale": "Resolved. eval_fixture_integrity issue. Fixture patched 2026-03-15. All 5 cases now reach EXCEPTION_NO_PO.",
+      "recommended_next_action": "No action needed. Fixture patched. Re-run eval confirmed 5 cases reach EXCEPTION_NO_PO.",
+      "notes": "Production relevance: low — real LLM returns string evidence, not null. Evaluation relevance: high — this issue distorted blocked-rate metrics and failure taxonomy. See artifacts/FF_002_TRACE/FINDINGS.md.",
+      "prototype_result": {
+        "prototype_id": "RP-002",
+        "result": "falsified",
+        "finding": "Standard extraction passes verify_extraction() 5/5 and check_arithmetic() 5/5 (or N/A). Bottleneck was schema validation rejecting null evidence in mock_extractions.",
+        "findings_path": "artifacts/RP_002_PROTOTYPE/FINDINGS.md"
+      },
+      "trace_result": {
+        "trace_id": "ff002_trace_20260315T132024Z",
+        "result": "confirmed",
+        "finding": "All 5 cases fail at schema validation (Step 3). has_po.evidence:null violates payload schema. Counterfactual (null→empty string) passes full pipeline 5/5.",
+        "findings_path": "artifacts/FF_002_TRACE/FINDINGS.md"
+      },
+      "diagnosis_confidence": "high",
+      "resolution": "fixture_patched"
+    },
+    {
+      "failure_id": "FF-003",
+      "name": "Extended-field extraction failure (invoice_date + tax_amount)",
+      "layer": "L3_evidence_binding",
+      "description": "Invoices requiring extraction of optional fields (invoice_date, tax_amount) fail verification. The verifier's date parsing and tax anchoring logic rejects extractions that cannot meet the stricter evidence requirements for these fields.",
+      "symptoms": [
+        "Terminal status EXCEPTION_BAD_EXTRACTION",
+        "Invoice expected to have invoice_date and tax_amount in expected_fields",
+        "Confirmed failure codes: DATE_AMBIGUOUS (3 cases), TAX_AMOUNT_MISMATCH (2 cases), ARITH_TOTAL_MISMATCH (1 case at arithmetic step)"
+      ],
+      "likely_causes": [
+        "Ambiguous slash-delimited dates where both components ≤ 12 (e.g., 12/03, 03/10, 09/08) — _parse_date_token cannot disambiguate MM/DD vs DD/MM → DATE_AMBIGUOUS (confirmed: INV-1070, INV-1073, INV-1075)",
+        "_TAX_ANCHOR_VALUE_RE captures first number after anchor keyword within 24 non-digit chars — when evidence contains embedded percentage (e.g., 'VAT (19%): EUR 699.20'), regex captures '19' instead of '699.20' → TAX_AMOUNT_MISMATCH (confirmed: INV-1071, INV-1072)",
+        "Invoice with discount line fails check_arithmetic (ARITH_TOTAL_MISMATCH) despite passing verifier — possible L1 overlap (confirmed: INV-1074)",
+        "Only 7 gold records test these fields — sample too small for reliable intervention design"
+      ],
+      "example_cases": [
+        "INV-1070", "INV-1071", "INV-1072", "INV-1073", "INV-1074", "INV-1075"
+      ],
+      "observed_count": 6,
+      "total_population": 126,
+      "frequency_pct": 4.8,
+      "evidence_basis": "FF-003 analysis (ff003_analysis_20260315T141329Z) confirmed 3 distinct sub-modes across the 6 blocked cases. Per-field accuracy: invoice_date 4/7 = 57.1%, tax_amount 5/7 = 71.4%. First-blocker distribution: verifier (5 cases), arithmetic (1 case). INV-1076 passes because its date (14/02/2026) is unambiguous (14>12) and its tax evidence ('VAT: EUR 0.00') has no embedded percentage.",
+      "candidate_interventions": [
+        "Date-format-aware extraction prompt with explicit ISO output requirement",
+        "Tax-line specialist extraction for multi-line tax formats",
+        "Phased extraction: extract core fields first, then attempt optional fields separately",
+        "Widen date evidence search with format-specific regex (EU dd/mm/yyyy vs US mm/dd/yyyy)"
+      ],
+      "is_invariant_candidate": false,
+      "invariant_note": "6/7 extended-field records blocked, but INV-1076 passes — not deterministic. Also, sample size (7) is too small for any invariant claim.",
+      "priority": "medium",
+      "priority_rationale": "6/20 = 30% of blocked cases. Largest remaining production-relevant family. Two confirmed verifier sub-modes (DATE_AMBIGUOUS, TAX_AMOUNT_MISMATCH) are potentially addressable by extraction prompt or regex improvements. INV-1074 (arithmetic failure) may warrant reclassification to FF-001/L1.",
+      "recommended_next_action": "Expand gold dataset with more invoice_date + tax_amount test cases; then assess whether (1) requiring ISO dates in extraction prompts resolves DATE_AMBIGUOUS, and (2) a regex improvement for _TAX_ANCHOR_VALUE_RE resolves TAX_AMOUNT_MISMATCH",
+      "notes": "INV-1076 passes because its date is unambiguous (14>12) and its tax evidence has no embedded percentage. INV-1074 passes the verifier but fails arithmetic (discount line) — possible reclassification to FF-001/L1 overlap.",
+      "analysis_result": {
+        "analysis_id": "ff003_analysis_20260315T141329Z",
+        "result": "confirmed",
+        "sub_patterns": {
+          "DATE_AMBIGUOUS": ["INV-1070", "INV-1073", "INV-1075"],
+          "TAX_AMOUNT_MISMATCH": ["INV-1071", "INV-1072"],
+          "ARITH_TOTAL_MISMATCH": ["INV-1074"]
+        },
+        "per_field_accuracy": {
+          "invoice_date": "4/7 = 57.1%",
+          "tax_amount": "5/7 = 71.4%"
+        },
+        "control_explanation": "INV-1076 passes: unambiguous EU date (14>12), no embedded percentage in tax evidence, clean arithmetic",
+        "reclassification_candidate": "INV-1074 (verifier passes, arithmetic fails — overlaps with FF-001/L1)",
+        "findings_path": "artifacts/FF_003_ANALYSIS/FINDINGS.md"
+      },
+      "diagnosis_confidence": "high"
+    },
+    {
+      "failure_id": "FF-004",
+      "name": "Sparse-tag extraction failure (match_fail only)",
+      "layer": "L2_extraction_proposal",
+      "description": "Two invoices tagged only with match_fail fail extraction before reaching the match-determination routing step. These invoices carry no other distinguishing tags, making it difficult to identify the specific extraction problem.",
+      "symptoms": [
+        "Terminal status EXCEPTION_BAD_EXTRACTION",
+        "Invoice tagged only match_fail, no other descriptive tags",
+        "Expected routing: EXCEPTION_MATCH_FAILED (po_present_match_failed cohort)"
+      ],
+      "likely_causes": [
+        "Unknown — these records lack the tag metadata needed to identify the root cause",
+        "Possible edge cases in vendor/amount extraction for these specific invoice formats",
+        "May be coincidental failures unrelated to the match_fail classification"
+      ],
+      "example_cases": ["GLC-4005", "APX-5004"],
+      "observed_count": 2,
+      "total_population": 126,
+      "frequency_pct": 1.6,
+      "evidence_basis": "Both are in the other_blocked sub-cohort. Both are assigned to po_present_match_failed triage cohort. Their tag sets contain only match_fail with no further diagnostic tags.",
+      "candidate_interventions": [
+        "Inspect raw invoice text and extraction attempts for these 2 cases",
+        "Add diagnostic tags to characterize failure mode",
+        "No rescue policy until root cause is understood"
+      ],
+      "is_invariant_candidate": false,
+      "invariant_note": "N=2, no diagnostic signal. Not actionable as a pattern.",
+      "priority": "low",
+      "priority_rationale": "Only 2 cases (8% of blocked). Root cause unknown. Cannot design a targeted rescue without understanding the failure.",
+      "recommended_next_action": "Manual inspection of GLC-4005 and APX-5004 extraction attempts and raw text",
+      "notes": "These may not represent a coherent failure family at all — they could be unrelated individual failures that happen to share a tag."
+    }
+  ],
+  "summary": {
+    "total_blocked": 20,
+    "total_blocked_pre_fix": 25,
+    "total_gold_records": 126,
+    "blocked_rate": 0.159,
+    "blocked_rate_pre_fix": 0.198,
+    "families_identified": 4,
+    "coverage": "20/20 blocked records assigned to a family (FF-001: 12, FF-003: 6, FF-004: 2). FF-002 (5 cases) resolved by fixture fix.",
+    "resolved_count": 1,
+    "high_priority_count": 0,
+    "medium_priority_count": 1,
+    "low_priority_count": 2,
+    "invariant_candidates": 0,
+    "note": "All 20 blocked cases have terminal status EXCEPTION_BAD_EXTRACTION. 5 former FF-002 cases now reach EXCEPTION_NO_PO after fixture fix. FF-003 analysis (2026-03-15) confirmed 3 sub-modes: DATE_AMBIGUOUS (3 cases), TAX_AMOUNT_MISMATCH (2 cases), ARITH_TOTAL_MISMATCH (1 case). FF-003 is the leading production-relevant target. INV-1074 is a reclassification candidate (verifier passes, arithmetic fails — overlaps with FF-001/L1).",
+    "correction_note": "FF-001 reclassified from L2 (high) to L1 (low) based on RP-001 prototype findings (2026-03-15). FF-002 reclassified from L2 (high) to eval_fixture_integrity (resolved) based on validation-path trace (2026-03-15): has_po.evidence:null in mock_extractions failed schema validation. Fixture patched, 5 cases unblocked. Post-fix run: run_20260315T133306Z. Priority counts: resolved=1 (FF-002), medium=1 (FF-003), low=2 (FF-001, FF-004)."
+  }
+}
